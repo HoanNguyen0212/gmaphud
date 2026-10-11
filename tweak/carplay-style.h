@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 void GVMStyleNativeSpeedView(UIView *view);
-void GVMUpdateSpeedCard(UIView *map, NSNumber *speed, NSNumber *limit, BOOL night);
+void GVMUpdateSpeedCard(UIView *map, NSNumber *speed, NSNumber *limit, NSArray<NSDictionary *> *alerts, BOOL night);
 
 CGRect GVMLayoutSpeedCard(UIView *map);
+void GVMSetPlacementState(uint64_t state);

@@ -1,0 +1,1 @@
+{ entry = { bundle = GMapHUDPrefs; cell = PSLinkCell; detail = GVMPreferencesController; icon = "icon.png"; isController = 1; label = "GMapHUD"; }; }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#07150f">
-  <meta name="description" content="Fresh VietMap Live speed and limits, on Google Maps CarPlay.">
+  <meta name="description" content="Fresh VietMap Live speed, limits and road alerts, on Google Maps CarPlay.">
   <link rel="icon" type="image/svg+xml" href="gmaphud-icon.svg">
   <link rel="icon" type="image/png" sizes="1024x1024" href="gmaphud-icon.png">
   <link rel="apple-touch-icon" href="gmaphud-icon.png">
@@ -104,7 +104,7 @@
       <div class="hero-copy">
         <span class="eyebrow">Experimental · Rootless iOS</span>
         <h1 id="page-title">GMapHUD</h1>
-        <p class="intro">Fresh VietMap Live speed and limits, on Google Maps CarPlay.</p>
+        <p class="intro">Fresh VietMap Live speed, limits and road alerts, on Google Maps CarPlay.</p>
         <p class="inspiration">Inspired by the traffic bubble feature in DuoDash and TrueDash.</p>
         <div class="actions">
           <a class="button" href="sileo://source/https://bechou0410.github.io/gmaphud/"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 16v3h14v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Add to Sileo</a>
@@ -114,7 +114,7 @@
       </div>
       <div class="flow" aria-label="How the data flows">
         <p class="flow-label">How the data flows</p>
-        <div class="flow-row"><span class="flow-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 16a7 7 0 1 1 14 0M12 13l3-3M7 18h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="13" r="1.2" fill="currentColor"/></svg></span><span><span class="flow-name">VietMap Live</span><span class="flow-caption">Speed and limit source</span></span></div>
+        <div class="flow-row"><span class="flow-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 16a7 7 0 1 1 14 0M12 13l3-3M7 18h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="13" r="1.2" fill="currentColor"/></svg></span><span><span class="flow-name">VietMap Live</span><span class="flow-caption">Speed, limit and alert source</span></span></div>
         <div class="flow-connector" aria-hidden="true"></div>
         <div class="flow-row"><span class="flow-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 8h12M6 12h8M6 16h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="16" r="2" stroke="currentColor" stroke-width="1.6"/></svg></span><span><span class="flow-name">GMapHUD</span><span class="flow-caption">Validated and forwarded</span></span></div>
         <div class="flow-connector" aria-hidden="true"></div>
@@ -129,13 +129,13 @@
     </section>
 
     <section class="install glass" aria-labelledby="install-title">
-      <div><h2 id="install-title">Add the source · GMapHUD 0.1.13</h2><p>Copy the URL below, then add it in Sileo or Zebra.</p><button class="repo-url" id="copy-repo" type="button" aria-label="Copy source URL" title="Copy source URL"><span>https://bechou0410.github.io/gmaphud/</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" stroke="currentColor" stroke-width="1.7"/></svg></button><p class="copy-status" id="copy-status" role="status" aria-live="polite"></p></div>
-      <a class="button" href="pool/com.chou.googlemaps.vietmap_0.1.13_iphoneos-arm64.deb">Download .deb</a>
+      <div><h2 id="install-title">Add the source · GMapHUD 0.1.14</h2><p>Copy the URL below, then add it in Sileo or Zebra.</p><button class="repo-url" id="copy-repo" type="button" aria-label="Copy source URL" title="Copy source URL"><span>https://bechou0410.github.io/gmaphud/</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" stroke="currentColor" stroke-width="1.7"/></svg></button><p class="copy-status" id="copy-status" role="status" aria-live="polite"></p></div>
+      <a class="button" href="pool/com.chou.googlemaps.vietmap_0.1.14_iphoneos-arm64.deb">Download .deb</a>
     </section>
 
     <div class="section-head"><h2>Simple at a glance</h2><p>What it shows and where it has been tested</p></div>
     <section class="details" aria-label="Simple at a glance">
-      <article class="panel glass"><h2>The display</h2><p>A speed pill on the full map and a compact vertical card in Dashboard. Near-limit and overspeed colors; fresh fields only.</p><ul class="spec-list"><li>Keep VietMap background alerts running. After installation, close and reopen both apps.</li><li>Includes speed and limits only. No other signs, audible alerts, GPS simulation or subscription/DRM bypass.</li></ul><p class="author">Author: chou · AI-assisted with Codex. Independently published; project source: MIT.</p></article>
+      <article class="panel glass"><h2>The display</h2><p>A speed pill on the full map and a compact vertical card in Dashboard. Up to two recognized VietMap alerts with source distances; fresh data only.</p><ul class="spec-list"><li>Keep VietMap background alerts running. After installation, close and reopen both apps.</li><li>Current speed, limits and up to two recognized VietMap road alerts. No audible alerts, GPS simulation or subscription/DRM bypass.</li></ul><p class="author">Author: chou · AI-assisted with Codex. Independently published; project source: MIT.</p></article>
       <article class="panel glass compat"><h2>Tested setup</h2><p>Verified 0/50 data: iPhone 11, iOS 18.6.2 rootless, Google Maps 26.40.3 and VietMap Live 3.4.3.</p><ul class="spec-list"><li>No version lock; method and data checks remain. Compatibility with other app builds is not guaranteed.</li><li><a class="readme-link" href="https://github.com/bechou0410/gmaphud/blob/main/README.md">README ↗</a></li></ul></article>
     </section>
 

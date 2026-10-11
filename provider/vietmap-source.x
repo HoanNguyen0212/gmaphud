@@ -7,9 +7,14 @@
 #import "nav-source.h"
 #ifdef VM_GOOGLE_MAPS_RELAY
 #import "speed-state.h"
-static int speedToken = -1, limitToken = -1;
+#import "alert-state.h"
+#import "vietmap-alert-assets.h"
+static int speedToken = -1, limitToken = -1, firstAlertToken = -1, secondAlertToken = -1;
 static BOOL relayReady, speedPublished, limitPublished;
 static uint64_t lastSpeed, lastLimit;
+static NSArray<NSDictionary *> *upcomingAlerts, *stickyAlerts;
+static NSTimeInterval upcomingReceived, stickyReceived;
+static uint64_t lastFirstAlert, lastSecondAlert;
 #endif
 
 @protocol VMFlutterMethodCall
@@ -58,6 +63,41 @@ static void Publish(void) {
         if (notify_set_state(limitToken, limit) == NOTIFY_STATUS_OK) { limitPublished = YES; lastLimit = limit; notify_post(GVMLimitStateName); }
         else BridgeLog(@"limit publication refused");
     }
+    NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
+    NSMutableArray<NSDictionary *> *entries=[NSMutableArray array];
+    if (now-upcomingReceived<5)
+        for (NSDictionary *alert in upcomingAlerts)
+            [entries addObject:@{@"sample":alert,@"receivedAt":@(upcomingReceived)}];
+    if (now-stickyReceived<5)
+        for (NSDictionary *alert in stickyAlerts)
+            [entries addObject:@{@"sample":alert,@"receivedAt":@(stickyReceived)}];
+    [entries sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        id da=a[@"sample"][@"distance"], db=b[@"sample"][@"distance"];
+        if (da==NSNull.null && db==NSNull.null)
+            return [b[@"receivedAt"] compare:a[@"receivedAt"]];
+        if (da==NSNull.null) return NSOrderedDescending;
+        if (db==NSNull.null) return NSOrderedAscending;
+        NSComparisonResult order=[da compare:db];
+        return order==NSOrderedSame ? [b[@"receivedAt"] compare:a[@"receivedAt"]] : order;
+    }];
+    NSMutableArray<NSDictionary *> *selected=[NSMutableArray arrayWithCapacity:2];
+    for (NSDictionary *entry in entries) {
+        BOOL duplicate=NO;
+        for (NSDictionary *prior in selected)
+            if ([prior[@"sample"] isEqual:entry[@"sample"]]) { duplicate=YES; break; }
+        if (!duplicate) [selected addObject:entry];
+        if (selected.count==2) break;
+    }
+    NSDictionary *firstEntry=selected.firstObject;
+    NSDictionary *secondEntry=selected.count>1 ? selected[1] : nil;
+    uint64_t first=GVMEncodeAlert(firstEntry[@"sample"],[firstEntry[@"receivedAt"] doubleValue]);
+    uint64_t second=GVMEncodeAlert(secondEntry[@"sample"],[secondEntry[@"receivedAt"] doubleValue]);
+    if (firstAlertToken>=0 && first!=lastFirstAlert && notify_set_state(firstAlertToken,first)==NOTIFY_STATUS_OK) {
+        lastFirstAlert=first; notify_post(GVMFirstAlertStateName);
+    }
+    if (secondAlertToken>=0 && second!=lastSecondAlert && notify_set_state(secondAlertToken,second)==NOTIFY_STATUS_OK) {
+        lastSecondAlert=second; notify_post(GVMSecondAlertStateName);
+    }
 #else
     NSDictionary *payload = [source payloadAtUptime:NSProcessInfo.processInfo.systemUptime
         timestamp:NSDate.date.timeIntervalSince1970];
@@ -69,7 +109,7 @@ static void Publish(void) {
 
 static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler handler) {
     id name = object_getIvar(channel, channelNameIvar);
-    if (!handler || ![name isKindOfClass:NSString.class] || ![name isEqualToString:@"vietmap_car_method_channel"]) {
+    if (!handler || ![name isKindOfClass:NSString.class] || (![name isEqualToString:@"vietmap_car_method_channel"] && ![name isEqualToString:@"vml_main_channel"])) {
         originalSetHandler(channel, selector, handler);
         return;
     }
@@ -78,7 +118,21 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
         NSArray *update = nil;
         NSTimeInterval received = NSProcessInfo.processInfo.systemUptime;
         @try {
-            if ([[call method] isEqualToString:@"updateMapOverlayData"])
+    #ifdef VM_GOOGLE_MAPS_RELAY
+            if ([name isEqualToString:@"vml_main_channel"] &&
+                ([[call method] isEqualToString:@"updateUpcommingAlerts"] ||
+                 [[call method] isEqualToString:@"updateStickyAlerts"])) {
+                BOOL sticky=[[call method] isEqualToString:@"updateStickyAlerts"];
+                id alertPayload=[call arguments];
+                NSArray<NSDictionary *> *alerts=GVMVietMapAlertsFromPayload(alertPayload);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (sticky) { stickyAlerts=alerts; stickyReceived=received; }
+                    else { upcomingAlerts=alerts; upcomingReceived=received; }
+                    Publish();
+                });
+            }
+#endif
+            if ([name isEqualToString:@"vietmap_car_method_channel"] && [[call method] isEqualToString:@"updateMapOverlayData"])
                 update = VMNavCopyOverlayArguments([call arguments]);
         } @catch (__unused NSException *exception) {}
         // Forward every call and its original reply block exactly once.
@@ -130,6 +184,14 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
         relayReady = notify_register_check(GVMSpeedStateName, &speedToken) == NOTIFY_STATUS_OK &&
             notify_register_check(GVMLimitStateName, &limitToken) == NOTIFY_STATUS_OK;
 #endif
+#ifdef VM_GOOGLE_MAPS_RELAY
+        if (notify_register_check(GVMFirstAlertStateName,&firstAlertToken)==NOTIFY_STATUS_OK) {
+            notify_set_state(firstAlertToken,0); notify_post(GVMFirstAlertStateName);
+        }
+        if (notify_register_check(GVMSecondAlertStateName,&secondAlertToken)==NOTIFY_STATUS_OK) {
+            notify_set_state(secondAlertToken,0); notify_post(GVMSecondAlertStateName);
+        }
+#endif
         source = [VMNavSource new];
         // Catch channel registration during application launch when Flutter is already loaded.
         InstallHook();
@@ -150,7 +212,13 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
             [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification
                 object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) { Publish(); }];
             [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationWillTerminateNotification
-                object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) { source = [VMNavSource new]; Publish(); }];
+                object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+#ifdef VM_GOOGLE_MAPS_RELAY
+                    if (firstAlertToken>=0) { notify_set_state(firstAlertToken,0); notify_post(GVMFirstAlertStateName); }
+                    if (secondAlertToken>=0) { notify_set_state(secondAlertToken,0); notify_post(GVMSecondAlertStateName); }
+#endif
+                    source = [VMNavSource new]; Publish();
+                }];
         });
     }
 }

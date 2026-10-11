@@ -14,7 +14,7 @@ Actual signs, road conditions, vehicle instruments and applicable law take prece
 
 Use only on devices and app installations you are authorized to modify, and where permitted by applicable law, contracts, platform policies and service terms. Jailbreaking, reverse engineering, private-API hooks and repurposing data can carry legal or contractual restrictions that vary by jurisdiction. Obtain required permissions and entitlements; this text does not grant another party's rights.
 
-The project does not provide app binaries, vendor frameworks, SDKs, map databases, scraped warning datasets, license keys or copied proprietary artwork. It does not grant access to paid content, remove subscription checks, bypass DRM or authorize circumvention of technical restrictions. MIT covers project-authored code only, not third-party applications, data, interfaces, trademarks or patents. Runtime identifiers are not an authorization from the identified vendors.
+The project does not provide app binaries, vendor frameworks, SDKs, map databases, scraped warning datasets or license keys. Package 0.1.14 includes selected VietMap Live images for display. These remain third-party material, are not covered by the project MIT license, and are not licensed or authorized for redistribution by this repository. Obtain any permission required from the rights holder before redistribution. It does not grant access to paid content, remove subscription checks, bypass DRM or authorize circumvention of technical restrictions. MIT covers project-authored code only, not third-party applications, data, interfaces, trademarks or patents. Runtime identifiers are not an authorization from the identified vendors.
 
 ## Compatibility and device risk
 

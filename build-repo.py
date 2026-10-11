@@ -39,7 +39,7 @@ def build_sileo_depiction():
             "tab": "Tiếng Việt",
             "title": "GMapHUD trên CarPlay",
             "intro": (
-                "Hiển thị tốc độ hiện tại và giới hạn từ VietMap Live trong Google Maps CarPlay. "
+                "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps CarPlay. "
                 "Google Maps tiếp tục đảm nhiệm việc dẫn đường."
             ),
             "screenshots": "Ảnh xem trước · CarPlay Simulator",
@@ -53,8 +53,8 @@ def build_sileo_depiction():
                 "Ảnh dùng tuyến giả lập; không chứng minh độ chính xác ngoài đường thực tế. "
                 "Dữ liệu có thể sai, trễ hoặc thiếu. Chỉ dùng để nghiên cứu/kiểm thử khi xe đã đỗ an toàn; "
                 "tuân thủ biển báo thực tế. Không phải thiết bị hỗ trợ lái xe được chứng nhận.\n\n"
-                "Chỉ hiển thị tốc độ và giới hạn; không có biển báo khác, cảnh báo âm thanh, giả lập GPS "
-                "hay vượt thuê bao/DRM. Mã nguồn theo giấy phép MIT. Dự án độc lập, không được "
+                "Hiển thị tốc độ, giới hạn và tối đa hai cảnh báo đường đã nhận diện; không có cảnh báo âm thanh, giả lập GPS "
+                "hay vượt thuê bao/DRM. Mã do dự án viết theo giấy phép MIT; ảnh VietMap Live vẫn thuộc quyền của chủ sở hữu. Dự án độc lập, không được "
                 "VietMap, Google hay Apple bảo trợ."
             ),
             "links": "Liên kết",
@@ -67,7 +67,7 @@ def build_sileo_depiction():
             "tab": "English",
             "title": "GMapHUD on CarPlay",
             "intro": (
-                "Displays current speed and limits from VietMap Live in Google Maps CarPlay. "
+                "Displays current speed, limits, and recognized VietMap road alerts in Google Maps CarPlay. "
                 "Google Maps continues to handle navigation."
             ),
             "screenshots": "Previews · CarPlay Simulator",
@@ -81,8 +81,8 @@ def build_sileo_depiction():
                 "Screenshots use a simulated route; they do not establish real-road accuracy. "
                 "Readings may be wrong, delayed, or missing. For research and stationary testing only; "
                 "follow actual signs. This is not a certified driving aid.\n\n"
-                "Speed and limits only; no other signs, audible alerts, GPS simulation, or subscription/DRM "
-                "bypass. Source is MIT-licensed. Independent project, not endorsed by VietMap, Google, or Apple."
+                "Speed, limits, and up to two recognized road alerts; no audible alerts, GPS simulation, or subscription/DRM "
+                "bypass. Project-authored code is MIT-licensed; VietMap Live images remain their owner’s property. Independent project, not endorsed by VietMap, Google, or Apple."
             ),
             "links": "Links",
             "links_text": (
@@ -92,6 +92,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.1.14", "Bổ sung cảnh báo đường sắp tới như giới hạn tốc độ và camera; thêm tùy chỉnh vị trí bong bóng cùng ảnh xem trước trong Cài đặt.",
+         "Adds upcoming road alerts such as speed limits and cameras, plus bubble placement controls and previews in Settings."),
         ("0.1.13", "Bỏ khóa phiên bản Google Maps và VietMap Live; giữ kiểm tra cấu trúc hàm và dữ liệu. Đã nhận dữ liệu 0/50 trên Google Maps 26.40.3 và VietMap Live 3.4.3.",
          "Removes Google Maps and VietMap Live version restrictions while retaining method and data checks. Verified 0/50 data with Google Maps 26.40.3 and VietMap Live 3.4.3."),
         ("0.1.12", "Cập nhật ghi nhận tác giả dự án là chou và nêu rõ Codex hỗ trợ phát triển bằng AI.",

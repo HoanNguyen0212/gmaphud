@@ -4,9 +4,10 @@ source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 build_dir=$(mktemp -d /tmp/gmaphud-build.XXXXXX)
 trap 'rm -rf "$build_dir"' EXIT HUP INT TERM
 cp -R "$source_dir/tweak/." "$build_dir/"
-cp "$source_dir"/common/speed-state.[mh] "$source_dir"/common/test-state.[mh] "$source_dir"/common/speed-presentation.[mh] "$build_dir/"
+cp "$source_dir"/common/alert-state.[mh] "$source_dir"/common/speed-state.[mh] "$source_dir"/common/test-state.[mh] "$source_dir"/common/speed-presentation.[mh] "$build_dir/"
+cp "$source_dir"/common/placement-state.[mh] "$build_dir/"
 cp "$source_dir/provider/vietmap-source.x" "$build_dir/vietmap-source.x"
-cp "$source_dir/provider/"nav-source.[mh] "$source_dir/provider/"nav-payload.[mh] "$build_dir/"
+cp "$source_dir/provider/"nav-source.[mh] "$source_dir/provider/"nav-payload.[mh] "$source_dir/provider/"vietmap-alert-assets.[mh] "$build_dir/"
 notice_dir="$build_dir/layout/usr/share/doc/com.chou.googlemaps.vietmap"
 mkdir -p "$notice_dir"
 cp "$source_dir/LICENSE" "$notice_dir/LICENSE"

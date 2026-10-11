@@ -18,6 +18,10 @@ Tweak thử nghiệm cho iOS jailbreak rootless, hiển thị **tốc độ hi�
 
 ## Tính năng
 
+Bản thử nghiệm 0.1.14: bubble ngang có tốc độ bên trái, biển giới hạn bên phải và nhãn VietMap Live phía trên; Dashboard dùng bubble dọc với giới hạn trên, tốc độ dưới. Cảnh báo đường dùng ảnh VietMap Live tương ứng và khoảng cách nguồn trong vùng VietMap riêng: tối đa hai biểu tượng cạnh nhau trên bản đồ đầy đủ, hai biểu tượng xếp dọc dưới tốc độ trong Dashboard. Nhận diện đầu vào đối chiếu mã băm ảnh đã quan sát từ VietMap Live 3.4.3. Bubble tự co giãn đồng đều theo màn hình ngoài và phần bản đồ còn trống, tính cả vùng an toàn của thanh công cụ; kích thước được giới hạn để giữ chỗ cho bản đồ. Bố cục full map/Dashboard được chọn theo tỉ lệ chiều rộng màn hình. Ảnh bên trên thuộc giao diện đã phát hành trước đó.
+
+Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đồ đầy đủ và cạnh trái hoặc phải cho Dashboard. Mặc định cả hai ở phía trên bên phải. Mục nguồn cảnh báo hiện VietMap Live nhưng chưa cho đổi khi chưa hỗ trợ app khác. Vị trí mới áp dụng khi Google Maps CarPlay đang mở; phần relay trong SpringBoard khôi phục lựa chọn đã lưu sau khi giao diện máy nạp lại.
+
 - Bảng tốc độ trên bản đồ đầy đủ và thẻ dọc nhỏ gọn trong Dashboard; hỗ trợ màu bản đồ sáng/tối.
 - Tốc độ hiện tại luôn có vị trí hiển thị, hiện `--` khi không có dữ liệu. Giới hạn chưa có dữ liệu được biểu diễn bằng biển nét đứt.
 - Màu vàng từ mức thấp hơn giới hạn 5 km/h đến bằng giới hạn; màu đỏ khi vượt giới hạn. Chỉ có cảnh báo bằng hình ảnh, không có hệ thống cảnh báo âm thanh.
@@ -25,7 +29,7 @@ Tweak thử nghiệm cho iOS jailbreak rootless, hiển thị **tốc độ hi�
 - Tốc độ và giới hạn hết hiệu lực độc lập sau 5 giây. Tín hiệu duy trì kết nối không làm dữ liệu cũ trở nên mới.
 - Có chế độ kiểm thử hiển thị khi đứng yên, kèm nhãn TEST và tự hết hạn.
 
-Bản này chưa chuyển các biển cảnh báo khác, camera, khoảng cách cảnh báo, chỉ dẫn đường hoặc Live Activity. Không bao gồm giả lập GPS, phát lại vị trí, vượt DRM hay vượt kiểm tra thuê bao.
+Bản công khai 0.1.13 chưa hỗ trợ biển cảnh báo. Bản 0.1.14 nhận diện 46 mã băm ảnh cảnh báo đã quan sát từ VietMap Live 3.4.3; ảnh lạ hoặc đã đổi sẽ không hiển thị. Thông báo giới hạn tốc độ sắp tới của VietMap có thể không kèm ảnh; giới hạn hợp lệ sẽ dùng ảnh VietMap Live tương ứng trong gói. Dữ liệu camera và biển giới hạn sắp tới đã được quan sát trực tiếp; các loại cảnh báo khác mới được ánh xạ theo ảnh app đã thấy, chưa có mẫu payload thực tế. Chưa hỗ trợ chỉ dẫn đường hoặc Live Activity. Không bao gồm giả lập GPS, phát lại vị trí, vượt DRM hay vượt kiểm tra thuê bao.
 
 ## Tương thích
 
@@ -34,7 +38,7 @@ Bản này chưa chuyển các biển cảnh báo khác, camera, khoảng cách 
 | Thiết bị / hệ điều hành | iPhone 11, iOS 18.6.2, jailbreak rootless |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Gói | `com.chou.googlemaps.vietmap` 0.1.12, arm64/arm64e |
+| Gói | `com.chou.googlemaps.vietmap` 0.1.14, arm64/arm64e |
 
 Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói và định danh thông báo giữ nguyên để tương thích với bản đang cài.
 
@@ -68,6 +72,8 @@ Gói được tạo trong `packages/`. Hai script dùng thư mục tạm và h�
 
 ## Duy trì nguồn Sileo
 
+Quy tắc phiên bản: trong một chu kỳ phát triển chưa phát hành, mọi lần sửa, build và cài thử đều giữ cùng một phiên bản kế tiếp. Ví dụ bản đã phát hành là `0.1.13` thì tất cả bản thử dùng `0.1.14`; khi phát hành, push chính `0.1.14`. Chỉ sau lần phát hành đó, chu kỳ phát triển tiếp theo mới dùng `0.1.15`. Không tăng phiên bản theo từng lần thử. Có thể ghi mã commit hoặc checksum để phân biệt các bản build nội bộ cùng phiên bản; tuyệt đối không ghi đè gói đã công khai.
+
 [Nguồn tĩnh](https://bechou0410.github.io/gmaphud/) được GitHub Pages xuất bản từ `main` → `/docs`. [build-repo.py](build-repo.py) đưa gói đã build vào nguồn, tạo chỉ mục, trang và depiction Sileo song ngữ có carousel ảnh CarPlay cùng tab nhật ký thay đổi; [repo-template.html](repo-template.html) chứa bố cục landing page dùng chung và [repo-locales.json](repo-locales.json) chứa nội dung tiếng Việt/Anh của trang. Trang mặc định dùng tiếng Việt; [en.html](https://bechou0410.github.io/gmaphud/en.html) dùng tiếng Anh. Cấu hình xuất bản nằm trong Settings → Pages của repository. Xem log tại Actions hoặc bằng `gh api repos/bechou0410/gmaphud/pages/builds/latest`.
 
 `docs/CydiaIcon*.png` là biểu tượng repo được Sileo tải từ gốc nguồn. Trường `Icon` trong [tweak/control](tweak/control) là biểu tượng riêng của gói; `docs/gmaphud-icon.svg/png` dùng cho favicon và trang web.
@@ -86,17 +92,20 @@ Chạy trên iPhone trong shell có quyền dùng công cụ đã cài, khi Goog
 /var/jb/usr/bin/gvm-test-speed 42 50 60
 /var/jb/usr/bin/gvm-test-speed 48 50 60
 /var/jb/usr/bin/gvm-test-speed 62 50 60
+/var/jb/usr/bin/gvm-test-speed 42 60 60 speed_limit_80:200 no_passing_in:400
 /var/jb/usr/bin/gvm-test-speed off
 ```
 
-Tham số lần lượt là tốc độ hiện tại (0–400 km/h), giới hạn (1–400 km/h), thời lượng (1–300 giây). Chỉ mô hình hiển thị trên Google CarPlay thay đổi; GPS, dẫn đường và dữ liệu VietMap thật vẫn giữ nguyên. TEST hiển thị đến khi gọi `off` hoặc hết hạn. Sau kiểm thử, dữ liệu thật chưa có vẫn được hiển thị là chưa có.
+Tham số lần lượt là tốc độ hiện tại (0–400 km/h), giới hạn (1–400 km/h), thời lượng (1–300 giây); bản thử 0.1.14 có thể thêm tên hai biển VietMap và khoảng cách (0–10000 m) theo dạng `TÊN_BIỂN:MÉT`. Có thể nhập hai số trần để thử hai biển camera. Chỉ mô hình hiển thị trên Google CarPlay thay đổi; GPS, dẫn đường và dữ liệu VietMap thật vẫn giữ nguyên. Mặc định TEST hiển thị đến khi gọi `off` hoặc hết hạn. Sau kiểm thử, dữ liệu thật chưa có vẫn được hiển thị là chưa có.
 
 ## Kiến trúc và quyền riêng tư
 
-`provider/vietmap-source.x` quan sát kênh Flutter overlay đang có của VietMap, chuyển tiếp handler/reply gốc không thay đổi. Tốc độ và giới hạn đã được kiểm tra, mỗi trường có thời điểm nhận theo đồng hồ đơn điệu riêng, được truyền qua trạng thái thông báo Darwin cục bộ. Hook Google chỉ áp dụng cho cửa sổ bản đồ CarPlay ngoài màn hình điện thoại; các view trên iPhone giữ lời gọi gốc.
+`provider/vietmap-source.x` quan sát kênh Flutter overlay đang có của VietMap, chuyển tiếp handler/reply gốc không thay đổi. Tốc độ và giới hạn đã được kiểm tra, mỗi trường có thời điểm nhận theo đồng hồ đơn điệu riêng, được truyền qua trạng thái thông báo Darwin cục bộ. Cảnh báo được đọc từ các chuỗi JSON trong `vml_main_channel/updateUpcommingAlerts` và `updateStickyAlerts`, đối chiếu mã băm chính xác với bộ ảnh 3.4.3 và truyền tối đa hai trạng thái dạng mã nguồn/mã biển/khoảng cách. Danh sách rỗng sẽ xóa trạng thái nguồn; dữ liệu tự hết hạn sau 5 giây. Bản 0.1.14 đóng gói 46 ảnh biển VietMap để hiển thị; thông báo chỉ truyền dữ liệu số. Ảnh bên thứ ba không thuộc giấy phép MIT của dự án. Hook Google chỉ áp dụng cho cửa sổ bản đồ CarPlay ngoài màn hình điện thoại; các view trên iPhone giữ lời gọi gốc.
 
 Tweak không mở dịch vụ mạng, tải dữ liệu đo lường lên máy chủ, tạo daemon xuất bản hay lưu thông tin đăng nhập. `tmp/googlemaps-vietmap-source.log` và `tmp/googlemaps-vietmap.log` trong sandbox ứng dụng ghi giá trị/khả năng có dữ liệu tốc độ và giới hạn cùng trạng thái hook, không ghi tọa độ hay tuyến đường. Trạng thái thông báo cục bộ không được xác thực bằng mật mã và có thể bị phần mềm đặc quyền hoặc phần mềm được chèn khác tác động. Rà soát log trước khi chia sẻ.
 
 ## Giấy phép
 
-Mã nguồn do dự án viết được cung cấp theo [MIT](LICENSE). Ứng dụng, bản đồ, dữ liệu giao thông/biển báo, nhãn hiệu, SDK và phụ thuộc của bên thứ ba vẫn chịu quyền và điều khoản của chủ sở hữu; dự án không phân phối hoặc cấp phép lại chúng. Xem [thông báo tiếng Việt](DISCLAIMER.vi.md) và [bản tiếng Anh](DISCLAIMER.md) về sử dụng hợp pháp, an toàn, tương thích và bảo hành. Giấy phép không chứng nhận tính hợp pháp, độ chính xác hay khả năng sử dụng trên đường.
+Mã do dự án viết được cung cấp theo [MIT](LICENSE). Gói cũng chứa một số ảnh VietMap Live để hiển thị; đây là tài liệu bên thứ ba, không thuộc MIT và vẫn chịu quyền/điều khoản của chủ sở hữu. Dự án không nhận quyền sở hữu hoặc cấp phép phân phối lại các ảnh này. Ứng dụng, bản đồ, dữ liệu giao thông, nhãn hiệu, SDK và phụ thuộc của bên thứ ba vẫn thuộc quyền và điều khoản của chủ sở hữu. Xem [thông báo tiếng Việt](DISCLAIMER.vi.md) và [bản tiếng Anh](DISCLAIMER.md) về sử dụng hợp pháp, an toàn, tương thích và bảo hành. Giấy phép không chứng nhận tính hợp pháp, độ chính xác hay khả năng sử dụng trên đường.
+
+Để chụp ảnh gốc cho Cài đặt, thêm `--photo` ở cuối lệnh để ẩn nhãn trong lượt mẫu có thời hạn đó. `gvm-test-speed position top-left left` đổi tạm vị trí Full Map/Dashboard, không ghi đè tùy chọn đã lưu; trả vị trí cũ sau khi chụp.

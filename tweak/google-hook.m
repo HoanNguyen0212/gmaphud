@@ -4,13 +4,17 @@
 #import <mach-o/dyld.h>
 #import <substrate.h>
 #import "speed-state.h"
+#import "alert-state.h"
+#import "vietmap-alert-assets.h"
 #import "test-state.h"
 #import "carplay-style.h"
+#import "placement-state.h"
 #include <notify.h>
 
 static NSHashTable *views;
 static NSMapTable *models, *statuses;
-static int speedToken = -1, limitToken = -1, testToken = -1;
+static int speedToken = -1, limitToken = -1, testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1, firstAlertToken = -1, secondAlertToken = -1;
+static int placementToken = -1;
 static BOOL installed;
 static __thread BOOL constructingCarPlay, applyingCarPlay;
 static void (*originalModel)(id, SEL, id), (*originalChildModel)(id, SEL, id);
@@ -33,6 +37,16 @@ static NSNumber *Value(int token, BOOL zero) {
     if (token < 0 || notify_get_state(token, &state) != NOTIFY_STATUS_OK) return nil;
     return GVMDecodeSample(state, NSProcessInfo.processInfo.systemUptime, zero);
 }
+static NSDictionary *Alert(int token) {
+    uint64_t state=0;
+    if (token<0 || notify_get_state(token,&state)!=NOTIFY_STATUS_OK) return nil;
+    return GVMDecodeAlert(state,NSProcessInfo.processInfo.systemUptime);
+}
+static NSArray<NSDictionary *> *Alerts(void) {
+    NSDictionary *first=Alert(firstAlertToken), *second=Alert(secondAlertToken);
+    if (!first) return @[];
+    return second ? @[first,second] : @[first];
+}
 static id Read(id object, NSString *name) { return ((id (*)(id, SEL))objc_msgSend)(object, NSSelectorFromString(name)); }
 static void SetBool(id object, NSString *name, BOOL value) { ((void (*)(id, SEL, BOOL))objc_msgSend)(object, NSSelectorFromString(name), value); }
 
@@ -40,6 +54,23 @@ static NSDictionary *TestSample(void) {
     uint64_t state = 0;
     if (testToken < 0 || notify_get_state(testToken, &state) != NOTIFY_STATUS_OK) return nil;
     return GVMDecodeTest(state, NSProcessInfo.processInfo.systemUptime);
+}
+static int photoToken=-1;
+static BOOL PhotoSample(void) {
+    uint64_t photo=0, current=0;
+    return photoToken>=0 && testToken>=0 && notify_get_state(photoToken,&photo)==NOTIFY_STATUS_OK &&
+        notify_get_state(testToken,&current)==NOTIFY_STATUS_OK && photo && photo==current && TestSample();
+}
+static NSArray<NSDictionary *> *TestAlerts(void) {
+    NSMutableArray<NSDictionary *> *alerts=[NSMutableArray arrayWithCapacity:2];
+    for (int tokenIndex=0;tokenIndex<2;tokenIndex++) {
+        int token=tokenIndex==0 ? testFirstAlertToken : testSecondAlertToken;
+        uint64_t state=0;
+        if (token<0 || notify_get_state(token,&state)!=NOTIFY_STATUS_OK) continue;
+        NSDictionary *alert=GVMDecodeAlertWithin(state,NSProcessInfo.processInfo.systemUptime,300);
+        if (alert) [alerts addObject:alert];
+    }
+    return alerts;
 }
 static id ModelFor(id view) {
     NSDictionary *test = TestSample();
@@ -74,13 +105,15 @@ static void Apply(UIView *view) {
         }
         NSDictionary *test = TestSample();
         GVMUpdateSpeedCard(view, test ? test[@"speed"] : Value(speedToken, YES),
-            test ? test[@"limit"] : Value(limitToken, NO),
+            test ? test[@"limit"] : Value(limitToken, NO), test ? TestAlerts() : Alerts(),
             ((BOOL (*)(id, SEL))objc_msgSend)(view, NSSelectorFromString(@"nightModeMap")));
-        NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@",
+        NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@ bounds=%@ safe=%@ windowSafe=%@ screen=%@",
             test ? @"TEST" : @"live",
             (test ? test[@"speed"] : Value(speedToken, YES)) ?: @"unavailable",
             (test ? test[@"limit"] : Value(limitToken, NO)) ?: @"unavailable",
-            NSStringFromClass(view.window.class), child ? NSStringFromClass([child class]) : @"none"];
+            NSStringFromClass(view.window.class), child ? NSStringFromClass([child class]) : @"none",
+            NSStringFromCGRect(view.bounds),NSStringFromUIEdgeInsets(view.safeAreaInsets),
+            NSStringFromUIEdgeInsets(view.window.safeAreaInsets),NSStringFromCGRect(view.window.screen.bounds)];
         if (![[statuses objectForKey:view] isEqual:status]) {
             Log(status); [statuses setObject:status forKey:view];
         }
@@ -95,7 +128,7 @@ static void Apply(UIView *view) {
         label.userInteractionEnabled = NO;
         [view addSubview:label]; objc_setAssociatedObject(view, testLabelKey, label, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    label.hidden = !TestSample();
+    label.hidden = !TestSample() || PhotoSample();
     CGRect cardFrame = GVMLayoutSpeedCard(view);
     label.frame = CGRectMake(CGRectGetMaxX(cardFrame)-36, CGRectGetMaxY(cardFrame)+3, 36, 13);
     if (!label.hidden) [view bringSubviewToFront:label];
@@ -179,8 +212,22 @@ static void Install(void) {
     }
     // Test transport failure must not disable the production source.
     notify_register_check(GVMTestStateName, &testToken);
+    notify_register_check("com.chou.googlemaps.vietmap.test.photo", &photoToken);
+    notify_register_check(GVMTestFirstAlertStateName, &testFirstAlertToken);
+    notify_register_check(GVMTestSecondAlertStateName, &testSecondAlertToken);
+    notify_register_check(GVMFirstAlertStateName, &firstAlertToken);
+    notify_register_check(GVMSecondAlertStateName, &secondAlertToken);
     views = [NSHashTable weakObjectsHashTable]; models = [NSMapTable weakToStrongObjectsMapTable];
     statuses = [NSMapTable weakToStrongObjectsMapTable];
+    notify_register_dispatch(GVMPlacementStateName, &placementToken,
+        dispatch_get_main_queue(), ^(int token) {
+            uint64_t state=0;
+            if (notify_get_state(token,&state)==NOTIFY_STATUS_OK) GVMSetPlacementState(state);
+            for (UIView *view in views.allObjects) Apply(view);
+        });
+    uint64_t placementState=0;
+    if (placementToken>=0 && notify_get_state(placementToken,&placementState)==NOTIFY_STATUS_OK)
+        GVMSetPlacementState(placementState);
     MSHookMessageEx(map, NSSelectorFromString(@"setSpeedLimitInfo:"), (IMP)SetModel, (IMP *)&originalModel);
     MSHookMessageEx(map, NSSelectorFromString(@"setSupportsSpeedLimitView:"), (IMP)SetSupports, (IMP *)&originalSupports);
     MSHookMessageEx(map, NSSelectorFromString(@"setShouldDisplaySpeedLimitView:"), (IMP)SetDisplay, (IMP *)&originalDisplay);

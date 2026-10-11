@@ -18,6 +18,10 @@ These CarPlay Simulator captures show a simulated route: the full map at 15/50 k
 
 ## Features
 
+Experimental 0.1.14: the horizontal bubble places speed on the left, the limit sign on the right, and a VietMap Live label above. Dashboard uses a vertical bubble with the limit above current speed. Recognized VietMap road alerts use the corresponding VietMap Live artwork and source distance in a shaded VietMap region: up to two side by side on full map, two stacked below speed on Dashboard. Input recognition matches observed image digests from VietMap Live 3.4.3. Bubble size adapts uniformly to the external screen and available map area, including toolbar safe areas; it is capped to preserve map space. Full-map and Dashboard layouts are selected relative to screen width. Screenshots above show the previously released design.
+
+In iPhone Settings → GMapHUD, choose any of the four corners for the full map and the left or right edge for Dashboard. Top-right is the default in both layouts. The alert-source row shows VietMap Live but remains disabled until another source is supported. Placement changes update an open Google Maps CarPlay view; a SpringBoard relay restores saved placement after the phone interface restarts.
+
 - Full-map speed pill and compact vertical Dashboard card; light/dark map colors.
 - Current speed remains visible, with `--` when unavailable. Missing limits show a dashed sign.
 - Amber from 5 km/h below the limit through the limit; red above it. Visual cues only, no audible alert system.
@@ -25,7 +29,7 @@ These CarPlay Simulator captures show a simulated route: the full map at 15/50 k
 - Speed and limit expire independently after five seconds. A heartbeat does not make old data fresh.
 - Optional stationary display test with a TEST badge and automatic expiry.
 
-This release does not port other road signs, cameras, warning distances, navigation instructions or Live Activities. It includes no GPS spoofing, location replay, DRM bypass or subscription bypass.
+Published 0.1.13 does not port road alerts. Release 0.1.14 recognizes 46 known alert-image digests from VietMap Live 3.4.3; unknown or changed artwork stays hidden. VietMap's upcoming speed-limit message may omit its image, so supported numeric limits use the matching bundled VietMap Live sign. Camera and upcoming 80 km/h delivery were observed live; other sign categories are mapped from observed app artwork but have not yet been observed in live payloads. Navigation instructions and Live Activities remain unsupported. It includes no GPS spoofing, location replay, DRM bypass or subscription bypass.
 
 ## Compatibility
 
@@ -34,7 +38,7 @@ This release does not port other road signs, cameras, warning distances, navigat
 | Device / OS | iPhone 11, iOS 18.6.2, rootless jailbreak |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Package | `com.chou.googlemaps.vietmap` 0.1.12, arm64/arm64e |
+| Package | `com.chou.googlemaps.vietmap` 0.1.14, arm64/arm64e |
 
 From 0.1.13, Google Maps is not restricted by version or executable UUID. Required private classes and method signatures are still checked; passing these checks does not guarantee compatibility with every release. Package and notification identifiers retain their original namespace for compatibility with existing installations.
 
@@ -68,6 +72,8 @@ Packages appear in `packages/`. Both scripts use disposable directories and supp
 
 ## Maintain the Sileo source
 
+Version policy: keep one next version throughout each unpublished development cycle, including every edit, build, and test installation. If the published version is `0.1.13`, all trial builds use `0.1.14`, and the release publishes that same `0.1.14`. Only after publication does the next development cycle use `0.1.15`. Do not increment the version for each trial. Use a commit hash or checksum to distinguish internal builds sharing a version; never overwrite a published package.
+
 The [static source](https://bechou0410.github.io/gmaphud/) is published by GitHub Pages from `main` → `/docs`. [build-repo.py](build-repo.py) owns package/index/site generation, including the bilingual native Sileo depiction, CarPlay screenshot carousel, and changelog tab; [repo-template.html](repo-template.html) owns the shared landing-page layout and [repo-locales.json](repo-locales.json) owns its Vietnamese/English copy. The default page is Vietnamese; [en.html](https://bechou0410.github.io/gmaphud/en.html) is English. GitHub repository Settings → Pages owns this publishing configuration. Check deployment logs in the repository's Actions tab or `gh api repos/bechou0410/gmaphud/pages/builds/latest`.
 
 `docs/CydiaIcon*.png` are the repository icons Sileo fetches from the source root. The `Icon` field in [tweak/control](tweak/control) is the separate package icon; `docs/gmaphud-icon.svg/png` serve the website favicon and branding.
@@ -86,17 +92,20 @@ Run on the phone in a shell with access to the installed tool while Google Maps 
 /var/jb/usr/bin/gvm-test-speed 42 50 60
 /var/jb/usr/bin/gvm-test-speed 48 50 60
 /var/jb/usr/bin/gvm-test-speed 62 50 60
+/var/jb/usr/bin/gvm-test-speed 42 60 60 speed_limit_80:200 no_passing_in:400
 /var/jb/usr/bin/gvm-test-speed off
 ```
 
-Arguments: current speed (0–400 km/h), limit (1–400 km/h), duration (1–300 seconds). Only the Google CarPlay display model changes; GPS, navigation and real VietMap data remain unchanged. TEST remains visible until `off` or expiry. Missing live values remain missing after testing.
+Arguments: current speed (0–400 km/h), limit (1–400 km/h), duration (1–300 seconds), and optionally two VietMap asset names with distances (0–10000 m each), as `SIGN:METERS`, for trial 0.1.14. Bare distance numbers remain accepted as camera signs. Only the Google CarPlay display model changes; GPS, navigation and real VietMap data remain unchanged. By default, TEST remains visible until `off` or expiry. Missing live values remain missing after testing.
 
 ## Architecture and privacy
 
-`provider/vietmap-source.x` observes the existing VietMap Flutter overlay channel and forwards its original handler/reply unchanged. Validated speed and limit, each with their own monotonic receive time, travel through local Darwin notification state. Google hooks apply them only to external CarPlay map windows; phone views retain original calls.
+`provider/vietmap-source.x` observes the existing VietMap Flutter overlay channel and forwards its original handler/reply unchanged. Validated speed and limit, each with their own monotonic receive time, travel through local Darwin notification state. Road alerts are decoded from JSON-string items in `vml_main_channel/updateUpcommingAlerts` and `updateStickyAlerts`, matched against exact 3.4.3 asset digests, and relayed as up to two provider-coded kind/distance states. Empty lists clear their source; original timestamps expire after five seconds. Release 0.1.14 bundles the 46 VietMap sign images for display; notifications remain numeric only. Those third-party images are excluded from the project MIT license. Google hooks apply them only to external CarPlay map windows; phone views retain original calls.
 
 The tweak creates no network listener, telemetry upload, publisher daemon or saved credentials. App-sandbox `tmp/googlemaps-vietmap-source.log` and `tmp/googlemaps-vietmap.log` record numeric speed/limit availability and hook status, not coordinates or routes. Local notification state is not cryptographically authenticated and can be affected by other privileged/injected software. Review device logs before sharing.
 
 ## License
 
-Project-authored source is offered under [MIT](LICENSE). Third-party apps, maps, traffic/sign data, trademarks, SDKs and dependencies retain their owners' rights and terms; they are not distributed or relicensed here. See [DISCLAIMER.md](DISCLAIMER.md) for lawful-use, safety, compatibility and warranty notices. Licensing does not certify legality, accuracy or roadworthiness.
+Project-authored code is offered under [MIT](LICENSE). The package also contains selected VietMap Live artwork for display; these images are third-party material, are not covered by MIT, and remain subject to their rights holders' terms. The project does not claim ownership or grant permission to redistribute them. Third-party apps, maps, traffic/sign data, trademarks, SDKs and dependencies retain their owners' rights and terms. See [DISCLAIMER.md](DISCLAIMER.md) for lawful-use, safety, compatibility and warranty notices. Licensing does not certify legality, accuracy or roadworthiness.
+
+For unedited Settings screenshots, append `--photo` to hide the badge for that bounded sample only. `gvm-test-speed position top-left left` changes Full Map/Dashboard placement temporarily without writing user preferences; restore the previous placement after capture.
