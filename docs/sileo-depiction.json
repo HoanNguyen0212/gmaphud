@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.1.16"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Bổ sung gói rootful cùng nguồn Sileo với rootless. Bản rootful cần kiểm thử thực tế trên iOS 14; giữ tính năng chẩn đoán để gửi hỗ trợ.\n\n**English:** Adds a rootful package alongside rootless in the same Sileo source. Rootful still needs iOS 14 device testing; support diagnostics remain available."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.1.15"
         },
         {

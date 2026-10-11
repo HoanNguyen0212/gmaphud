@@ -35,7 +35,7 @@ NSString *GVMDescribeDiagnostic(uint64_t state,NSTimeInterval now) {
     if (!state || event<1 || event>7 || !isfinite(now) || age<0) return @"Chưa có dữ liệu trong phiên này";
     NSString *message;
     switch (event) {
-        case GVMDiagnosticLoaded: message=[NSString stringWithFormat:@"Module 0.1.15 đã nạp; app %lu.%lu.%lu",(unsigned long)(detail>>16),(unsigned long)((detail>>8)&255),(unsigned long)(detail&255)]; break;
+        case GVMDiagnosticLoaded: message=[NSString stringWithFormat:@"Module 0.1.16 đã nạp; app %lu.%lu.%lu",(unsigned long)(detail>>16),(unsigned long)((detail>>8)&255),(unsigned long)(detail&255)]; break;
         case GVMDiagnosticHook: message=detail==1 ? @"Hook sẵn sàng" : detail==2 ? @"Chưa tìm thấy lớp/hàm cần thiết" : detail==3 ? @"Cấu trúc hàm không tương thích" : @"Không đăng ký được kênh dữ liệu"; break;
         case GVMDiagnosticChannel: message=@"Đã bắt gặp kênh overlay VietMap"; break;
         case GVMDiagnosticPayload: message=detail==1 ? @"Nhận gói tốc độ đúng cấu trúc" : @"Gói tốc độ khác cấu trúc hỗ trợ"; break;
@@ -73,7 +73,7 @@ void GVMDiagnosticsStart(NSString *source) {
 NSString *GVMDiagnosticsReport(void) {
     char model[128]={0}; size_t size=sizeof(model);
     sysctlbyname("hw.machine",model,&size,NULL,0);
-    NSMutableString *report=[NSMutableString stringWithFormat:@"GMapHUD 0.1.15 — Chẩn đoán\nNgày xuất: %@\nThiết bị: %s\nOS: %@\nRootless /var/jb: %@\n\nKhông chứa tọa độ, tuyến đường, tài khoản hoặc số sê-ri.\nĐây là các mốc chẩn đoán gần nhất, không phải toàn bộ log ứng dụng.\nKhông có dữ liệu không đồng nghĩa tweak bị tắt. Mở lại cả hai app sau khi cài.\n",NSDate.date,model,NSProcessInfo.processInfo.operatingSystemVersionString,[[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb"] ? @"có" : @"không"];
+    NSMutableString *report=[NSMutableString stringWithFormat:@"GMapHUD 0.1.16 — Chẩn đoán\nNgày xuất: %@\nThiết bị: %s\nOS: %@\nRootless /var/jb: %@\n\nKhông chứa tọa độ, tuyến đường, tài khoản hoặc số sê-ri.\nĐây là các mốc chẩn đoán gần nhất, không phải toàn bộ log ứng dụng.\nKhông có dữ liệu không đồng nghĩa tweak bị tắt. Mở lại cả hai app sau khi cài.\n",NSDate.date,model,NSProcessInfo.processInfo.operatingSystemVersionString,[[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb"] ? @"có" : @"không"];
     NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
     for (NSString *source in @[@"vietmap",@"googlemaps"]) {
         [report appendFormat:@"\n=== %@ ===\n",source];

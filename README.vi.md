@@ -2,7 +2,7 @@
 
 **Tiếng Việt** · [English](README.md)
 
-Tweak thử nghiệm cho iOS jailbreak rootless, hiển thị **tốc độ hiện tại và giới hạn tốc độ từ VietMap Live trên Google Maps CarPlay**. Ý tưởng từ tính năng bong bóng giao thông của DuoDash và TrueDash. Google Maps tiếp tục đảm nhiệm việc dẫn đường.
+Tweak thử nghiệm cho iOS jailbreak rootful/rootless, hiển thị **tốc độ hiện tại và giới hạn tốc độ từ VietMap Live trên Google Maps CarPlay**. Ý tưởng từ tính năng bong bóng giao thông của DuoDash và TrueDash. Google Maps tiếp tục đảm nhiệm việc dẫn đường.
 
 **Tác giả: chou · có AI hỗ trợ bằng Codex.** chou định hướng, kiểm thử và xuất bản dự án cộng đồng độc lập này; Codex hỗ trợ phát triển bằng AI. Ghi nhận này không có nghĩa OpenAI là đơn vị xuất bản, chủ sở hữu bản quyền, bên bảo trì hay cung cấp hỗ trợ. Dự án không liên kết hoặc được VietMap, Google, Apple hay OpenAI bảo trợ.
 
@@ -46,7 +46,7 @@ Bản công khai 0.1.13 chưa hỗ trợ biển cảnh báo. Bản 0.1.14 nhận
 | Thiết bị / hệ điều hành | iPhone 11, iOS 18.6.2, jailbreak rootless |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Gói | `com.chou.googlemaps.vietmap` 0.1.15, arm64/arm64e |
+| Gói | `com.chou.googlemaps.vietmap` 0.1.16, arm64/arm64e |
 
 Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói và định danh thông báo giữ nguyên để tương thích với bản đang cài.
 
@@ -56,9 +56,9 @@ Giao diện đã được kiểm tra bằng iPhone thật kết nối với CarP
 
 ## Cài đặt và gỡ bỏ
 
-1. Dùng jailbreak rootless tương thích và ứng dụng được cài hợp lệ, có quyền sử dụng/thuê bao VietMap cần thiết. Dự án không cung cấp các thành phần này.
+1. Dùng jailbreak tương thích và ứng dụng được cài hợp lệ, có quyền sử dụng/thuê bao VietMap cần thiết. Dự án không cung cấp các thành phần này.
 2. Sao chép **https://bechou0410.github.io/gmaphud/** vào **Sileo → Sources (Nguồn) → +** hoặc **Zebra → Sources → +**, làm mới rồi tìm **GMapHUD**. [Trang nguồn](https://bechou0410.github.io/gmaphud/) có nút thêm nhanh cho cả hai. Hoặc tải `.deb` tại [Releases](https://github.com/bechou0410/gmaphud/releases) và đối chiếu SHA-256 với `SHA256SUMS`.
-3. Cài bằng trình quản lý gói của jailbreak. Kiểm tra thông báo gỡ các gói bridge/probe cũ được liệt kê trong [tweak/control](tweak/control). Gói này không gỡ TrueDash của nhà phát triển. Nguồn chỉ hỗ trợ gói rootless `iphoneos-arm64`.
+3. Cài bằng trình quản lý gói của jailbreak. Kiểm tra thông báo gỡ các gói bridge/probe cũ được liệt kê trong [tweak/control](tweak/control). Gói này không gỡ TrueDash của nhà phát triển. Nguồn gồm gói rootless (`iphoneos-arm64`) và rootful (`iphoneos-arm`). Rootful 0.1.16 cần kiểm thử trên iOS 14; các bản app cũ có thể cần sửa tích hợp thêm.
 4. Đóng và mở lại VietMap cùng Google Maps, rồi mở Google Maps trên CarPlay. Duy trì chế độ cảnh báo nền của VietMap. Chỉ có Live Activity chưa chứng minh dữ liệu tốc độ vẫn được cập nhật.
 
 Không cung cấp hay yêu cầu mật khẩu SSH mặc định. Thường không cần respring nếu cả hai tiến trình ứng dụng đã được mở lại.
@@ -73,7 +73,7 @@ Cần macOS, công cụ dòng lệnh Xcode, Theos, toolchain hỗ trợ rootless
 git clone https://github.com/bechou0410/gmaphud.git
 cd gmaphud
 sh test.sh
-THEOS="$HOME/theos" sh build-tweak.sh
+THEOS="$HOME/theos" sh build-tweak.sh all
 ```
 
 Gói được tạo trong `packages/`. Hai script dùng thư mục tạm và hỗ trợ đường dẫn checkout có dấu cách. Toolchain đã kiểm thử có cảnh báo linker tồn tại từ trước: `-multiply_defined is obsolete`.
@@ -86,7 +86,7 @@ Quy tắc phiên bản: trong một chu kỳ phát triển chưa phát hành, m�
 
 `docs/CydiaIcon*.png` là biểu tượng repo được Sileo tải từ gốc nguồn. Trường `Icon` trong [tweak/control](tweak/control) là biểu tượng riêng của gói; `docs/gmaphud-icon.svg/png` dùng cho favicon và trang web.
 
-Để xuất bản gói đã rà soát, chạy `python3 build-repo.py packages/<package>.deb` với Python 3 và `dpkg-deb`, kiểm tra thay đổi trong `docs/`, rồi commit và push. Chỉ mục quảng bá phiên bản vừa cung cấp; tệp gói cũ vẫn giữ cho các lượt tải đã có. Tệp đã xuất bản là bất biến: tăng phiên bản trước khi đổi nội dung gói. Chỉ đưa gói GMapHUD sản xuất đã rà soát vào nguồn. Không đưa log, khóa, bản dump ứng dụng hoặc dữ liệu cục bộ khác vào `docs/`; toàn bộ thư mục này được công khai.
+Để xuất bản gói đã rà soát, chạy `python3 build-repo.py packages/<rootless>.deb packages/<rootful>.deb` với Python 3 và `dpkg-deb`, kiểm tra thay đổi trong `docs/`, rồi commit và push. Chỉ mục quảng bá phiên bản vừa cung cấp; tệp gói cũ vẫn giữ cho các lượt tải đã có. Tệp đã xuất bản là bất biến: tăng phiên bản trước khi đổi nội dung gói. Chỉ đưa gói GMapHUD sản xuất đã rà soát vào nguồn. Không đưa log, khóa, bản dump ứng dụng hoặc dữ liệu cục bộ khác vào `docs/`; toàn bộ thư mục này được công khai.
 
 Đây là nguồn APT dạng phẳng qua HTTPS (`deb https://bechou0410.github.io/gmaphud/ ./`), có checksum gói/chỉ mục. Metadata Release chưa được ký PGP; riêng checksum không xác thực được người xuất bản. Dự án không cung cấp cách tắt cơ chế tin cậy/bảo mật APT toàn cục. Để hoàn tác một lần xuất bản nguồn, revert commit và push, đồng thời giữ tệp gói đã xuất bản. Xác nhận Pages build thành công và chỉ mục công khai khớp gói dự định trước khi thông báo cập nhật.
 

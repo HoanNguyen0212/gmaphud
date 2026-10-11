@@ -1,4 +1,9 @@
-export THEOS_PACKAGE_SCHEME = rootless
+export THEOS_PACKAGE_SCHEME ?= rootless
+ifeq ($(THEOS_PACKAGE_SCHEME),rootless)
+THEOS_PACKAGE_ARCH = iphoneos-arm64
+else
+THEOS_PACKAGE_ARCH = iphoneos-arm
+endif
 TARGET = iphone:clang:16.5:14.0
 ARCHS = arm64 arm64e
 include $(THEOS)/makefiles/common.mk

@@ -104,6 +104,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.1.16", "Bổ sung gói rootful cùng nguồn Sileo với rootless. Bản rootful cần kiểm thử thực tế trên iOS 14; giữ tính năng chẩn đoán để gửi hỗ trợ.",
+         "Adds a rootful package alongside rootless in the same Sileo source. Rootful still needs iOS 14 device testing; support diagnostics remain available."),
         ("0.1.15", "Thêm mục Chẩn đoán trong Cài đặt: xem, sao chép hoặc xuất báo cáo để được hỗ trợ khi bong bóng thiếu thông tin. Không thu thập vị trí hay tự gửi báo cáo.",
          "Adds Diagnostics in Settings: view, copy or export a report to help troubleshoot missing bubble data. No location collection or automatic uploads."),
         ("0.1.14", "Bổ sung cảnh báo đường sắp tới như giới hạn tốc độ và camera; thêm tùy chỉnh vị trí bong bóng cùng ảnh xem trước trong Cài đặt.",
@@ -168,32 +170,41 @@ def build_sileo_depiction():
 
 
 def main():
-    if len(sys.argv) != 2:
-        raise SystemExit("Usage: python3 build-repo.py path/to/gmaphud.deb")
-    package = Path(sys.argv[1]).resolve(strict=True)
-    control = subprocess.check_output(["dpkg-deb", "--field", str(package)], text=True).strip()
-    fields = dict(re.findall(r"^([A-Za-z][A-Za-z0-9-]*): (.*)$", control, re.MULTILINE))
-    if fields.get("Package") != "com.chou.googlemaps.vietmap" or fields.get("Architecture") != "iphoneos-arm64":
-        raise SystemExit("Only the GMapHUD rootless package is allowed.")
-    version = fields["Version"]
-    if not re.fullmatch(r"[A-Za-z0-9.+:~\-]+", version):
-        raise SystemExit("Invalid package version.")
-    name = f"com.chou.googlemaps.vietmap_{version}_iphoneos-arm64.deb"
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: python3 build-repo.py rootless.deb rootful.deb")
     site = ROOT / "docs"
     pool = site / "pool"
+    records = {}
+    for argument in sys.argv[1:]:
+        package = Path(argument).resolve(strict=True)
+        control = subprocess.check_output(["dpkg-deb", "--field", str(package)], text=True).strip()
+        fields = dict(re.findall(r"^([A-Za-z][A-Za-z0-9-]*): (.*)$", control, re.MULTILINE))
+        arch = fields.get("Architecture")
+        if fields.get("Package") != "com.chou.googlemaps.vietmap" or arch not in ("iphoneos-arm", "iphoneos-arm64") or arch in records:
+            raise SystemExit("Expected one rootful and one rootless GMapHUD package.")
+        version = fields["Version"]
+        if not re.fullmatch(r"[A-Za-z0-9.+:~\-]+", version):
+            raise SystemExit("Invalid package version.")
+        name = f"com.chou.googlemaps.vietmap_{version}_{arch}.deb"
+        data = package.read_bytes()
+        target = pool / name
+        if target.exists() and target.read_bytes() != data:
+            raise SystemExit("Published package versions are immutable; bump the version first.")
+        records[arch] = (version, name, data, control)
+    if len({record[0] for record in records.values()}) != 1:
+        raise SystemExit("Both packages must have the same version.")
     pool.mkdir(parents=True, exist_ok=True)
-    target = pool / name
-    data = package.read_bytes()
-    if target.exists() and target.read_bytes() != data:
-        raise SystemExit("Published package versions are immutable; bump the version first.")
-    if package != target:
-        shutil.copyfile(package, target)
-    stanza = control + "\n" + f"Filename: pool/{name}\nSize: {len(data)}\n"
-    for field, algorithm in (("MD5sum", "md5"), ("SHA1", "sha1"), ("SHA256", "sha256"), ("SHA512", "sha512")):
-        stanza += f"{field}: {hashlib.new(algorithm, data).hexdigest()}\n"
-    stanza += f"Depiction: {URL}\nSileoDepiction: {SILEO_DEPICTION_URL}\n"
-    stanza += "Homepage: https://github.com/bechou0410/gmaphud\n"
-    stanza += "Bugs: https://github.com/bechou0410/gmaphud/issues\n"
+    stanzas = []
+    for arch, (version, name, data, control) in sorted(records.items()):
+        (pool / name).write_bytes(data)
+        stanza = control + "\n" + f"Filename: pool/{name}\nSize: {len(data)}\n"
+        for field, algorithm in (("MD5sum", "md5"), ("SHA1", "sha1"), ("SHA256", "sha256"), ("SHA512", "sha512")):
+            stanza += f"{field}: {hashlib.new(algorithm, data).hexdigest()}\n"
+        stanza += f"Depiction: {URL}\nSileoDepiction: {SILEO_DEPICTION_URL}\n"
+        stanza += "Homepage: https://github.com/bechou0410/gmaphud\nBugs: https://github.com/bechou0410/gmaphud/issues\n"
+        stanzas.append(stanza)
+    stanza = "\n".join(stanzas)
+    version, name, data, _ = records["iphoneos-arm64"]
     indexes = {"Packages": stanza.encode()}
     indexes["Packages.gz"] = gzip.compress(indexes["Packages"], mtime=0)
     indexes["Packages.bz2"] = bz2.compress(indexes["Packages"])
@@ -206,7 +217,7 @@ def main():
     )
     release = (
         "Origin: GMapHUD\nLabel: GMapHUD\nSuite: experimental\nCodename: gmaphud\n"
-        "Version: 1\nArchitectures: iphoneos-arm64\nComponents: main\n"
+        "Version: 1\nArchitectures: iphoneos-arm iphoneos-arm64\nComponents: main\n"
         "Description: Experimental VietMap speed integration for Google Maps CarPlay\n"
         f"Date: {format_datetime(datetime.now(timezone.utc), usegmt=True)}\n"
     )
@@ -219,7 +230,7 @@ def main():
     locales = json.loads((ROOT / "repo-locales.json").read_text(encoding="utf-8"))
     for language, filename in (("vi", "index.html"), ("en", "en.html")):
         values = {**locales[language], "LANG": language, "VERSION": version, "REPO_URL": URL,
-                  "PACKAGE_PATH": "pool/" + name, "VI_CURRENT": "page" if language == "vi" else "false",
+                  "PACKAGE_PATH": "pool/" + name, "ROOTFUL_PACKAGE_PATH": "pool/" + records["iphoneos-arm"][1], "VI_CURRENT": "page" if language == "vi" else "false",
                   "EN_CURRENT": "page" if language == "en" else "false"}
         page = re.sub(r"\{\{([A-Z_]+)\}\}", lambda match: html.escape(values[match[1]], quote=True), template)
         (site / filename).write_text(page, encoding="utf-8")

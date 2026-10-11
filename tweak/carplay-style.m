@@ -1,3 +1,4 @@
+#import <rootless.h>
 #import "carplay-style.h"
 #import "speed-presentation.h"
 #import "vietmap-alert-assets.h"
@@ -97,7 +98,7 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
             if (!artwork && [alert[@"provider"] unsignedIntegerValue]==GVMVietMapProviderID) {
                 NSString *name=GVMVietMapAssetName(kind.unsignedIntegerValue);
                 if (name) {
-                    NSString *path=[@"/var/jb/usr/share/gmaphud/vietmap" stringByAppendingPathComponent:name];
+                    NSString *path=[ROOT_PATH_NS(@"/usr/share/gmaphud/vietmap") stringByAppendingPathComponent:name];
                     artwork=[UIImage imageWithContentsOfFile:path];
                     if (artwork) artworkCache[cacheKey]=artwork;
                 }
