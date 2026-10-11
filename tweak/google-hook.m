@@ -9,6 +9,7 @@
 #import "test-state.h"
 #import "carplay-style.h"
 #import "placement-state.h"
+#import "diagnostics.h"
 #include <notify.h>
 
 static NSHashTable *views;
@@ -107,6 +108,7 @@ static void Apply(UIView *view) {
         GVMUpdateSpeedCard(view, test ? test[@"speed"] : Value(speedToken, YES),
             test ? test[@"limit"] : Value(limitToken, NO), test ? TestAlerts() : Alerts(),
             ((BOOL (*)(id, SEL))objc_msgSend)(view, NSSelectorFromString(@"nightModeMap")));
+        GVMDiagnosticsRecord(GVMDiagnosticCarPlay,((test ? test[@"speed"] : Value(speedToken,YES)) ? 1 : 0) | ((test ? test[@"limit"] : Value(limitToken,NO)) ? 2 : 0) | (test ? 4 : 0));
         NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@ bounds=%@ safe=%@ windowSafe=%@ screen=%@",
             test ? @"TEST" : @"live",
             (test ? test[@"speed"] : Value(speedToken, YES)) ?: @"unavailable",
@@ -185,7 +187,7 @@ static void Install(void) {
     if (installed) return;
     Class map = NSClassFromString(@"AZCarPlayView"), child = NSClassFromString(@"GMSNSpeedLimitView");
     Class info = NSClassFromString(@"GMSNSpeedLimitInfo"), configuration = NSClassFromString(@"GMSNSpeedLimitViewConfiguration");
-    if (!map || !child || !info || !configuration) return;
+    if (!map || !child || !info || !configuration) { GVMDiagnosticsRecord(GVMDiagnosticHook,2); return; }
     if (!MethodMatches(map, @"setSpeedLimitInfo:", "v24@0:8@16") ||
         !MethodMatches(map, @"setSupportsSpeedLimitView:", "v20@0:8B16") ||
         !MethodMatches(map, @"setShouldDisplaySpeedLimitView:", "v20@0:8B16") ||
@@ -204,11 +206,11 @@ static void Install(void) {
         !MethodMatches(configuration, @"setSpeedometerCapable:", "v20@0:8B16") ||
         !MethodMatches(info, @"initWithSpeedLimit:speed:style:distanceUnit:speedingType:", "@56@0:8d16d24Q32q40Q48") ||
         !MethodMatches(info, @"style", "Q16@0:8") || !MethodMatches(info, @"distanceUnit", "q16@0:8")) {
-        Log(@"unsupported Google Maps ABI; replacement inactive"); return;
+        GVMDiagnosticsRecord(GVMDiagnosticHook,3); Log(@"unsupported Google Maps ABI; replacement inactive"); return;
     }
     if (notify_register_check(GVMSpeedStateName, &speedToken) != NOTIFY_STATUS_OK ||
         notify_register_check(GVMLimitStateName, &limitToken) != NOTIFY_STATUS_OK) {
-        Log(@"speed transport unavailable; replacement inactive"); return;
+        GVMDiagnosticsRecord(GVMDiagnosticHook,4); Log(@"speed transport unavailable; replacement inactive"); return;
     }
     // Test transport failure must not disable the production source.
     notify_register_check(GVMTestStateName, &testToken);
@@ -238,10 +240,11 @@ static void Install(void) {
     MSHookMessageEx(map, @selector(layoutSubviews), (IMP)LayoutMap, (IMP *)&originalMapLayout);
     MSHookMessageEx(child, @selector(layoutSubviews), (IMP)LayoutChild, (IMP *)&originalChildLayout);
     installed = YES;
+    GVMDiagnosticsRecord(GVMDiagnosticHook,1);
     [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
         (void)timer;
         @try { for (UIView *view in views.allObjects) Apply(view); }
-        @catch (NSException *exception) { Log([@"refresh refused: " stringByAppendingString:exception.name]); }
+        @catch (NSException *exception) { GVMDiagnosticsRecord(GVMDiagnosticError,1); Log([@"refresh refused: " stringByAppendingString:exception.name]); }
     }];
     Log(@"native CarPlay replacement loaded 0.1.8; awaiting fresh VietMap samples");
 }
@@ -250,6 +253,8 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
     dispatch_async(dispatch_get_main_queue(), ^{ Install(); });
 }
 __attribute__((constructor)) static void Start(void) {
-    if ([NSBundle.mainBundle.bundleIdentifier isEqual:@"com.google.Maps"])
+    if ([NSBundle.mainBundle.bundleIdentifier isEqual:@"com.google.Maps"]) {
+        GVMDiagnosticsStart(@"googlemaps");
         _dyld_register_func_for_add_image(ImageLoaded);
+    }
 }

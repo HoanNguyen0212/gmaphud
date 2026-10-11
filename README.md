@@ -46,7 +46,7 @@ Published 0.1.13 does not port road alerts. Release 0.1.14 recognizes 46 known a
 | Device / OS | iPhone 11, iOS 18.6.2, rootless jailbreak |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Package | `com.chou.googlemaps.vietmap` 0.1.14, arm64/arm64e |
+| Package | `com.chou.googlemaps.vietmap` 0.1.15, arm64/arm64e |
 
 From 0.1.13, Google Maps is not restricted by version or executable UUID. Required private classes and method signatures are still checked; passing these checks does not guarantee compatibility with every release. Package and notification identifiers retain their original namespace for compatibility with existing installations.
 
@@ -105,6 +105,14 @@ Run on the phone in a shell with access to the installed tool while Google Maps 
 ```
 
 Arguments: current speed (0–400 km/h), limit (1–400 km/h), duration (1–300 seconds), and optionally two VietMap asset names with distances (0–10000 m each), as `SIGN:METERS`, for trial 0.1.14. Bare distance numbers remain accepted as camera signs. Only the Google CarPlay display model changes; GPS, navigation and real VietMap data remain unchanged. By default, TEST remains visible until `off` or expiry. Missing live values remain missing after testing.
+
+## Diagnostics · 0.1.15
+
+After installing, close and reopen both Google Maps and VietMap Live. Reproduce the issue, then open **Settings → GMapHUD → Chẩn đoán / Xuất log**. Tap **Làm mới** (Refresh), then **Sao chép báo cáo** (Copy report) or **Xuất file…** (Export file) to share a `.txt` report. Review the visible report first; nothing is uploaded automatically.
+
+The report includes hardware model (no serial number), OS, app versions observed by the modules, hook/channel status, sample freshness and CarPlay rendering checkpoints. It retains up to 16 recent checkpoints per app plus the last checkpoint for each stage. It excludes coordinates, routes, accounts and arbitrary app log text. This is bounded diagnostic telemetry, not a full system log. Notification state may disappear when processes or the notification service restart; collect it while reproducing the issue. App versions may be unavailable if a module never loaded. Add the jailbreak version and split-screen tweak name manually when requesting support.
+
+0.1.15 has passed host tests, built for arm64/arm64e, and installed on iPhone 11. Clipboard/sharing and cross-app diagnostic transport still need device validation; this release adds diagnostics, not a confirmed fix for missing data on iOS 16.
 
 ## Architecture and privacy
 

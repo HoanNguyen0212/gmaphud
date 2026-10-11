@@ -2,6 +2,7 @@
 #import <Preferences/PSSpecifier.h>
 #import <UIKit/UIKit.h>
 #import "placement-state.h"
+#import "diagnostics-controller.h"
 #include <notify.h>
 
 @interface GVMPreferencesController : PSListController
@@ -69,6 +70,9 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     [dashboard setProperty:@"dashboardPosition" forKey:@"key"];
     [dashboard setProperty:@"right" forKey:@"default"];
     [items addObject:dashboard];
+    [items addObject:[PSSpecifier groupSpecifierWithName:@"Hỗ trợ"]];
+    [items addObject:[PSSpecifier preferenceSpecifierNamed:@"Chẩn đoán / Xuất log" target:self
+        set:NULL get:NULL detail:GVMDiagnosticsController.class cell:PSLinkCell edit:Nil]];
     _specifiers = items;
     return _specifiers;
 }

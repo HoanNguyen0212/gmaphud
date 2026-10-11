@@ -5,6 +5,7 @@ build_dir=$(mktemp -d /tmp/gmaphud-build.XXXXXX)
 trap 'rm -rf "$build_dir"' EXIT HUP INT TERM
 cp -R "$source_dir/tweak/." "$build_dir/"
 cp "$source_dir"/common/alert-state.[mh] "$source_dir"/common/speed-state.[mh] "$source_dir"/common/test-state.[mh] "$source_dir"/common/speed-presentation.[mh] "$build_dir/"
+cp "$source_dir"/common/diagnostics.[mh] "$build_dir/"
 cp "$source_dir"/common/placement-state.[mh] "$build_dir/"
 cp "$source_dir/provider/vietmap-source.x" "$build_dir/vietmap-source.x"
 cp "$source_dir/provider/"nav-source.[mh] "$source_dir/provider/"nav-payload.[mh] "$source_dir/provider/"vietmap-alert-assets.[mh] "$build_dir/"

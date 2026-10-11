@@ -104,6 +104,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.1.15", "Thêm mục Chẩn đoán trong Cài đặt: xem, sao chép hoặc xuất báo cáo để được hỗ trợ khi bong bóng thiếu thông tin. Không thu thập vị trí hay tự gửi báo cáo.",
+         "Adds Diagnostics in Settings: view, copy or export a report to help troubleshoot missing bubble data. No location collection or automatic uploads."),
         ("0.1.14", "Bổ sung cảnh báo đường sắp tới như giới hạn tốc độ và camera; thêm tùy chỉnh vị trí bong bóng cùng ảnh xem trước trong Cài đặt.",
          "Adds upcoming road alerts such as speed limits and cameras, plus bubble placement controls and previews in Settings."),
         ("0.1.13", "Bỏ khóa phiên bản Google Maps và VietMap Live; giữ kiểm tra cấu trúc hàm và dữ liệu. Đã nhận dữ liệu 0/50 trên Google Maps 26.40.3 và VietMap Live 3.4.3.",

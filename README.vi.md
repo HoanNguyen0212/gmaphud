@@ -46,7 +46,7 @@ Bản công khai 0.1.13 chưa hỗ trợ biển cảnh báo. Bản 0.1.14 nhận
 | Thiết bị / hệ điều hành | iPhone 11, iOS 18.6.2, jailbreak rootless |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Gói | `com.chou.googlemaps.vietmap` 0.1.14, arm64/arm64e |
+| Gói | `com.chou.googlemaps.vietmap` 0.1.15, arm64/arm64e |
 
 Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói và định danh thông báo giữ nguyên để tương thích với bản đang cài.
 
@@ -105,6 +105,14 @@ Chạy trên iPhone trong shell có quyền dùng công cụ đã cài, khi Goog
 ```
 
 Tham số lần lượt là tốc độ hiện tại (0–400 km/h), giới hạn (1–400 km/h), thời lượng (1–300 giây); bản thử 0.1.14 có thể thêm tên hai biển VietMap và khoảng cách (0–10000 m) theo dạng `TÊN_BIỂN:MÉT`. Có thể nhập hai số trần để thử hai biển camera. Chỉ mô hình hiển thị trên Google CarPlay thay đổi; GPS, dẫn đường và dữ liệu VietMap thật vẫn giữ nguyên. Mặc định TEST hiển thị đến khi gọi `off` hoặc hết hạn. Sau kiểm thử, dữ liệu thật chưa có vẫn được hiển thị là chưa có.
+
+## Chẩn đoán lỗi · 0.1.15
+
+Sau khi cài, đóng và mở lại Google Maps và VietMap Live. Khi lỗi xuất hiện, vào **Cài đặt → GMapHUD → Chẩn đoán / Xuất log**, bấm **Làm mới**, rồi **Sao chép báo cáo** hoặc **Xuất file…** để chia sẻ file `.txt`. Báo cáo được hiển thị trước khi gửi; GMapHUD không tự gửi dữ liệu.
+
+Báo cáo chứa mẫu thiết bị (không có số sê-ri), iOS, phiên bản app do module ghi nhận, trạng thái hook, kênh nguồn, dữ liệu có còn mới và view CarPlay; giữ tối đa 16 mốc gần nhất cho mỗi app cùng mốc cuối của từng bước. Không thu tọa độ, tuyến đường, tài khoản hoặc nội dung log tùy ý từ ứng dụng. Đây là chẩn đoán có giới hạn, không phải toàn bộ log hệ thống. Trạng thái có thể mất khi tiến trình/dịch vụ thông báo khởi động lại; hãy lấy báo cáo trong lúc tái hiện lỗi. Nếu module chưa nạp, phiên bản app có thể chưa có trong báo cáo. Tự bổ sung phiên bản jailbreak và tên tweak chia màn hình khi gửi hỗ trợ.
+
+Bản 0.1.15 đã qua kiểm thử trên máy build, build arm64/arm64e và cài trên iPhone 11. Sao chép/chia sẻ và truyền chẩn đoán giữa app vẫn cần kiểm chứng thực tế; đây là bản bổ sung chẩn đoán, chưa phải bản sửa đã xác nhận cho lỗi thiếu dữ liệu trên iOS 16.
 
 ## Kiến trúc và quyền riêng tư
 

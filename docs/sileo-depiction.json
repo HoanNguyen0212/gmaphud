@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.1.15"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Thêm mục Chẩn đoán trong Cài đặt: xem, sao chép hoặc xuất báo cáo để được hỗ trợ khi bong bóng thiếu thông tin. Không thu thập vị trí hay tự gửi báo cáo.\n\n**English:** Adds Diagnostics in Settings: view, copy or export a report to help troubleshoot missing bubble data. No location collection or automatic uploads."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.1.14"
         },
         {

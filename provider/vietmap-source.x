@@ -5,6 +5,7 @@
 #import <substrate.h>
 #import <notify.h>
 #import "nav-source.h"
+#import "diagnostics.h"
 #ifdef VM_GOOGLE_MAPS_RELAY
 #import "speed-state.h"
 #import "alert-state.h"
@@ -53,15 +54,16 @@ static void Publish(void) {
 #ifdef VM_GOOGLE_MAPS_RELAY
     if (!relayReady) return;
     NSDictionary *samples = [source freshSamplesAtUptime:NSProcessInfo.processInfo.systemUptime];
+    GVMDiagnosticsRecord(GVMDiagnosticSamples,(samples[@"speed"] ? 1 : 0) | (samples[@"speedLimit"] ? 2 : 0) | (UIApplication.sharedApplication.applicationState==UIApplicationStateActive ? 4 : 0));
     uint64_t speed = GVMEncodeSample(samples[@"speed"][@"value"], [samples[@"speed"][@"receivedAt"] doubleValue]);
     uint64_t limit = GVMEncodeSample(samples[@"speedLimit"][@"value"], [samples[@"speedLimit"][@"receivedAt"] doubleValue]);
     if (!speedPublished || speed != lastSpeed) {
         if (notify_set_state(speedToken, speed) == NOTIFY_STATUS_OK) { speedPublished = YES; lastSpeed = speed; notify_post(GVMSpeedStateName); }
-        else BridgeLog(@"speed publication refused");
+        else { BridgeLog(@"speed publication refused"); GVMDiagnosticsRecord(GVMDiagnosticError,1); }
     }
     if (!limitPublished || limit != lastLimit) {
         if (notify_set_state(limitToken, limit) == NOTIFY_STATUS_OK) { limitPublished = YES; lastLimit = limit; notify_post(GVMLimitStateName); }
-        else BridgeLog(@"limit publication refused");
+        else { BridgeLog(@"limit publication refused"); GVMDiagnosticsRecord(GVMDiagnosticError,1); }
     }
     NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
     NSMutableArray<NSDictionary *> *entries=[NSMutableArray array];
@@ -113,7 +115,7 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
         originalSetHandler(channel, selector, handler);
         return;
     }
-    dispatch_async(dispatch_get_main_queue(), ^{ BridgeLog(@"VietMap overlay handler registered"); });
+    dispatch_async(dispatch_get_main_queue(), ^{ BridgeLog(@"VietMap overlay handler registered"); GVMDiagnosticsRecord(GVMDiagnosticChannel,1); });
     VMFlutterHandler wrapped = ^(id<VMFlutterMethodCall> call, VMFlutterResult result) {
         NSArray *update = nil;
         NSTimeInterval received = NSProcessInfo.processInfo.systemUptime;
@@ -133,7 +135,11 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
             }
 #endif
             if ([name isEqualToString:@"vietmap_car_method_channel"] && [[call method] isEqualToString:@"updateMapOverlayData"])
+            {
                 update = VMNavCopyOverlayArguments([call arguments]);
+                BOOL valid=update!=nil;
+                dispatch_async(dispatch_get_main_queue(), ^{ GVMDiagnosticsRecord(GVMDiagnosticPayload,valid ? 1 : 2); });
+            }
         } @catch (__unused NSException *exception) {}
         // Forward every call and its original reply block exactly once.
         handler(call, result);
@@ -160,16 +166,18 @@ static void InstallHook(void) {
     SEL selector = NSSelectorFromString(@"setMethodCallHandler:");
     Method method = class_getInstanceMethod(target, selector);
     Ivar name = class_getInstanceVariable(target, "_name");
-    if (!method || !name) return;
+    if (!method || !name) { GVMDiagnosticsRecord(GVMDiagnosticHook,2); return; }
     NSMethodSignature *signature = [NSMethodSignature signatureWithObjCTypes:method_getTypeEncoding(method)];
     if (signature.numberOfArguments != 3 || strcmp(signature.methodReturnType, "v") ||
         strcmp([signature getArgumentTypeAtIndex:2], "@?") || ivar_getTypeEncoding(name)[0] != '@') {
+        GVMDiagnosticsRecord(GVMDiagnosticHook,3);
         BridgeLog(@"unsupported Flutter channel ABI; provider inactive");
         return;
     }
     channelNameIvar = name;
     MSHookMessageEx(target, selector, (IMP)SetMethodCallHandler, (IMP *)&originalSetHandler);
     hookInstalled = YES;
+    GVMDiagnosticsRecord(GVMDiagnosticHook,1);
     BridgeLog(@"overlay hook installed");
 }
 
@@ -180,6 +188,7 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
 
 %ctor {
     @autoreleasepool {
+        GVMDiagnosticsStart(@"vietmap");
 #ifdef VM_GOOGLE_MAPS_RELAY
         relayReady = notify_register_check(GVMSpeedStateName, &speedToken) == NOTIFY_STATUS_OK &&
             notify_register_check(GVMLimitStateName, &limitToken) == NOTIFY_STATUS_OK;
@@ -191,6 +200,9 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
         if (notify_register_check(GVMSecondAlertStateName,&secondAlertToken)==NOTIFY_STATUS_OK) {
             notify_set_state(secondAlertToken,0); notify_post(GVMSecondAlertStateName);
         }
+#endif
+#ifdef VM_GOOGLE_MAPS_RELAY
+        if (!relayReady) GVMDiagnosticsRecord(GVMDiagnosticError,1);
 #endif
         source = [VMNavSource new];
         // Catch channel registration during application launch when Flutter is already loaded.

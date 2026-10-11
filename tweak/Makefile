@@ -3,10 +3,10 @@ TARGET = iphone:clang:16.5:14.0
 ARCHS = arm64 arm64e
 include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = VietMapGoogleMapsSource GoogleMapsVietMap GMapHUDPlacementRelay
-VietMapGoogleMapsSource_FILES = vietmap-source.x nav-source.m nav-payload.m speed-state.m alert-state.m vietmap-alert-assets.m
+VietMapGoogleMapsSource_FILES = diagnostics.m vietmap-source.x nav-source.m nav-payload.m speed-state.m alert-state.m vietmap-alert-assets.m
 VietMapGoogleMapsSource_CFLAGS = -fobjc-arc -DVM_GOOGLE_MAPS_RELAY=1
 VietMapGoogleMapsSource_FRAMEWORKS = UIKit Foundation
-GoogleMapsVietMap_FILES = google-hook.m carplay-style.m speed-presentation.m speed-state.m alert-state.m vietmap-alert-assets.m test-state.m placement-state.m
+GoogleMapsVietMap_FILES = diagnostics.m google-hook.m carplay-style.m speed-presentation.m speed-state.m alert-state.m vietmap-alert-assets.m test-state.m placement-state.m
 GoogleMapsVietMap_CFLAGS = -fobjc-arc -Wall -Wextra
 GoogleMapsVietMap_FRAMEWORKS = UIKit Foundation
 GoogleMapsVietMap_LIBRARIES = substrate
@@ -16,7 +16,7 @@ GMapHUDPlacementRelay_FRAMEWORKS = Foundation
 include $(THEOS)/makefiles/tweak.mk
 
 BUNDLE_NAME = GMapHUDPrefs
-GMapHUDPrefs_FILES = prefs/preferences-controller.m placement-state.m
+GMapHUDPrefs_FILES = diagnostics.m prefs/diagnostics-controller.m prefs/preferences-controller.m placement-state.m
 GMapHUDPrefs_CFLAGS = -fobjc-arc -Wall -Wextra
 GMapHUDPrefs_FRAMEWORKS = Foundation UIKit
 GMapHUDPrefs_PRIVATE_FRAMEWORKS = Preferences

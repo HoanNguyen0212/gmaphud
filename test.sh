@@ -26,3 +26,8 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   "$source_dir/tweak/layout/usr/share/gmaphud/vietmap/traffic_camera.png" \
   "$source_dir/tweak/layout/usr/share/gmaphud/vietmap/speed_limit_60.png" \
   "$source_dir/tweak/layout/usr/share/gmaphud/vietmap"
+
+xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
+  -I"$source_dir/common" "$source_dir/common/diagnostics.m" \
+  "$source_dir/tests/diagnostics-tests.m" -o "$test_dir/diagnostics"
+"$test_dir/diagnostics"
