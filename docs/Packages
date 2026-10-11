@@ -8,14 +8,14 @@ Section: Tweaks
 Depends: mobilesubstrate
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm64
-Version: 0.1.12
-Installed-Size: 556
-Filename: pool/com.chou.googlemaps.vietmap_0.1.12_iphoneos-arm64.deb
-Size: 31962
-MD5sum: e0b538885449c2e208a55e2e45ecff13
-SHA1: 2faa3ad4dac8c72bd30a73303af3458f6b4912fe
-SHA256: 3a099743647efdf8e9e25a4f13126ce3c90b11816870bd234535d6373129822d
-SHA512: 0354dff766d7cc7e154076a21a2d3e1b1f57e073e161bab034915b949e3a9b0297d1dd7126c3fab5a382d11bb6981d98d2333f56180c34124241ce8271402032
+Version: 0.1.13
+Installed-Size: 552
+Filename: pool/com.chou.googlemaps.vietmap_0.1.13_iphoneos-arm64.deb
+Size: 31180
+MD5sum: 43aedafe741c8016ea07f9ece91c8e2e
+SHA1: 075be6841ae75eb6f07094c59eba950177209211
+SHA256: 401087e928c49769843352cb76a62448bbc24721102a3531eb958216d0bcdc07
+SHA512: 4fd09f6b9327582b5c6cd8a9b7f21cc9bef9d8cd55ed5ef6dad8260e17944d2f4272c91f7636a3c1a4ed726d1d26237e1a87c0e1e0fda56a02b77c7da60b9143
 Depiction: https://bechou0410.github.io/gmaphud/
 SileoDepiction: https://bechou0410.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/bechou0410/gmaphud

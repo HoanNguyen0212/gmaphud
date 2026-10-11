@@ -32,11 +32,13 @@ This release does not port other road signs, cameras, warning distances, navigat
 | Component | Verified target |
 | --- | --- |
 | Device / OS | iPhone 11, iOS 18.6.2, rootless jailbreak |
-| Google Maps | 26.39.0, executable UUID `E8BB60A0-E434-3412-AC6B-9B6800E031A6` |
-| VietMap Live | 3.4.2 |
+| Google Maps | 26.40.3 |
+| VietMap Live | 3.4.3 |
 | Package | `com.chou.googlemaps.vietmap` 0.1.12, arm64/arm64e |
 
-Private method signatures and executable/version guards leave unsupported targets inactive. A version string alone does not guarantee a matching Google executable. Package and notification identifiers retain their original namespace for compatibility with existing installations.
+From 0.1.13, Google Maps is not restricted by version or executable UUID. Required private classes and method signatures are still checked; passing these checks does not guarantee compatibility with every release. Package and notification identifiers retain their original namespace for compatibility with existing installations.
+
+From 0.1.13, the VietMap source also has no version restriction. Flutter channel structure and incoming data validation remain enabled. New app versions still require on-device verification.
 
 UI states were checked using a real phone connected to Apple's CarPlay Simulator: normal, near-limit, overspeed and Dashboard. Live stationary values and simulated-location movement were observed. Physical-road accuracy, broad vehicle/head-unit compatibility and reliable background operation across OS/app updates are not established. VietMap display values are interpreted as km/h; simulated playback showed app-side differences from selected playback speed. This is not calibrated instrumentation.
 

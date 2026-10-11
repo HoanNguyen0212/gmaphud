@@ -45,8 +45,8 @@ def build_sileo_depiction():
             "screenshots": "Ảnh xem trước · CarPlay Simulator",
             "compatibility": "Thiết lập đã kiểm thử",
             "compatibility_text": (
-                "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.39.0 "
-                "(executable UUID phải khớp README) · VietMap Live 3.4.2."
+                "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.40.3 "
+                "· VietMap Live 3.4.3; đã xác nhận dữ liệu 0/50."
             ),
             "safety": "Phạm vi và lưu ý",
             "safety_text": (
@@ -73,8 +73,8 @@ def build_sileo_depiction():
             "screenshots": "Previews · CarPlay Simulator",
             "compatibility": "Tested setup",
             "compatibility_text": (
-                "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.39.0 "
-                "(executable UUID must match the README) · VietMap Live 3.4.2."
+                "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.40.3 "
+                "· VietMap Live 3.4.3; verified 0/50 data."
             ),
             "safety": "Scope and safety",
             "safety_text": (
@@ -92,6 +92,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.1.13", "Bỏ khóa phiên bản Google Maps và VietMap Live; giữ kiểm tra cấu trúc hàm và dữ liệu. Đã nhận dữ liệu 0/50 trên Google Maps 26.40.3 và VietMap Live 3.4.3.",
+         "Removes Google Maps and VietMap Live version restrictions while retaining method and data checks. Verified 0/50 data with Google Maps 26.40.3 and VietMap Live 3.4.3."),
         ("0.1.12", "Cập nhật ghi nhận tác giả dự án là chou và nêu rõ Codex hỗ trợ phát triển bằng AI.",
          "Credits chou as project author and discloses Codex AI development assistance."),
         ("0.1.11", "Bản trước trong nguồn Sileo; không có ghi chú phát hành riêng.",

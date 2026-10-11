@@ -40,7 +40,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.39.0 (executable UUID phải khớp README) · VietMap Live 3.4.2."
+          "markdown": "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.40.3 · VietMap Live 3.4.3; đã xác nhận dữ liệu 0/50."
         },
         {
           "class": "DepictionSubheaderView",
@@ -97,7 +97,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.39.0 (executable UUID must match the README) · VietMap Live 3.4.2."
+          "markdown": "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.40.3 · VietMap Live 3.4.3; verified 0/50 data."
         },
         {
           "class": "DepictionSubheaderView",
@@ -124,6 +124,14 @@
         {
           "class": "DepictionHeaderView",
           "title": "Nhật ký thay đổi / Change log"
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.1.13"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Bỏ khóa phiên bản Google Maps và VietMap Live; giữ kiểm tra cấu trúc hàm và dữ liệu. Đã nhận dữ liệu 0/50 trên Google Maps 26.40.3 và VietMap Live 3.4.3.\n\n**English:** Removes Google Maps and VietMap Live version restrictions while retaining method and data checks. Verified 0/50 data with Google Maps 26.40.3 and VietMap Live 3.4.3."
         },
         {
           "class": "DepictionSubheaderView",

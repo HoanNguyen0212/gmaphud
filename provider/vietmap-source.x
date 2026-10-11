@@ -127,9 +127,6 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
 %ctor {
     @autoreleasepool {
 #ifdef VM_GOOGLE_MAPS_RELAY
-        if (![[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] isEqual:@"3.4.2"]) {
-            BridgeLog(@"unsupported VietMap build; source inactive"); return;
-        }
         relayReady = notify_register_check(GVMSpeedStateName, &speedToken) == NOTIFY_STATUS_OK &&
             notify_register_check(GVMLimitStateName, &limitToken) == NOTIFY_STATUS_OK;
 #endif

@@ -32,11 +32,13 @@ Bản này chưa chuyển các biển cảnh báo khác, camera, khoảng cách 
 | Thành phần | Cấu hình đã kiểm thử |
 | --- | --- |
 | Thiết bị / hệ điều hành | iPhone 11, iOS 18.6.2, jailbreak rootless |
-| Google Maps | 26.39.0, UUID executable `E8BB60A0-E434-3412-AC6B-9B6800E031A6` |
-| VietMap Live | 3.4.2 |
+| Google Maps | 26.40.3 |
+| VietMap Live | 3.4.3 |
 | Gói | `com.chou.googlemaps.vietmap` 0.1.12, arm64/arm64e |
 
-Các kiểm tra chữ ký phương thức nội bộ và phiên bản/executable sẽ không kích hoạt phần tích hợp trên bản không được hỗ trợ. Chỉ trùng số phiên bản chưa bảo đảm executable của Google Maps khớp. Mã gói và định danh thông báo giữ nguyên để tương thích với bản đang cài.
+Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói và định danh thông báo giữ nguyên để tương thích với bản đang cài.
+
+Từ 0.1.13, nguồn VietMap cũng không còn khóa phiên bản. Kiểm tra cấu trúc kênh Flutter và dữ liệu đầu vào vẫn được giữ lại. Các bản app mới vẫn cần kiểm chứng trên thiết bị.
 
 Giao diện đã được kiểm tra bằng iPhone thật kết nối với CarPlay Simulator của Apple: bình thường, gần giới hạn, vượt giới hạn và Dashboard. Đã quan sát giá trị thật khi đứng yên và sự di chuyển bằng vị trí giả lập. Chưa xác lập độ chính xác trên đường thực tế, khả năng tương thích rộng với xe/đầu màn hình hay hoạt động nền ổn định qua các lần cập nhật ứng dụng/hệ điều hành. Giá trị VietMap được diễn giải theo km/h; khi phát tuyến giả lập, tốc độ ứng dụng ghi nhận có thể khác tốc độ phát đã chọn. Đây không phải thiết bị đo đã hiệu chuẩn.
 

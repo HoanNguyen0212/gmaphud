@@ -1,6 +1,6 @@
 Package: com.chou.googlemaps.vietmap
 Name: GMapHUD
-Version: 0.1.12
+Version: 0.1.13
 Architecture: iphoneos-arm64
 Description: Experimental fresh VietMap speed data in Google Maps native CarPlay controls.
 Icon: https://bechou0410.github.io/gmaphud/gmaphud-icon.png

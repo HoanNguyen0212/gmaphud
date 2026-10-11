@@ -27,27 +27,6 @@ static BOOL MethodMatches(Class cls, NSString *name, const char *encoding) {
     Method method = class_getInstanceMethod(cls, NSSelectorFromString(name));
     return method && strcmp(method_getTypeEncoding(method), encoding) == 0;
 }
-static BOOL KnownImage(void) {
-    NSString *path = NSBundle.mainBundle.executablePath.stringByResolvingSymlinksInPath;
-    for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-        const char *name = _dyld_get_image_name(i);
-        if (!name || ![[[NSString stringWithUTF8String:name] stringByResolvingSymlinksInPath] isEqual:path]) continue;
-        const struct mach_header_64 *header = (const void *)_dyld_get_image_header(i);
-        if (!header || header->magic != MH_MAGIC_64 || header->sizeofcmds > 1048576) return NO;
-        const uint8_t *cursor = (const void *)(header + 1), *end = cursor + header->sizeofcmds;
-        for (uint32_t j = 0; j < header->ncmds; j++) {
-            if ((size_t)(end - cursor) < sizeof(struct load_command)) return NO;
-            const struct load_command *command = (const void *)cursor;
-            if (command->cmdsize < sizeof(*command) || command->cmdsize > (size_t)(end - cursor)) return NO;
-            if (command->cmd == LC_UUID && command->cmdsize >= sizeof(struct uuid_command)) {
-                NSUUID *uuid = [[NSUUID alloc] initWithUUIDBytes:((const struct uuid_command *)command)->uuid];
-                return [uuid.UUIDString isEqual:@"E8BB60A0-E434-3412-AC6B-9B6800E031A6"];
-            }
-            cursor += command->cmdsize;
-        }
-    }
-    return NO;
-}
 static BOOL External(UIView *view) { return view.window && view.window.screen != UIScreen.mainScreen; }
 static NSNumber *Value(int token, BOOL zero) {
     uint64_t state = 0;
@@ -171,7 +150,6 @@ static void LayoutMap(id self, SEL selector) {
 }
 static void Install(void) {
     if (installed) return;
-    if (!KnownImage()) { Log(@"unsupported Google Maps build; replacement inactive"); return; }
     Class map = NSClassFromString(@"AZCarPlayView"), child = NSClassFromString(@"GMSNSpeedLimitView");
     Class info = NSClassFromString(@"GMSNSpeedLimitInfo"), configuration = NSClassFromString(@"GMSNSpeedLimitViewConfiguration");
     if (!map || !child || !info || !configuration) return;
