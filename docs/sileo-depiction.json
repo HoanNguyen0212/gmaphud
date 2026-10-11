@@ -17,7 +17,7 @@
         },
         {
           "class": "DepictionSubheaderView",
-          "title": "Ảnh xem trước · CarPlay Simulator"
+          "title": "Vị trí bong bóng · ảnh xem trước trong Cài đặt"
         },
         {
           "class": "DepictionScreenshotsView",
@@ -25,12 +25,28 @@
           "itemCornerRadius": 10,
           "screenshots": [
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/gmaphud-full-map-f7c79e32.png",
-              "accessibilityText": "Bản đồ CarPlay đầy đủ: trạng thái bình thường, 15/50 km/h; tuyến giả lập."
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-top-left.png",
+              "accessibilityText": "Bản đồ đầy đủ: bong bóng ở góc trên trái."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/gmaphud-dashboard.png",
-              "accessibilityText": "Dashboard CarPlay: trạng thái vượt giới hạn, 74/50 km/h; tuyến giả lập."
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-top-right.png",
+              "accessibilityText": "Bản đồ đầy đủ: bong bóng ở góc trên phải."
+            },
+            {
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-bottom-left.png",
+              "accessibilityText": "Bản đồ đầy đủ: bong bóng ở góc dưới trái."
+            },
+            {
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-bottom-right.png",
+              "accessibilityText": "Bản đồ đầy đủ: bong bóng ở góc dưới phải."
+            },
+            {
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/dashboard-left.png",
+              "accessibilityText": "Dashboard: bong bóng ở bên trái."
+            },
+            {
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/dashboard-right.png",
+              "accessibilityText": "Dashboard: bong bóng ở bên phải."
             }
           ]
         },
@@ -74,7 +90,7 @@
         },
         {
           "class": "DepictionSubheaderView",
-          "title": "Previews · CarPlay Simulator"
+          "title": "Bubble placement · Settings previews"
         },
         {
           "class": "DepictionScreenshotsView",
@@ -82,12 +98,28 @@
           "itemCornerRadius": 10,
           "screenshots": [
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/gmaphud-full-map-f7c79e32.png",
-              "accessibilityText": "Full-map CarPlay: normal state at 15/50 km/h; simulated route."
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-top-left.png",
+              "accessibilityText": "Full map: bubble in the top-left corner."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/gmaphud-dashboard.png",
-              "accessibilityText": "CarPlay Dashboard: overspeed state at 74/50 km/h; simulated route."
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-top-right.png",
+              "accessibilityText": "Full map: bubble in the top-right corner."
+            },
+            {
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-bottom-left.png",
+              "accessibilityText": "Full map: bubble in the bottom-left corner."
+            },
+            {
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-bottom-right.png",
+              "accessibilityText": "Full map: bubble in the bottom-right corner."
+            },
+            {
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/dashboard-left.png",
+              "accessibilityText": "Dashboard: bubble on the left."
+            },
+            {
+              "url": "https://bechou0410.github.io/gmaphud/screenshots/dashboard-right.png",
+              "accessibilityText": "Dashboard: bubble on the right."
             }
           ]
         },

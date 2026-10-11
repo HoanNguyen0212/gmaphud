@@ -18,20 +18,32 @@ ROOT = Path(__file__).resolve().parent
 URL = "https://bechou0410.github.io/gmaphud/"
 SILEO_DEPICTION_URL = URL + "sileo-depiction.json"
 SCREENSHOTS = (
-    URL + "screenshots/gmaphud-full-map-f7c79e32.png",
-    URL + "screenshots/gmaphud-dashboard.png",
+    URL + "screenshots/full-map-top-left.png",
+    URL + "screenshots/full-map-top-right.png",
+    URL + "screenshots/full-map-bottom-left.png",
+    URL + "screenshots/full-map-bottom-right.png",
+    URL + "screenshots/dashboard-left.png",
+    URL + "screenshots/dashboard-right.png",
 )
 
 
 def build_sileo_depiction():
     screenshots = {
         "vi": [
-            "Bản đồ CarPlay đầy đủ: trạng thái bình thường, 15/50 km/h; tuyến giả lập.",
-            "Dashboard CarPlay: trạng thái vượt giới hạn, 74/50 km/h; tuyến giả lập.",
+            "Bản đồ đầy đủ: bong bóng ở góc trên trái.",
+            "Bản đồ đầy đủ: bong bóng ở góc trên phải.",
+            "Bản đồ đầy đủ: bong bóng ở góc dưới trái.",
+            "Bản đồ đầy đủ: bong bóng ở góc dưới phải.",
+            "Dashboard: bong bóng ở bên trái.",
+            "Dashboard: bong bóng ở bên phải.",
         ],
         "en": [
-            "Full-map CarPlay: normal state at 15/50 km/h; simulated route.",
-            "CarPlay Dashboard: overspeed state at 74/50 km/h; simulated route.",
+            "Full map: bubble in the top-left corner.",
+            "Full map: bubble in the top-right corner.",
+            "Full map: bubble in the bottom-left corner.",
+            "Full map: bubble in the bottom-right corner.",
+            "Dashboard: bubble on the left.",
+            "Dashboard: bubble on the right.",
         ],
     }
     copy = {
@@ -42,7 +54,7 @@ def build_sileo_depiction():
                 "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps CarPlay. "
                 "Google Maps tiếp tục đảm nhiệm việc dẫn đường."
             ),
-            "screenshots": "Ảnh xem trước · CarPlay Simulator",
+            "screenshots": "Vị trí bong bóng · ảnh xem trước trong Cài đặt",
             "compatibility": "Thiết lập đã kiểm thử",
             "compatibility_text": (
                 "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.40.3 "
@@ -70,7 +82,7 @@ def build_sileo_depiction():
                 "Displays current speed, limits, and recognized VietMap road alerts in Google Maps CarPlay. "
                 "Google Maps continues to handle navigation."
             ),
-            "screenshots": "Previews · CarPlay Simulator",
+            "screenshots": "Bubble placement · Settings previews",
             "compatibility": "Tested setup",
             "compatibility_text": (
                 "iPhone 11 · iOS 18.6.2 rootless · Google Maps 26.40.3 "

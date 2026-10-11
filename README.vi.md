@@ -8,19 +8,27 @@ Tweak thử nghiệm cho iOS jailbreak rootless, hiển thị **tốc độ hi�
 
 > Phần mềm thử nghiệm dành cho nghiên cứu và kiểm thử khi xe đã đỗ an toàn; chưa được chứng nhận là thiết bị hỗ trợ lái xe. Dữ liệu có thể sai, thiếu hoặc trễ. Tuân thủ biển báo thực tế, điều kiện đường và pháp luật áp dụng. Đọc [thông báo trách nhiệm và quyền bên thứ ba](DISCLAIMER.vi.md) trước khi sử dụng; disclaimer không bảo đảm loại bỏ mọi rủi ro pháp lý.
 
-## Ảnh xem trước CarPlay
+## Ảnh xem trước vị trí bong bóng
 
-Ảnh chụp từ CarPlay Simulator trên tuyến giả lập: bản đồ đầy đủ ở trạng thái 15/50 km/h và Dashboard ở trạng thái vượt giới hạn 74/50 km/h. Cả hai chỉ minh họa giao diện, không khẳng định độ chính xác trên đường thật.
+Đây là những ảnh CarPlay được dùng trong phần xem trước của Cài đặt. Ảnh minh họa đủ các vị trí hỗ trợ; số liệu và cảnh báo hiển thị chỉ là ví dụ, không khẳng định độ chính xác trên đường thực tế.
 
-| Bản đồ đầy đủ | Dashboard |
+| Bản đồ đầy đủ · trên trái | Bản đồ đầy đủ · trên phải |
 | --- | --- |
-| ![Giao diện bản đồ đầy đủ GMapHUD trên CarPlay Simulator](docs/screenshots/gmaphud-full-map-f7c79e32.png) | ![Giao diện Dashboard GMapHUD trên CarPlay Simulator](docs/screenshots/gmaphud-dashboard.png) |
+| ![Bong bóng trên trái trong bản đồ đầy đủ](docs/screenshots/full-map-top-left.png) | ![Bong bóng trên phải trong bản đồ đầy đủ](docs/screenshots/full-map-top-right.png) |
+
+| Bản đồ đầy đủ · dưới trái | Bản đồ đầy đủ · dưới phải |
+| --- | --- |
+| ![Bong bóng dưới trái trong bản đồ đầy đủ](docs/screenshots/full-map-bottom-left.png) | ![Bong bóng dưới phải trong bản đồ đầy đủ](docs/screenshots/full-map-bottom-right.png) |
+
+| Dashboard · bên trái | Dashboard · bên phải |
+| --- | --- |
+| ![Bong bóng bên trái trong Dashboard](docs/screenshots/dashboard-left.png) | ![Bong bóng bên phải trong Dashboard](docs/screenshots/dashboard-right.png) |
 
 ## Tính năng
 
-Bản thử nghiệm 0.1.14: bubble ngang có tốc độ bên trái, biển giới hạn bên phải và nhãn VietMap Live phía trên; Dashboard dùng bubble dọc với giới hạn trên, tốc độ dưới. Cảnh báo đường dùng ảnh VietMap Live tương ứng và khoảng cách nguồn trong vùng VietMap riêng: tối đa hai biểu tượng cạnh nhau trên bản đồ đầy đủ, hai biểu tượng xếp dọc dưới tốc độ trong Dashboard. Nhận diện đầu vào đối chiếu mã băm ảnh đã quan sát từ VietMap Live 3.4.3. Bubble tự co giãn đồng đều theo màn hình ngoài và phần bản đồ còn trống, tính cả vùng an toàn của thanh công cụ; kích thước được giới hạn để giữ chỗ cho bản đồ. Bố cục full map/Dashboard được chọn theo tỉ lệ chiều rộng màn hình. Ảnh bên trên thuộc giao diện đã phát hành trước đó.
+Bản thử nghiệm 0.1.14: bubble ngang có tốc độ bên trái, biển giới hạn bên phải và nhãn VietMap Live phía trên; Dashboard dùng bubble dọc với giới hạn trên, tốc độ dưới. Cảnh báo đường dùng ảnh VietMap Live tương ứng và khoảng cách nguồn trong vùng VietMap riêng: tối đa hai biểu tượng cạnh nhau trên bản đồ đầy đủ, hai biểu tượng xếp dọc dưới tốc độ trong Dashboard. Nhận diện đầu vào đối chiếu mã băm ảnh đã quan sát từ VietMap Live 3.4.3. Bubble tự co giãn đồng đều theo màn hình ngoài và phần bản đồ còn trống, tính cả vùng an toàn của thanh công cụ; kích thước được giới hạn để giữ chỗ cho bản đồ. Bố cục full map/Dashboard được chọn theo tỉ lệ chiều rộng màn hình. Ảnh phía trên minh họa đủ các vị trí được hỗ trợ.
 
-Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đồ đầy đủ và cạnh trái hoặc phải cho Dashboard. Mặc định cả hai ở phía trên bên phải. Mục nguồn cảnh báo hiện VietMap Live nhưng chưa cho đổi khi chưa hỗ trợ app khác. Vị trí mới áp dụng khi Google Maps CarPlay đang mở; phần relay trong SpringBoard khôi phục lựa chọn đã lưu sau khi giao diện máy nạp lại.
+Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đồ đầy đủ và cạnh trái hoặc phải cho Dashboard. Ảnh phía trên minh họa từng lựa chọn. Mặc định cả hai ở phía trên bên phải. Mục nguồn cảnh báo hiện VietMap Live nhưng chưa cho đổi khi chưa hỗ trợ app khác. Vị trí mới áp dụng khi Google Maps CarPlay đang mở; phần relay trong SpringBoard khôi phục lựa chọn đã lưu sau khi giao diện máy nạp lại.
 
 - Bảng tốc độ trên bản đồ đầy đủ và thẻ dọc nhỏ gọn trong Dashboard; hỗ trợ màu bản đồ sáng/tối.
 - Tốc độ hiện tại luôn có vị trí hiển thị, hiện `--` khi không có dữ liệu. Giới hạn chưa có dữ liệu được biểu diễn bằng biển nét đứt.

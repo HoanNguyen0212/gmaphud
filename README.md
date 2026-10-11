@@ -8,19 +8,27 @@ Experimental rootless iOS tweak that displays fresh **VietMap Live speed and spe
 
 > Experimental software for stationary testing and research. It is not a certified driving aid. Displayed information may be wrong, unavailable or delayed. Follow actual signs, road conditions and applicable law. Read [DISCLAIMER.md](DISCLAIMER.md) before use; a disclaimer does not guarantee legal protection.
 
-## CarPlay previews
+## Bubble placement previews
 
-These CarPlay Simulator captures show a simulated route: the full map at 15/50 km/h and a Dashboard overspeed state at 74/50 km/h. Both are UI illustrations; neither establishes real-road accuracy.
+These are the same CarPlay preview images shown in Settings. They illustrate all supported placements; the displayed values and alerts are examples, not a claim of live-road accuracy.
 
-| Full map | Dashboard |
+| Full map · top left | Full map · top right |
 | --- | --- |
-| ![GMapHUD full-map view in CarPlay Simulator](docs/screenshots/gmaphud-full-map-f7c79e32.png) | ![GMapHUD Dashboard view in CarPlay Simulator](docs/screenshots/gmaphud-dashboard.png) |
+| ![Full-map bubble at top left](docs/screenshots/full-map-top-left.png) | ![Full-map bubble at top right](docs/screenshots/full-map-top-right.png) |
+
+| Full map · bottom left | Full map · bottom right |
+| --- | --- |
+| ![Full-map bubble at bottom left](docs/screenshots/full-map-bottom-left.png) | ![Full-map bubble at bottom right](docs/screenshots/full-map-bottom-right.png) |
+
+| Dashboard · left | Dashboard · right |
+| --- | --- |
+| ![Dashboard bubble at left](docs/screenshots/dashboard-left.png) | ![Dashboard bubble at right](docs/screenshots/dashboard-right.png) |
 
 ## Features
 
-Experimental 0.1.14: the horizontal bubble places speed on the left, the limit sign on the right, and a VietMap Live label above. Dashboard uses a vertical bubble with the limit above current speed. Recognized VietMap road alerts use the corresponding VietMap Live artwork and source distance in a shaded VietMap region: up to two side by side on full map, two stacked below speed on Dashboard. Input recognition matches observed image digests from VietMap Live 3.4.3. Bubble size adapts uniformly to the external screen and available map area, including toolbar safe areas; it is capped to preserve map space. Full-map and Dashboard layouts are selected relative to screen width. Screenshots above show the previously released design.
+Experimental 0.1.14: the horizontal bubble places speed on the left, the limit sign on the right, and a VietMap Live label above. Dashboard uses a vertical bubble with the limit above current speed. Recognized VietMap road alerts use the corresponding VietMap Live artwork and source distance in a shaded VietMap region: up to two side by side on full map, two stacked below speed on Dashboard. Input recognition matches observed image digests from VietMap Live 3.4.3. Bubble size adapts uniformly to the external screen and available map area, including toolbar safe areas; it is capped to preserve map space. Full-map and Dashboard layouts are selected relative to screen width. The preview images above illustrate each supported placement.
 
-In iPhone Settings → GMapHUD, choose any of the four corners for the full map and the left or right edge for Dashboard. Top-right is the default in both layouts. The alert-source row shows VietMap Live but remains disabled until another source is supported. Placement changes update an open Google Maps CarPlay view; a SpringBoard relay restores saved placement after the phone interface restarts.
+In iPhone Settings → GMapHUD, choose any of the four corners for the full map and the left or right edge for Dashboard. The images above show each option. Top-right is the default in both layouts. The alert-source row shows VietMap Live but remains disabled until another source is supported. Placement changes update an open Google Maps CarPlay view; a SpringBoard relay restores saved placement after the phone interface restarts.
 
 - Full-map speed pill and compact vertical Dashboard card; light/dark map colors.
 - Current speed remains visible, with `--` when unavailable. Missing limits show a dashed sign.
