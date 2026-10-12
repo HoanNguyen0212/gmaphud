@@ -1,8 +1,8 @@
 Package: com.chou.googlemaps.vietmap
 Name: GMapHUD
-Version: 0.1.18
+Version: 0.1.19-tpms
 Architecture: iphoneos-arm
-Description: Experimental VietMap speed and road alerts in Google Maps on CarPlay and iPhone.
+Description: VietMap speed, alerts, and TPMS tire pressure in Google Maps on iPhone & CarPlay (optimized for iOS 15.8 Dopamine).
 Icon: https://bechou0410.github.io/gmaphud/gmaphud-icon.png
 Maintainer: bechou0410
 Author: chou (AI-assisted with Codex)

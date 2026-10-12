@@ -1,0 +1,50 @@
+name: Build GMapHUD Tweak (iOS 15.8 Dopamine + TPMS)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          brew install ldid make dpkg
+
+      - name: Setup Theos
+        uses: Randomblock1/theos-action@v1
+        with:
+          theos-src: https://github.com/theos/theos.git
+
+      - name: Setup iOS SDK
+        run: |
+          cd $THEOS/sdks
+          git clone --depth=1 https://github.com/theos/sdks.git temp_sdks || true
+          cp -R temp_sdks/*.sdk . || true
+          rm -rf temp_sdks
+
+      - name: Build Dopamine Rootless Package (iphoneos-arm64)
+        run: |
+          chmod +x build-tweak.sh
+          ./build-tweak.sh rootless
+
+      - name: Build Rootful Package (iphoneos-arm)
+        run: |
+          ./build-tweak.sh rootful
+
+      - name: Upload Rootless .deb (Dopamine iPhone SE)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gmaphud-dopamine-rootless-deb
+          path: packages/*arm64.deb
+
+      - name: Upload All .deb packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: gmaphud-all-deb-packages
+          path: packages/*.deb

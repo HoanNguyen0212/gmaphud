@@ -75,6 +75,16 @@ static BOOL Acquire(pid_t pid) {
         Record(@"background execution unavailable: private ABI"); return NO;
     }
     id attribute=((id (*)(id,SEL,id,id))objc_msgSend)(attributeClass,NSSelectorFromString(@"attributeWithDomain:name:"),@"com.apple.frontboard",@"Workspace-BackgroundActive");
+    if (!attribute) {
+        // Fallback for iOS 14 / 15 (iPhone SE on Dopamine)
+        attribute=((id (*)(id,SEL,id,id))objc_msgSend)(attributeClass,NSSelectorFromString(@"attributeWithDomain:name:"),@"com.apple.common",@"FinishTaskUnbounded");
+    }
+    if (!attribute) {
+        attribute=((id (*)(id,SEL,id,id))objc_msgSend)(attributeClass,NSSelectorFromString(@"attributeWithDomain:name:"),@"com.apple.frontboard",@"Legacy-Continuous");
+    }
+    if (!attribute) {
+        attribute=((id (*)(id,SEL,id,id))objc_msgSend)(attributeClass,NSSelectorFromString(@"attributeWithDomain:name:"),@"com.apple.multitasking",@"BackgroundContinuous");
+    }
     id target=((id (*)(id,SEL,pid_t))objc_msgSend)(targetClass,NSSelectorFromString(@"targetWithPid:"),pid);
     if (!attribute || !target) return NO;
     candidate=((id (*)(id,SEL,id,id,id))objc_msgSend)(candidate,NSSelectorFromString(@"initWithExplanation:target:attributes:"),@"GMapHUD active CarPlay source",target,@[attribute]);

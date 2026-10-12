@@ -9,8 +9,9 @@
 #ifdef VM_GOOGLE_MAPS_RELAY
 #import "speed-state.h"
 #import "alert-state.h"
+#import "tpms-state.h"
 #import "vietmap-alert-assets.h"
-static int speedToken = -1, limitToken = -1, firstAlertToken = -1, secondAlertToken = -1;
+static int speedToken = -1, limitToken = -1, firstAlertToken = -1, secondAlertToken = -1, tpmsToken = -1;
 static int requestToken=-1;
 static NSTimeInterval lastRequestHandled=-1;
 static BOOL relayReady, speedPublished, limitPublished;
@@ -111,9 +112,58 @@ static void Publish(void) {
 #endif
 }
 
+static GVMTPMSData GVMParseTPMSPayload(id args) {
+    GVMTPMSData tpms;
+    memset(&tpms, 0, sizeof(tpms));
+    if (!args) return tpms;
+    void (^parseTire)(id, GVMTPMSTire *) = ^(id val, GVMTPMSTire *tire) {
+        if (!val || ![val isKindOfClass:NSDictionary.class]) return;
+        NSDictionary *d = (NSDictionary *)val;
+        id pVal = d[@"press"] ?: d[@"pressure"] ?: d[@"bar"] ?: d[@"kpa"] ?: d[@"psi"] ?: d[@"p"];
+        id tVal = d[@"temp"] ?: d[@"temperature"] ?: d[@"t"];
+        id wVal = d[@"warning"] ?: d[@"warn"] ?: d[@"status"] ?: d[@"w"] ?: d[@"leak"];
+        if (pVal && [pVal isKindOfClass:NSNumber.class]) {
+            float p = [pVal floatValue];
+            if (p > 50.0f) p = p / 100.0f; // kpa to bar
+            tire->pressure = p;
+            tire->active = YES;
+        }
+        if (tVal && [tVal isKindOfClass:NSNumber.class]) {
+            tire->temperature = [tVal intValue];
+        }
+        if (wVal && [wVal isKindOfClass:NSNumber.class]) {
+            tire->warning = [wVal unsignedCharValue];
+        } else if (tire->active) {
+            if (tire->pressure < 1.8f && tire->pressure > 0.1f) tire->warning = 1;
+            else if (tire->pressure > 2.8f) tire->warning = 2;
+            else tire->warning = 0;
+        }
+    };
+    if ([args isKindOfClass:NSDictionary.class]) {
+        NSDictionary *dict = (NSDictionary *)args;
+        parseTire(dict[@"fl"] ?: dict[@"frontLeft"] ?: dict[@"fl_tire"] ?: dict[@"0"], &tpms.fl);
+        parseTire(dict[@"fr"] ?: dict[@"frontRight"] ?: dict[@"fr_tire"] ?: dict[@"1"], &tpms.fr);
+        parseTire(dict[@"rl"] ?: dict[@"rearLeft"] ?: dict[@"rl_tire"] ?: dict[@"2"], &tpms.rl);
+        parseTire(dict[@"rr"] ?: dict[@"rearRight"] ?: dict[@"rr_tire"] ?: dict[@"3"], &tpms.rr);
+    } else if ([args isKindOfClass:NSArray.class]) {
+        NSArray *arr = (NSArray *)args;
+        if (arr.count >= 4) {
+            parseTire(arr[0], &tpms.fl);
+            parseTire(arr[1], &tpms.fr);
+            parseTire(arr[2], &tpms.rl);
+            parseTire(arr[3], &tpms.rr);
+        }
+    }
+    tpms.hasData = (tpms.fl.active || tpms.fr.active || tpms.rl.active || tpms.rr.active);
+    return tpms;
+}
+
 static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler handler) {
     id name = object_getIvar(channel, channelNameIvar);
-    if (!handler || ![name isKindOfClass:NSString.class] || (![name isEqualToString:@"vietmap_car_method_channel"] && ![name isEqualToString:@"vml_main_channel"])) {
+    BOOL isKnownChannel = [name isEqualToString:@"vietmap_car_method_channel"] || [name isEqualToString:@"vml_main_channel"] ||
+        [name rangeOfString:@"tpms" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+        [name rangeOfString:@"tire" options:NSCaseInsensitiveSearch].location != NSNotFound;
+    if (!handler || ![name isKindOfClass:NSString.class] || !isKnownChannel) {
         originalSetHandler(channel, selector, handler);
         return;
     }
@@ -124,6 +174,21 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
         NSTimeInterval received = NSProcessInfo.processInfo.systemUptime;
         @try {
     #ifdef VM_GOOGLE_MAPS_RELAY
+            NSString *cMethod = [call method];
+            if ([cMethod rangeOfString:@"tpms" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                [cMethod rangeOfString:@"tire" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                [cMethod rangeOfString:@"pressure" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+                GVMTPMSData tpmsData = GVMParseTPMSPayload([call arguments]);
+                if (tpmsData.hasData) {
+                    tpmsData.receivedAt = received;
+                    uint64_t encoded = GVMEncodeTPMS(&tpmsData, received);
+                    if (tpmsToken >= 0 && notify_set_state(tpmsToken, encoded) == NOTIFY_STATUS_OK) {
+                        notify_post(GVMTPMSStateName);
+                    }
+                    BridgeLog([NSString stringWithFormat:@"tpms published fl=%.1f fr=%.1f rl=%.1f rr=%.1f",
+                        tpmsData.fl.pressure, tpmsData.fr.pressure, tpmsData.rl.pressure, tpmsData.rr.pressure]);
+                }
+            }
             if ([name isEqualToString:@"vml_main_channel"] &&
                 ([[call method] isEqualToString:@"updateUpcommingAlerts"] ||
                  [[call method] isEqualToString:@"updateStickyAlerts"])) {
@@ -245,6 +310,7 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
 #ifdef VM_GOOGLE_MAPS_RELAY
         relayReady = notify_register_check(GVMSpeedStateName, &speedToken) == NOTIFY_STATUS_OK &&
             notify_register_check(GVMLimitStateName, &limitToken) == NOTIFY_STATUS_OK;
+        notify_register_check(GVMTPMSStateName, &tpmsToken);
 #endif
 #ifdef VM_GOOGLE_MAPS_RELAY
         if (notify_register_check(GVMFirstAlertStateName,&firstAlertToken)==NOTIFY_STATUS_OK) {
@@ -293,6 +359,7 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
 #ifdef VM_GOOGLE_MAPS_RELAY
                     if (firstAlertToken>=0) { notify_set_state(firstAlertToken,0); notify_post(GVMFirstAlertStateName); }
                     if (secondAlertToken>=0) { notify_set_state(secondAlertToken,0); notify_post(GVMSecondAlertStateName); }
+                    if (tpmsToken>=0) { notify_set_state(tpmsToken,0); notify_post(GVMTPMSStateName); }
 #endif
                     source = [VMNavSource new]; Publish();
                 }];

@@ -8,10 +8,10 @@ TARGET = iphone:clang:16.5:14.0
 ARCHS = arm64 arm64e
 include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = VietMapGoogleMapsSource GoogleMapsVietMap GMapHUDPlacementRelay
-VietMapGoogleMapsSource_FILES = diagnostics.m vietmap-source.x nav-source.m nav-payload.m speed-state.m alert-state.m vietmap-alert-assets.m
+VietMapGoogleMapsSource_FILES = diagnostics.m vietmap-source.x nav-source.m nav-payload.m speed-state.m alert-state.m vietmap-alert-assets.m tpms-state.m
 VietMapGoogleMapsSource_CFLAGS = -fobjc-arc -DVM_GOOGLE_MAPS_RELAY=1
 VietMapGoogleMapsSource_FRAMEWORKS = UIKit Foundation
-GoogleMapsVietMap_FILES = phone-overlay.m diagnostics.m google-hook.m carplay-style.m speed-presentation.m speed-state.m alert-state.m vietmap-alert-assets.m test-state.m placement-state.m
+GoogleMapsVietMap_FILES = phone-overlay.m diagnostics.m google-hook.m carplay-style.m speed-presentation.m speed-state.m alert-state.m vietmap-alert-assets.m test-state.m placement-state.m tpms-state.m
 GoogleMapsVietMap_CFLAGS = -fobjc-arc -Wall -Wextra
 GoogleMapsVietMap_FRAMEWORKS = UIKit Foundation
 GoogleMapsVietMap_LIBRARIES = substrate

@@ -11,12 +11,13 @@
 #import "placement-state.h"
 #import "diagnostics.h"
 #import "background-policy.h"
+#import "tpms-state.h"
 #include <notify.h>
 
 static NSHashTable *views;
 static NSMapTable *models, *statuses;
 static int speedToken = -1, limitToken = -1, testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1, firstAlertToken = -1, secondAlertToken = -1;
-static int placementToken = -1;
+static int placementToken = -1, tpmsToken = -1;
 static BOOL installed;
 static int backgroundToken=-1;
 static double lastBackgroundHeartbeat=-1;
@@ -112,10 +113,18 @@ static id ModelFor(id view) {
     double limitMS = limit ? limit.doubleValue / 3.6 : -1;
     // This supported Google build uses 2 for minor speeding; 0/1 share normal colors.
     NSUInteger severity = speed && limit && speed.doubleValue > limit.doubleValue ? 2 : 0;
-    return ((id (*)(id, SEL, double, double, NSUInteger, NSInteger, NSUInteger))objc_msgSend)(
-        [NSClassFromString(@"GMSNSpeedLimitInfo") alloc],
-        NSSelectorFromString(@"initWithSpeedLimit:speed:style:distanceUnit:speedingType:"),
-        limitMS, speedMS, style, unit, severity);
+    Class infoClass = NSClassFromString(@"GMSNSpeedLimitInfo");
+    SEL sel5 = NSSelectorFromString(@"initWithSpeedLimit:speed:style:distanceUnit:speedingType:");
+    if ([infoClass instancesRespondToSelector:sel5]) {
+        return ((id (*)(id, SEL, double, double, NSUInteger, NSInteger, NSUInteger))objc_msgSend)(
+            [infoClass alloc], sel5, limitMS, speedMS, style, unit, severity);
+    }
+    SEL sel4 = NSSelectorFromString(@"initWithSpeedLimit:speed:style:distanceUnit:");
+    if ([infoClass instancesRespondToSelector:sel4]) {
+        return ((id (*)(id, SEL, double, double, NSUInteger, NSInteger))objc_msgSend)(
+            [infoClass alloc], sel4, limitMS, speedMS, style, unit);
+    }
+    return nil;
 }
 static void Apply(UIView *view) {
     if (!NSThread.isMainThread || !External(view)) return;
@@ -139,9 +148,13 @@ static void Apply(UIView *view) {
             lastSourceRequest=now;
             if (notify_post(GVMSourceRequestName)==NOTIFY_STATUS_OK) GVMDiagnosticsRecord(GVMDiagnosticRequest,1);
         }
+        uint64_t tpmsRaw = 0;
+        if (tpmsToken >= 0) notify_get_state(tpmsToken, &tpmsRaw);
+        GVMTPMSData tpmsData = GVMDecodeTPMS(tpmsRaw, now);
         GVMUpdateSpeedCard(view, test ? test[@"speed"] : Value(speedToken, YES),
             test ? test[@"limit"] : Value(limitToken, NO),
             test ? TestAlerts() : Alerts(),
+            &tpmsData,
             ((BOOL (*)(id, SEL))objc_msgSend)(view, NSSelectorFromString(@"nightModeMap")));
         GVMDiagnosticsRecord(GVMDiagnosticCarPlay,((test ? test[@"speed"] : Value(speedToken,YES)) ? 1 : 0) | ((test ? test[@"limit"] : Value(limitToken,NO)) ? 2 : 0) | (test ? 4 : 0));
         NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@ bounds=%@ safe=%@ windowSafe=%@ screen=%@",
@@ -239,7 +252,8 @@ static void Install(void) {
         !MethodMatches(child, @"initWithConfiguration:", "@24@0:8@16") ||
         !MethodMatches(child, @"layoutSubviews", "v16@0:8") ||
         !MethodMatches(configuration, @"setSpeedometerCapable:", "v20@0:8B16") ||
-        !MethodMatches(info, @"initWithSpeedLimit:speed:style:distanceUnit:speedingType:", "@56@0:8d16d24Q32q40Q48") ||
+        (!MethodMatches(info, @"initWithSpeedLimit:speed:style:distanceUnit:speedingType:", "@56@0:8d16d24Q32q40Q48") &&
+         !MethodMatches(info, @"initWithSpeedLimit:speed:style:distanceUnit:", "@48@0:8d16d24Q32q40")) ||
         !MethodMatches(info, @"style", "Q16@0:8") || !MethodMatches(info, @"distanceUnit", "q16@0:8")) {
         GVMDiagnosticsRecord(GVMDiagnosticHook,3); Log(@"unsupported Google Maps ABI; replacement inactive"); return;
     }
@@ -248,6 +262,7 @@ static void Install(void) {
         GVMDiagnosticsRecord(GVMDiagnosticHook,4); Log(@"speed transport unavailable; replacement inactive"); return;
     }
     notify_register_check(GVM_BACKGROUND_SIGNAL,&backgroundToken);
+    notify_register_check(GVMTPMSStateName, &tpmsToken);
     // Test transport failure must not disable the production source.
     notify_register_check(GVMTestStateName, &testToken);
     notify_register_check("com.chou.googlemaps.vietmap.test.photo", &photoToken);

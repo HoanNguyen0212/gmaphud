@@ -3,12 +3,14 @@
 #import "speed-presentation.h"
 #import "vietmap-alert-assets.h"
 #import "placement-state.h"
+#import "tpms-state.h"
 #import <objc/runtime.h>
 #include <notify.h>
 
 @interface GVMSpeedCard : UIView
 @property(nonatomic, copy) NSNumber *speed, *limit;
 @property(nonatomic, copy) NSArray<NSDictionary *> *alerts;
+@property(nonatomic) GVMTPMSData tpms;
 @property(nonatomic) BOOL night, compact;
 @end
 
@@ -16,20 +18,40 @@ static UIColor *RGB(unsigned value, CGFloat alpha) {
     return [UIColor colorWithRed:((value >> 16) & 255)/255.0 green:((value >> 8) & 255)/255.0
         blue:(value & 255)/255.0 alpha:alpha];
 }
+
 static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight, UIColor *color) {
     NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
     paragraph.alignment = NSTextAlignmentCenter;
     [text drawInRect:rect withAttributes:@{NSFontAttributeName:[UIFont monospacedDigitSystemFontOfSize:size weight:weight],
         NSForegroundColorAttributeName:color, NSParagraphStyleAttributeName:paragraph}];
 }
+
+static void DrawTire(NSString *pos, float press, uint8_t warn, CGRect rect, BOOL night) {
+    if (press <= 0.01f) return;
+    UIColor *bg = warn == 1 ? RGB(0xff9f0a, 0.95) :  // warning low
+                  warn >= 2 ? RGB(0xff3b30, 0.95) :  // warning high/leak
+                  RGB(night ? 0x242b35 : 0x48515f, 0.85); // normal
+    UIBezierPath *box = [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:6];
+    [bg setFill]; [box fill];
+    [RGB(0x303947, 0.7) setStroke]; box.lineWidth = 1; [box stroke];
+    NSString *text = [NSString stringWithFormat:@"%.1f", press];
+    Text(text, CGRectMake(rect.origin.x, rect.origin.y + 2, rect.size.width, 13), 11, UIFontWeightBold, UIColor.whiteColor);
+    Text(pos, CGRectMake(rect.origin.x, rect.origin.y + 15, rect.size.width, 10), 8, UIFontWeightBold, RGB(0xd0d4dc, 1));
+}
+
 @implementation GVMSpeedCard
 - (void)drawRect:(CGRect)rect {
     (void)rect;
     CGContextRef context = UIGraphicsGetCurrentContext();
     CGContextSaveGState(context);
-    NSUInteger count=MIN(self.alerts.count,2);
-    CGFloat canvasWidth = self.compact ? 84 : (count==2 ? 296 : count==1 ? 240 : 208);
-    CGFloat canvasHeight = self.compact ? (count==2 ? 350 : count ? 260 : 160) : 106;
+    NSUInteger count = MIN(self.alerts.count, 2);
+    
+    BOOL hasTpms = self.tpms.hasData;
+    CGFloat canvasWidth = self.compact ? 84 : 
+        (hasTpms ? (count==2 ? 375 : count==1 ? 320 : 288) : (count==2 ? 296 : count==1 ? 240 : 208));
+    CGFloat canvasHeight = self.compact ? 
+        (hasTpms ? (count==2 ? 415 : count ? 325 : 225) : (count==2 ? 350 : count ? 260 : 160)) : 106;
+        
     CGContextScaleCTM(context, self.bounds.size.width/canvasWidth, self.bounds.size.height/canvasHeight);
     GVMWarning warning = GVMWarningFor(self.speed, self.limit);
     UIColor *accent = warning == GVMWarningOver ? RGB(0xff6868,1) :
@@ -94,7 +116,7 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
             CGFloat alertY=y+(self.compact ? 90*i : 0);
             NSDictionary *alert=self.alerts[i];
             NSNumber *kind=alert[@"kind"];
-            NSNumber *cacheKey=@(([alert[@"provider"] unsignedIntegerValue]<<8)|kind.unsignedIntegerValue);
+            NSNumber *cacheKey=@(([alert[@\"provider\"] unsignedIntegerValue]<<8)|kind.unsignedIntegerValue);
             UIImage *artwork=artworkCache[cacheKey];
             if (!artwork && [alert[@"provider"] unsignedIntegerValue]==GVMVietMapProviderID) {
                 NSString *name=GVMVietMapAssetName(kind.unsignedIntegerValue);
@@ -112,6 +134,34 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
             Text(distance,CGRectMake(x-29,alertY+alertDiameter/2+2,58,21),self.compact ? 16 : 13,UIFontWeightMedium,UIColor.whiteColor);
         }
     }
+    
+    // Draw TPMS (Áp suất lốp)
+    if (hasTpms) {
+        if (self.compact) {
+            CGFloat tpmsY = count == 2 ? 335 : count == 1 ? 245 : 155;
+            UIBezierPath *tpmsDiv = [UIBezierPath bezierPath];
+            [tpmsDiv moveToPoint:CGPointMake(10, tpmsY - 5)];
+            [tpmsDiv addLineToPoint:CGPointMake(74, tpmsY - 5)];
+            [RGB(0x303947, 0.65) setStroke]; tpmsDiv.lineWidth = 1; [tpmsDiv stroke];
+            
+            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, CGRectMake(6, tpmsY, 34, 26), self.night);
+            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, CGRectMake(44, tpmsY, 34, 26), self.night);
+            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, CGRectMake(6, tpmsY + 30, 34, 26), self.night);
+            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, CGRectMake(44, tpmsY + 30, 34, 26), self.night);
+        } else {
+            CGFloat tpmsX = count == 2 ? 300 : count == 1 ? 244 : 210;
+            UIBezierPath *tpmsDiv = [UIBezierPath bezierPath];
+            [tpmsDiv moveToPoint:CGPointMake(tpmsX - 8, 34)];
+            [tpmsDiv addLineToPoint:CGPointMake(tpmsX - 8, 96)];
+            [RGB(0x303947, 0.65) setStroke]; tpmsDiv.lineWidth = 1; [tpmsDiv stroke];
+            
+            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, CGRectMake(tpmsX, 34, 34, 27), self.night);
+            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, CGRectMake(tpmsX + 38, 34, 34, 27), self.night);
+            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, CGRectMake(tpmsX, 65, 34, 27), self.night);
+            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, CGRectMake(tpmsX + 38, 65, 34, 27), self.night);
+        }
+    }
+    
     CGContextRestoreGState(context);
 }
 @end
@@ -144,7 +194,7 @@ static BOOL ExternalMap(UIView *map) {
 void GVMStyleNativeSpeedView(UIView *view) {
     UIView *owner = view.superview;
     while (owner && ![owner isKindOfClass:NSClassFromString(@"AZCarPlayView")]) owner=owner.superview;
-    if (ExternalMap(owner)) view.alpha=0; // Keep Google's model/layout boundary, replace only its artwork.
+    if (ExternalMap(owner)) view.alpha=0;
 }
 CGRect GVMLayoutSpeedCard(UIView *map) {
     BOOL phone=[objc_getAssociatedObject(map,phoneKey) boolValue];
@@ -153,8 +203,6 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     CGRect screen=HostWindow(map).screen.bounds;
     UIEdgeInsets insets=map.safeAreaInsets;
     CGFloat margin=MIN(10,MAX(5,MIN(screen.size.width,screen.size.height)*0.03));
-    // Google propagates horizontal control exclusions into map/window safe
-    // areas. Anchor to the map bounds so disappearing alerts cannot shift it.
     CGFloat left=CGRectGetMinX(map.bounds)+margin;
     CGFloat right=CGRectGetMaxX(map.bounds)-margin;
     CGFloat top=CGRectGetMinY(map.bounds)+margin;
@@ -163,7 +211,6 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
         map.bounds.size.width,screen.size.width,screen.size.height,card.alerts.count);
     if (phone) {
         size=GVMPhoneCardSizeFor(map.bounds.size.width,map.bounds.size.height,card.alerts.count);
-        // Phone placement spans the whole app window, including system safe areas.
         left=CGRectGetMinX(map.bounds); right=CGRectGetMaxX(map.bounds);
         top=CGRectGetMinY(map.bounds); bottom=CGRectGetMaxY(map.bounds);
     }
@@ -178,8 +225,6 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     }
     BOOL compact=size.compact;
     GVMCardPlacement placement=phone ? (GVMCardPlacement)phoneCorner : compact ? (dashboardLeft ? GVMCardTopLeft : GVMCardTopRight) : fullPlacement;
-    // Size belongs to the viewport and user preference, never to the chosen
-    // corner or the space left by Google's navigation controls.
     size=GVMScaleCardSize(size,SizePercent(phone ? 2 : compact ? 1 : 0),MAX(0,right-left),MAX(0,bottom-top));
     CGFloat viewportLeft=left, viewportRight=right, viewportTop=top, viewportBottom=bottom;
     if (!phone) {
@@ -188,7 +233,7 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
         if (placement==GVMCardTopLeft || placement==GVMCardBottomLeft) left+=insets.left;
         if (placement==GVMCardBottomRight) right-=insets.right;
         if (placement==GVMCardBottomLeft || placement==GVMCardBottomRight)
-            bottom-=MAX(0,25-insets.bottom); // Leave Google's map attribution clear.
+            bottom-=MAX(0,25-insets.bottom);
     }
     GVMCardOrigin origin=GVMCardOriginFor(left,right,top,bottom,size,placement);
     if (phone) {
@@ -202,7 +247,8 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     if (card && !CGRectEqualToRect(card.frame,frame)) { card.frame=frame; [card setNeedsDisplay]; }
     return frame;
 }
-void GVMUpdateSpeedCard(UIView *map, NSNumber *speed, NSNumber *limit, NSArray<NSDictionary *> *alerts, BOOL night) {
+
+void GVMUpdateSpeedCard(UIView *map, NSNumber *speed, NSNumber *limit, NSArray<NSDictionary *> *alerts, const GVMTPMSData *tpms, BOOL night) {
     if (!ExternalMap(map) && !([objc_getAssociatedObject(map,phoneKey) boolValue] && NSThread.isMainThread && HostWindow(map).screen==UIScreen.mainScreen)) return;
     GVMSpeedCard *card = objc_getAssociatedObject(map,cardKey);
     if (!card) {
@@ -215,11 +261,14 @@ void GVMUpdateSpeedCard(UIView *map, NSNumber *speed, NSNumber *limit, NSArray<N
     }
     BOOL alertsChanged=!((card.alerts==alerts)||[card.alerts isEqual:alerts]);
     card.alerts=alerts;
+    if (tpms) card.tpms = *tpms;
+    
     CGRect frame = GVMLayoutSpeedCard(map);
     BOOL changed = alertsChanged || !CGRectEqualToRect(card.frame,frame) || card.night!=night ||
         !((card.speed==speed)||[card.speed isEqual:speed]) || !((card.limit==limit)||[card.limit isEqual:limit]);
     card.frame=frame; card.speed=speed; card.limit=limit; card.night=night;
     if (changed) [card setNeedsDisplay];
+    
     card.accessibilityLabel=[NSString stringWithFormat:@"Speed %@ km/h, limit %@ km/h", speed ?: @"unavailable",limit ?: @"unavailable"];
     for (NSDictionary *alert in alerts) {
         NSString *name=GVMVietMapAssetName([alert[@"kind"] unsignedIntegerValue]) ?: @"road warning";
@@ -230,11 +279,12 @@ void GVMUpdateSpeedCard(UIView *map, NSNumber *speed, NSNumber *limit, NSArray<N
     [map bringSubviewToFront:card];
 }
 
-void GVMUpdatePhoneSpeedCard(UIView *host,NSNumber *speed,NSNumber *limit,NSArray<NSDictionary *> *alerts,BOOL night) {
+void GVMUpdatePhoneSpeedCard(UIView *host, NSNumber *speed, NSNumber *limit, NSArray<NSDictionary *> *alerts, const GVMTPMSData *tpms, BOOL night) {
     if (!host || !NSThread.isMainThread) return;
     objc_setAssociatedObject(host,phoneKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    GVMUpdateSpeedCard(host,speed,limit,alerts,night);
+    GVMUpdateSpeedCard(host,speed,limit,alerts,tpms,night);
 }
+
 void GVMRemovePhoneSpeedCard(UIView *host) {
     UIView *card=objc_getAssociatedObject(host,cardKey);
     [card removeFromSuperview];
