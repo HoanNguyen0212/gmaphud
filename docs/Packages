@@ -1,6 +1,6 @@
 Package: com.chou.googlemaps.vietmap
 Name: GMapHUD
-Description: Experimental fresh VietMap speed data in Google Maps native CarPlay controls.
+Description: Experimental VietMap speed and road alerts in Google Maps on CarPlay and iPhone.
 Icon: https://bechou0410.github.io/gmaphud/gmaphud-icon.png
 Maintainer: bechou0410
 Author: chou (AI-assisted with Codex)
@@ -8,14 +8,14 @@ Section: Tweaks
 Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm
-Version: 0.1.17
-Installed-Size: 2888
-Filename: pool/com.chou.googlemaps.vietmap_0.1.17_iphoneos-arm.deb
-Size: 1787960
-MD5sum: 61724b0dcdca0861d38d6c13092a74fc
-SHA1: aeac5c84f4ac633d7684435ce6def4ac80dbe763
-SHA256: 5db4c3ed2b03f1ce2ccf9a4bab176b8de96bf2073b3f173e76d02537a68744c6
-SHA512: 2eca61e6a4c6edf5d3f51d1909cf3eb26ee192ecd7df9764c84a020c1ca16bcaca540d7459ef46ed6f1573f29c2759f1c1a3fe21d5d479c3e89ec9a09bd2195e
+Version: 0.1.18
+Installed-Size: 2988
+Filename: pool/com.chou.googlemaps.vietmap_0.1.18_iphoneos-arm.deb
+Size: 1804708
+MD5sum: fdca42334aa194a0ec582c397eba3aef
+SHA1: b75a8b9ede830c81a3505fed641ed90551732b8d
+SHA256: 88af3c5175ee6e603153af51a5306307ca9733e61f61d30c9258ac85a5ef99cb
+SHA512: 04ebef0966f762612370dd11019cc5f14a423af295618a4924b112da2705ff05829df04fc40cefb887974416875d6e35418b87f87b147dc1942deaddf36f9081
 Depiction: https://bechou0410.github.io/gmaphud/
 SileoDepiction: https://bechou0410.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/bechou0410/gmaphud
@@ -23,7 +23,7 @@ Bugs: https://github.com/bechou0410/gmaphud/issues
 
 Package: com.chou.googlemaps.vietmap
 Name: GMapHUD
-Description: Experimental fresh VietMap speed data in Google Maps native CarPlay controls.
+Description: Experimental VietMap speed and road alerts in Google Maps on CarPlay and iPhone.
 Icon: https://bechou0410.github.io/gmaphud/gmaphud-icon.png
 Maintainer: bechou0410
 Author: chou (AI-assisted with Codex)
@@ -31,14 +31,14 @@ Section: Tweaks
 Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm64
-Version: 0.1.17
-Installed-Size: 2888
-Filename: pool/com.chou.googlemaps.vietmap_0.1.17_iphoneos-arm64.deb
-Size: 1787858
-MD5sum: f2c87a1a2aaa3432dd25b705a9cc97d0
-SHA1: 5e99f1c483e920de968f0b9a989d99b86f108db1
-SHA256: 03caa1af501dc1f3b29e5b8d94ef5d02e4b7e76da732a2b612c627f9b3949cfc
-SHA512: a91d538c3305003462655643df11a381b2b1d1e23cf1be7c67d2977495f1b0ead4e70c63044f17b2f090f7ab092c876c81b59341e3d38a4a63a8dcc3abfe617f
+Version: 0.1.18
+Installed-Size: 2988
+Filename: pool/com.chou.googlemaps.vietmap_0.1.18_iphoneos-arm64.deb
+Size: 1804706
+MD5sum: 44cf4023ecc4130124902ceed79a5285
+SHA1: 340356f2dab9bc778ae353834aa1dcb0a946d5d7
+SHA256: aac3455eedb6834a5c76b4d6df535ed65bcb8154ac468f3060bfed527b595744
+SHA512: 426350ba75315a3232b8db2c00a8a1a2f531d43990836a8466f9324702e3d5b9cae26840b1e054eccd2fc541ab85241989e605da2f0b7e1747eb76eb8ddc5530
 Depiction: https://bechou0410.github.io/gmaphud/
 SileoDepiction: https://bechou0410.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/bechou0410/gmaphud

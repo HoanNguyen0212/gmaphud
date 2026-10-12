@@ -2,7 +2,7 @@
 
 **Tiếng Việt** · [English](README.md)
 
-Tweak thử nghiệm cho iOS jailbreak rootful/rootless, hiển thị **tốc độ hiện tại và giới hạn tốc độ từ VietMap Live trên Google Maps CarPlay**. Ý tưởng từ tính năng bong bóng giao thông của DuoDash và TrueDash. Google Maps tiếp tục đảm nhiệm việc dẫn đường.
+Tweak thử nghiệm cho iOS jailbreak rootful/rootless, hiển thị **tốc độ hiện tại và giới hạn tốc độ từ VietMap Live trong Google Maps trên CarPlay và iPhone**. Ý tưởng từ tính năng bong bóng giao thông của DuoDash và TrueDash. Google Maps tiếp tục đảm nhiệm việc dẫn đường.
 
 **Tác giả: chou · có AI hỗ trợ bằng Codex.** chou định hướng, kiểm thử và xuất bản dự án cộng đồng độc lập này; Codex hỗ trợ phát triển bằng AI. Ghi nhận này không có nghĩa OpenAI là đơn vị xuất bản, chủ sở hữu bản quyền, bên bảo trì hay cung cấp hỗ trợ. Dự án không liên kết hoặc được VietMap, Google, Apple hay OpenAI bảo trợ.
 
@@ -26,7 +26,7 @@ Tweak thử nghiệm cho iOS jailbreak rootful/rootless, hiển thị **tốc đ
 
 ## Tính năng
 
-Bản thử nghiệm 0.1.14: bubble ngang có tốc độ bên trái, biển giới hạn bên phải và nhãn VietMap Live phía trên; Dashboard dùng bubble dọc với giới hạn trên, tốc độ dưới. Cảnh báo đường dùng ảnh VietMap Live tương ứng và khoảng cách nguồn trong vùng VietMap riêng: tối đa hai biểu tượng cạnh nhau trên bản đồ đầy đủ, hai biểu tượng xếp dọc dưới tốc độ trong Dashboard. Nhận diện đầu vào đối chiếu mã băm ảnh đã quan sát từ VietMap Live 3.4.3. Bubble tự co giãn đồng đều theo màn hình ngoài và phần bản đồ còn trống, tính cả vùng an toàn của thanh công cụ; kích thước được giới hạn để giữ chỗ cho bản đồ. Bố cục full map/Dashboard được chọn theo tỉ lệ chiều rộng màn hình. Ảnh phía trên minh họa đủ các vị trí được hỗ trợ.
+Bubble CarPlay ngang có tốc độ bên trái, biển giới hạn bên phải và nhãn VietMap Live phía trên; Dashboard dùng bubble dọc với giới hạn trên, tốc độ dưới. Cảnh báo đường dùng ảnh VietMap Live tương ứng và khoảng cách nguồn trong vùng VietMap riêng: tối đa hai biểu tượng cạnh nhau trên bản đồ đầy đủ, hai biểu tượng xếp dọc dưới tốc độ trong Dashboard. Nhận diện đầu vào đối chiếu mã băm ảnh đã quan sát từ VietMap Live 3.4.3. Bubble co giãn đồng đều theo khung bản đồ và mức kích cỡ đã chọn. Bảng dẫn đường chỉ ảnh hưởng vị trí, không làm kích thước khác nhau giữa các góc. Bố cục full map/Dashboard được chọn theo tỉ lệ chiều rộng màn hình. Ảnh phía trên minh họa đủ các vị trí được hỗ trợ.
 
 Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đồ đầy đủ và cạnh trái hoặc phải cho Dashboard. Ảnh phía trên minh họa từng lựa chọn. Mặc định cả hai ở phía trên bên phải. Mục nguồn cảnh báo hiện VietMap Live nhưng chưa cho đổi khi chưa hỗ trợ app khác. Vị trí mới áp dụng khi Google Maps CarPlay đang mở; phần relay trong SpringBoard khôi phục lựa chọn đã lưu sau khi giao diện máy nạp lại.
 
@@ -46,7 +46,7 @@ Bản công khai 0.1.13 chưa hỗ trợ biển cảnh báo. Bản 0.1.14 nhận
 | Thiết bị / hệ điều hành | iPhone 11, iOS 18.6.2, jailbreak rootless |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Gói | `com.chou.googlemaps.vietmap` 0.1.16, arm64/arm64e |
+| Gói | `com.chou.googlemaps.vietmap` 0.1.18, arm64/arm64e |
 
 Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói và định danh thông báo giữ nguyên để tương thích với bản đang cài.
 
@@ -58,10 +58,10 @@ Giao diện đã được kiểm tra bằng iPhone thật kết nối với CarP
 
 1. Dùng jailbreak tương thích và ứng dụng được cài hợp lệ, có quyền sử dụng/thuê bao VietMap cần thiết. Dự án không cung cấp các thành phần này.
 2. Sao chép **https://bechou0410.github.io/gmaphud/** vào **Sileo → Sources (Nguồn) → +** hoặc **Zebra → Sources → +**, làm mới rồi tìm **GMapHUD**. [Trang nguồn](https://bechou0410.github.io/gmaphud/) có nút thêm nhanh cho cả hai. Hoặc tải `.deb` tại [Releases](https://github.com/bechou0410/gmaphud/releases) và đối chiếu SHA-256 với `SHA256SUMS`.
-3. Cài bằng trình quản lý gói của jailbreak. Kiểm tra thông báo gỡ các gói bridge/probe cũ được liệt kê trong [tweak/control](tweak/control). Gói này không gỡ TrueDash của nhà phát triển. Nguồn gồm gói rootless (`iphoneos-arm64`) và rootful (`iphoneos-arm`). Rootful 0.1.16 cần kiểm thử trên iOS 14; các bản app cũ có thể cần sửa tích hợp thêm.
+3. Cài bằng trình quản lý gói của jailbreak. Kiểm tra thông báo gỡ các gói bridge/probe cũ được liệt kê trong [tweak/control](tweak/control). Gói này không gỡ TrueDash của nhà phát triển. Nguồn gồm gói rootless (`iphoneos-arm64`) và rootful (`iphoneos-arm`). Rootful cần kiểm thử trên iOS 14; các bản app cũ có thể cần sửa tích hợp thêm.
 4. Đóng và mở lại VietMap cùng Google Maps, rồi mở Google Maps trên CarPlay. Duy trì chế độ cảnh báo nền của VietMap. Chỉ có Live Activity chưa chứng minh dữ liệu tốc độ vẫn được cập nhật.
 
-Không cung cấp hay yêu cầu mật khẩu SSH mặc định. Thường không cần respring nếu cả hai tiến trình ứng dụng đã được mở lại.
+Không cung cấp hay yêu cầu mật khẩu SSH mặc định. Sau khi cập nhật 0.1.18, respring một lần để nạp phần khôi phục kích cỡ/vị trí đã lưu, rồi mở lại Google Maps và Cài đặt.
 
 Để gỡ: gỡ `com.chou.googlemaps.vietmap` bằng trình quản lý gói, rồi đóng và mở lại cả hai ứng dụng. Xóa tệp không tự dỡ thư viện đã được nạp vào một tiến trình còn đang chạy.
 
@@ -116,7 +116,7 @@ Bản 0.1.15 đã qua kiểm thử trên máy build, build arm64/arm64e và cài
 
 ## Kiến trúc và quyền riêng tư
 
-`provider/vietmap-source.x` quan sát kênh Flutter overlay đang có của VietMap, chuyển tiếp handler/reply gốc không thay đổi. Tốc độ và giới hạn đã được kiểm tra, mỗi trường có thời điểm nhận theo đồng hồ đơn điệu riêng, được truyền qua trạng thái thông báo Darwin cục bộ. Cảnh báo được đọc từ các chuỗi JSON trong `vml_main_channel/updateUpcommingAlerts` và `updateStickyAlerts`, đối chiếu mã băm chính xác với bộ ảnh 3.4.3 và truyền tối đa hai trạng thái dạng mã nguồn/mã biển/khoảng cách. Danh sách rỗng sẽ xóa trạng thái nguồn; dữ liệu tự hết hạn sau 5 giây. Bản 0.1.14 đóng gói 46 ảnh biển VietMap để hiển thị; thông báo chỉ truyền dữ liệu số. Ảnh bên thứ ba không thuộc giấy phép MIT của dự án. Hook Google chỉ áp dụng cho cửa sổ bản đồ CarPlay ngoài màn hình điện thoại; các view trên iPhone giữ lời gọi gốc.
+`provider/vietmap-source.x` quan sát kênh Flutter overlay đang có của VietMap, chuyển tiếp handler/reply gốc không thay đổi. Tốc độ và giới hạn đã được kiểm tra, mỗi trường có thời điểm nhận theo đồng hồ đơn điệu riêng, được truyền qua trạng thái thông báo Darwin cục bộ. Cảnh báo được đọc từ các chuỗi JSON trong `vml_main_channel/updateUpcommingAlerts` và `updateStickyAlerts`, đối chiếu mã băm chính xác với bộ ảnh 3.4.3 và truyền tối đa hai trạng thái dạng mã nguồn/mã biển/khoảng cách. Danh sách rỗng sẽ xóa trạng thái nguồn; dữ liệu tự hết hạn sau 5 giây. Bản 0.1.14 đóng gói 46 ảnh biển VietMap để hiển thị; thông báo chỉ truyền dữ liệu số. Ảnh bên thứ ba không thuộc giấy phép MIT của dự án. Hook CarPlay áp dụng cho cửa sổ bản đồ ngoài màn hình điện thoại. Một lớp hiển thị riêng dùng cùng dữ liệu còn mới trong cửa sổ Google Maps trên iPhone, chỉ khi app ở phía trước và không chặn thao tác chạm.
 
 Tweak không mở dịch vụ mạng, tải dữ liệu đo lường lên máy chủ, tạo daemon xuất bản hay lưu thông tin đăng nhập. `tmp/googlemaps-vietmap-source.log` và `tmp/googlemaps-vietmap.log` trong sandbox ứng dụng ghi giá trị/khả năng có dữ liệu tốc độ và giới hạn cùng trạng thái hook, không ghi tọa độ hay tuyến đường. Trạng thái thông báo cục bộ không được xác thực bằng mật mã và có thể bị phần mềm đặc quyền hoặc phần mềm được chèn khác tác động. Rà soát log trước khi chia sẻ.
 
@@ -133,3 +133,17 @@ Sau khi cài, respring một lần để nạp phần chạy trong SpringBoard. 
 Khi Google Maps đang hiện trên CarPlay, tweak có thể mở VietMap ở nền và giữ ứng dụng hoạt động mà không đưa lên màn hình iPhone. Cần bật cảnh báo trong VietMap trước; tweak không đăng nhập, kích hoạt thuê bao hay bảo đảm luôn có dữ liệu. Số lần mở lại được giới hạn để tránh vòng lặp. Khi rời Google Maps CarPlay, quyền giữ chạy nền được nhả sau khi tín hiệu hết hạn. Nếu API hệ thống không tương thích, tính năng bị vô hiệu hóa. Đã thử đánh thức nền trên iPhone 11/iOS 18.6.2; phần khóa công tắc mới đã qua kiểm thử mã và build, chưa kiểm chứng đầy đủ chuyển quyền trên từng iOS. Rootful/iOS 14 còn cần kiểm thử thực tế. Bản này chưa tích hợp Waze.
 
 Trạng thái nền ghi cục bộ tại `/var/mobile/Library/Logs/gmaphud-background.log`, giới hạn dung lượng và không ghi tọa độ. Google Maps có thể yêu cầu nguồn đang chạy gửi lại dữ liệu còn mới; dữ liệu cũ không được làm mới thời gian để tiếp tục hiển thị.
+
+## 0.1.18 · kích cỡ và iPhone
+
+Cài đặt → GMapHUD có ba thanh trượt riêng cho Bản đồ đầy đủ, Dashboard và Google Maps trên iPhone. Mỗi thanh từ 50% đến 150%, mặc định 100%; kích cỡ được giới hạn theo vùng hiển thị để không tràn màn hình. Các giá trị được lưu riêng và áp dụng khi app cập nhật giao diện. Respring một lần sau khi cài để nạp phần khôi phục kích cỡ trong SpringBoard; đóng/mở lại Google Maps và Cài đặt để nạp giao diện mới.
+
+Bubble iPhone chỉ nằm trong Google Maps khi app ở phía trước, mặc định neo ở góc trên phải. Chế độ Tự động chuyển dạng dọc khi khung cao/hẹp và dạng ngang khi khung rộng/xoay ngang; không phải cửa sổ nổi toàn hệ thống và không chặn chạm bản đồ. Dùng dữ liệu VietMap thật với cùng thời hạn hết hiệu lực như CarPlay, hiển thị dấu gạch nếu thiếu dữ liệu. Cần mở VietMap và bật cảnh báo để có nguồn; tính năng tự đánh thức 0.1.17 vẫn chỉ kích hoạt từ Google Maps CarPlay. Waze không có trong bản này. Vị trí, kích cỡ và bố cục dọc/ngang đã được xác nhận trên iPhone thử nghiệm; các thiết bị và iOS khác còn cần kiểm chứng.
+
+Từ 0.1.18, menu **Kích cỡ bong bóng** chỉ chỉnh Bản đồ đầy đủ và Dashboard trên CarPlay. Menu riêng **Google Maps trên iPhone** chứa kích cỡ, bốn góc, bố cục Tự động/Ngang/Dọc và vị trí X/Y từ −100% đến +100%. X tính theo chiều rộng, Y theo chiều cao vùng bản đồ; giá trị dương sang phải/xuống dưới. Vị trí dùng toàn cửa sổ ứng dụng, không chừa safe area; bubble vẫn được giữ trong mép màn hình. Các thanh có khấc giữa ở 0% cho vị trí và 100% cho kích cỡ, kéo gần mốc sẽ về đúng mốc. Khi mở Cài đặt lần đầu, vị trí cũ theo pt được chuyển sang % dựa trên kích thước màn hình lúc đó.
+
+Các lựa chọn góc và bố cục dùng thanh chọn phân đoạn iOS. Số % nằm dưới, căn giữa thanh trượt; mốc giữa có phản hồi rung nhẹ khi kéo về giá trị mặc định.
+
+Trên iPhone, X/Y dùng toàn cửa sổ Google Maps, không chừa thanh công cụ, tai thỏ hay thanh home. Mốc 0% neo sát góc đã chọn; chỉ chặn ở mép cửa sổ để không kéo bubble mất hẳn. Thanh hệ thống/tai thỏ có thể che nội dung nếu đặt ở đó.
+
+Trên CarPlay, cùng khung bản đồ, cảnh báo và mức % thì bubble có cùng kích thước ở mọi góc. Bảng dẫn đường và vùng dành cho thanh công cụ chỉ ảnh hưởng vị trí. Khi vùng trống quá hẹp, bubble vẫn giữ kích thước và nằm trong bản đồ; có thể tự giảm bằng thanh trượt nếu che nút điều khiển.

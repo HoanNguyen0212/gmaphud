@@ -15,5 +15,19 @@ typedef NS_ENUM(NSInteger, GVMCardPlacement) {
     GVMCardTopLeft, GVMCardTopRight, GVMCardBottomLeft, GVMCardBottomRight
 };
 typedef struct { double x; double y; } GVMCardOrigin;
+GVMCardOrigin GVMClampCardOrigin(GVMCardOrigin origin,GVMCardSize size,
+    double left,double right,double top,double bottom);
 GVMCardOrigin GVMCardOriginFor(double left, double right, double top, double bottom,
     GVMCardSize size, GVMCardPlacement placement);
+
+GVMCardSize GVMScaleCardSize(GVMCardSize size, double percent, double width, double height);
+
+GVMCardSize GVMPhoneCardSizeFor(double width, double height, NSUInteger alerts);
+
+GVMCardSize GVMPhoneCardSizeForLayout(double width,double height,NSUInteger alerts,NSUInteger layout);
+
+GVMCardOrigin GVMPhoneCardOriginFor(double left,double right,double top,double bottom,
+    GVMCardSize size,GVMCardPlacement placement,double offsetX,double offsetY);
+
+GVMCardSize GVMCarPlayCardSizeForView(double availableWidth,double availableHeight,
+    double viewWidth,double screenWidth,double screenHeight,NSUInteger alerts);

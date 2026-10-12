@@ -2,9 +2,13 @@
 #import "placement-state.h"
 #include <notify.h>
 
-static int placementToken = -1;
+static int placementToken = -1, sizeChangeToken=-1;
 __attribute__((constructor)) static void GVMRestorePlacement(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
+        notify_register_dispatch(GVMSizeChangedName,&sizeChangeToken,dispatch_get_main_queue(),^(__unused int token) {
+            GVMPublishSavedSizes();
+        });
+        GVMPublishSavedSizes();
         CFStringRef domain=CFSTR("com.chou.gmaphud");
         CFPreferencesAppSynchronize(domain);
         NSString *full=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("fullPosition"),domain));

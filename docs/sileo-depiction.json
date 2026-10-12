@@ -9,11 +9,11 @@
       "views": [
         {
           "class": "DepictionHeaderView",
-          "title": "GMapHUD trên CarPlay"
+          "title": "GMapHUD trên CarPlay và iPhone"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps CarPlay. Google Maps tiếp tục đảm nhiệm việc dẫn đường."
+          "markdown": "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps trên CarPlay và iPhone. Google Maps tiếp tục đảm nhiệm việc dẫn đường."
         },
         {
           "class": "DepictionSubheaderView",
@@ -82,11 +82,11 @@
       "views": [
         {
           "class": "DepictionHeaderView",
-          "title": "GMapHUD on CarPlay"
+          "title": "GMapHUD on CarPlay and iPhone"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "Displays current speed, limits, and recognized VietMap road alerts in Google Maps CarPlay. Google Maps continues to handle navigation."
+          "markdown": "Displays current speed, limits, and recognized VietMap road alerts in Google Maps on CarPlay and iPhone. Google Maps continues to handle navigation."
         },
         {
           "class": "DepictionSubheaderView",
@@ -156,6 +156,14 @@
         {
           "class": "DepictionHeaderView",
           "title": "Nhật ký thay đổi / Change log"
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.1.18"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Thêm bong bóng trong Google Maps trên iPhone, chọn bốn góc và tinh chỉnh vị trí tự do; hỗ trợ bố cục Tự động, Ngang hoặc Dọc. Chỉnh kích cỡ riêng cho bản đồ CarPlay đầy đủ, Dashboard và iPhone. Làm gọn giao diện Cài đặt; sửa lỗi bong bóng bị bóp hẹp khi dẫn đường và giữ kích thước đồng nhất giữa các góc.\n\n**English:** Adds a bubble inside Google Maps on iPhone with four corners, flexible positioning, and Auto, Horizontal or Vertical layouts. Adjust size separately for CarPlay Full Map, Dashboard and iPhone. Refreshes Settings controls and fixes squeezed navigation bubbles while keeping sizes consistent across corners."
         },
         {
           "class": "DepictionSubheaderView",

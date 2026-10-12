@@ -49,9 +49,9 @@ def build_sileo_depiction():
     copy = {
         "vi": {
             "tab": "Tiếng Việt",
-            "title": "GMapHUD trên CarPlay",
+            "title": "GMapHUD trên CarPlay và iPhone",
             "intro": (
-                "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps CarPlay. "
+                "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps trên CarPlay và iPhone. "
                 "Google Maps tiếp tục đảm nhiệm việc dẫn đường."
             ),
             "screenshots": "Vị trí bong bóng · ảnh xem trước trong Cài đặt",
@@ -77,9 +77,9 @@ def build_sileo_depiction():
         },
         "en": {
             "tab": "English",
-            "title": "GMapHUD on CarPlay",
+            "title": "GMapHUD on CarPlay and iPhone",
             "intro": (
-                "Displays current speed, limits, and recognized VietMap road alerts in Google Maps CarPlay. "
+                "Displays current speed, limits, and recognized VietMap road alerts in Google Maps on CarPlay and iPhone. "
                 "Google Maps continues to handle navigation."
             ),
             "screenshots": "Bubble placement · Settings previews",
@@ -104,6 +104,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.1.18", "Thêm bong bóng trong Google Maps trên iPhone, chọn bốn góc và tinh chỉnh vị trí tự do; hỗ trợ bố cục Tự động, Ngang hoặc Dọc. Chỉnh kích cỡ riêng cho bản đồ CarPlay đầy đủ, Dashboard và iPhone. Làm gọn giao diện Cài đặt; sửa lỗi bong bóng bị bóp hẹp khi dẫn đường và giữ kích thước đồng nhất giữa các góc.",
+         "Adds a bubble inside Google Maps on iPhone with four corners, flexible positioning, and Auto, Horizontal or Vertical layouts. Adjust size separately for CarPlay Full Map, Dashboard and iPhone. Refreshes Settings controls and fixes squeezed navigation bubbles while keeping sizes consistent across corners."),
         ("0.1.17", "Thêm tùy chọn tự đánh thức VietMap Live khi mở Google Maps trên CarPlay. Công tắc chỉ khả dụng khi đã cấp định vị Luôn luôn; tự tắt nếu không còn đủ quyền. Cải thiện kết nối dữ liệu và chẩn đoán.",
          "Adds optional background wake for VietMap Live while Google Maps is shown on CarPlay. Requires Always location permission; the switch turns off when requirements are no longer met. Improves data delivery and diagnostics."),
         ("0.1.16", "Bổ sung gói rootful cùng nguồn Sileo với rootless. Bản rootful cần kiểm thử thực tế trên iOS 14; giữ tính năng chẩn đoán để gửi hỗ trợ.",

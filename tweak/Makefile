@@ -11,7 +11,7 @@ TWEAK_NAME = VietMapGoogleMapsSource GoogleMapsVietMap GMapHUDPlacementRelay
 VietMapGoogleMapsSource_FILES = diagnostics.m vietmap-source.x nav-source.m nav-payload.m speed-state.m alert-state.m vietmap-alert-assets.m
 VietMapGoogleMapsSource_CFLAGS = -fobjc-arc -DVM_GOOGLE_MAPS_RELAY=1
 VietMapGoogleMapsSource_FRAMEWORKS = UIKit Foundation
-GoogleMapsVietMap_FILES = diagnostics.m google-hook.m carplay-style.m speed-presentation.m speed-state.m alert-state.m vietmap-alert-assets.m test-state.m placement-state.m
+GoogleMapsVietMap_FILES = phone-overlay.m diagnostics.m google-hook.m carplay-style.m speed-presentation.m speed-state.m alert-state.m vietmap-alert-assets.m test-state.m placement-state.m
 GoogleMapsVietMap_CFLAGS = -fobjc-arc -Wall -Wextra
 GoogleMapsVietMap_FRAMEWORKS = UIKit Foundation
 GoogleMapsVietMap_LIBRARIES = substrate
