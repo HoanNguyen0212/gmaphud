@@ -116,7 +116,7 @@ static void DrawTire(NSString *pos, float press, uint8_t warn, CGRect rect, BOOL
             CGFloat alertY=y+(self.compact ? 90*i : 0);
             NSDictionary *alert=self.alerts[i];
             NSNumber *kind=alert[@"kind"];
-            NSNumber *cacheKey=@(([alert[@\"provider\"] unsignedIntegerValue]<<8)|kind.unsignedIntegerValue);
+            NSNumber *cacheKey=@(([alert[@"provider"] unsignedIntegerValue]<<8)|kind.unsignedIntegerValue);
             UIImage *artwork=artworkCache[cacheKey];
             if (!artwork && [alert[@"provider"] unsignedIntegerValue]==GVMVietMapProviderID) {
                 NSString *name=GVMVietMapAssetName(kind.unsignedIntegerValue);
