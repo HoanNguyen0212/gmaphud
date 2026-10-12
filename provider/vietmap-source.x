@@ -6,6 +6,7 @@
 #import <notify.h>
 #import "nav-source.h"
 #import "diagnostics.h"
+#import "background-location.h"
 #ifdef VM_GOOGLE_MAPS_RELAY
 #import "speed-state.h"
 #import "alert-state.h"
@@ -54,6 +55,7 @@ static void BridgeLog(NSString *message) {
 
 static void Publish(void) {
 #ifdef VM_GOOGLE_MAPS_RELAY
+    GVMRefreshLocationSession();
     if (!relayReady) return;
     NSDictionary *samples = [source freshSamplesAtUptime:NSProcessInfo.processInfo.systemUptime];
     GVMDiagnosticsRecord(GVMDiagnosticSamples,(samples[@"speed"] ? 1 : 0) | (samples[@"speedLimit"] ? 2 : 0) | (UIApplication.sharedApplication.applicationState==UIApplicationStateActive ? 4 : 0));

@@ -3,12 +3,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 #define GVM_BACKGROUND_SIGNAL "com.chou.gmaphud.background.carplay"
+#define GVM_BACKGROUND_PHONE_SIGNAL "com.chou.gmaphud.background.phone"
 static inline bool GVMBackgroundActive(double now, uint64_t heartbeat) {
     double age = now - (double)heartbeat / 1000.0;
     return heartbeat && isfinite(now) && age >= 0 && age < 12;
 }
 static inline bool GVMBackgroundMayLaunch(double now, double next, unsigned attempts) {
     return isfinite(now) && isfinite(next) && now >= next && attempts < 3;
+}
+static inline bool GVMBackgroundAnyHostActive(double now, uint64_t carplay, uint64_t phone) {
+    return GVMBackgroundActive(now,carplay) || GVMBackgroundActive(now,phone);
 }
 static inline double GVMBackgroundRetryDelay(unsigned attempts) {
     return attempts <= 1 ? 15 : attempts == 2 ? 30 : 60;
@@ -18,6 +22,14 @@ static inline bool GVMBackgroundNewClient(int previous, int current) {
 }
 
 #define GVM_BACKGROUND_PERMISSION "com.chou.gmaphud.background.permission"
+#define GVM_BACKGROUND_LOCATION_SESSION "com.chou.gmaphud.background.location-session"
+static inline bool GVMBackgroundLocationAuthorized(int status) {
+    // Core Location: 3 = Always; 4 = When In Use. Unknown/denied fail closed.
+    return status==3 || status==4;
+}
+static inline bool GVMBackgroundNeedsUsageContext(int status, bool active) {
+    return active && status==4;
+}
 static inline uint64_t GVMBackgroundPermissionState(double now, bool allowed) {
     if (!isfinite(now) || now<1 || now>UINT32_MAX) return 0;
     return ((uint64_t)now<<1) | (allowed ? 1 : 0);

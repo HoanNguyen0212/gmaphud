@@ -1,16 +1,19 @@
 #import <Foundation/Foundation.h>
 #import <CoreLocation/CoreLocation.h>
 #import <objc/message.h>
+#import <objc/runtime.h>
 #import <dlfcn.h>
 #import "background-policy.h"
 #include <notify.h>
 #include <string.h>
 
-static int heartbeatToken = -1, permissionToken = -1;
+static int heartbeatToken = -1, phoneToken=-1, permissionToken = -1, locationSessionToken=-1;
 static id assertion;
+static id locationUsageContext;
 static pid_t heldPID, googlePID;
 static unsigned attempts;
 static double nextLaunch, nextAssertion;
+static double nextUsageContext;
 static BOOL sessionActive;
 static NSInteger lastPermission = NSIntegerMin;
 static BOOL lastEnabled;
@@ -58,6 +61,38 @@ static id Shared(NSString *name, NSString *selector) {
     Class cls=NSClassFromString(name);
     return Matches(cls,selector,"@",@[]) ? ((id (*)(id,SEL))objc_msgSend)(cls,NSSelectorFromString(selector)) : nil;
 }
+static void ReleaseLocationUsage(void) {
+    id previous=locationUsageContext; locationUsageContext=nil;
+    nextUsageContext=0;
+    if (previous && Matches(previous,@"invalidate","v",@[])) {
+        ((void (*)(id,SEL))objc_msgSend)(previous,@selector(invalidate));
+        Record(@"temporary location in-use context released");
+    }
+}
+static void RefreshLocationUsage(NSInteger permission,BOOL active,double now) {
+    if (!GVMBackgroundNeedsUsageContext((int)permission,active)) {
+        ReleaseLocationUsage(); return;
+    }
+    if (locationUsageContext || now<nextUsageContext) return;
+    nextUsageContext=now+30;
+    Class cls=NSClassFromString(@"CLInUseAssertion");
+    NSString *name=@"newAssertionForBundleIdentifier:withReason:";
+    Method end=class_getInstanceMethod(cls,@selector(invalidate));
+    NSMethodSignature *signature=end ? [NSMethodSignature signatureWithObjCTypes:method_getTypeEncoding(end)] : nil;
+    if (!Matches(cls,name,"@",@[@"@",@"@"]) || !signature ||
+        signature.numberOfArguments!=2 || strcmp(Base(signature.methodReturnType),"v")) {
+        Record(@"temporary location in-use context unavailable: private ABI"); return;
+    }
+    // The new-family factory returns an owned assertion; this does not alter authorization.
+    @try {
+        void *owned=((void * (*)(id,SEL,id,id))objc_msgSend)(cls,NSSelectorFromString(name),
+            providerID,@"GMapHUD visible Google Maps source");
+        locationUsageContext=(__bridge_transfer id)owned;
+        Record([NSString stringWithFormat:@"temporary location in-use context requested=%d; GPS activation unverified",locationUsageContext!=nil]);
+    } @catch (NSException *exception) {
+        Record([@"temporary location in-use context request failed: " stringByAppendingString:exception.name]);
+    }
+}
 static void Release(void) {
     id previous=assertion; assertion=nil; heldPID=0;
     if (previous && Matches(previous,@"invalidate","v",@[])) {
@@ -77,7 +112,7 @@ static BOOL Acquire(pid_t pid) {
     id attribute=((id (*)(id,SEL,id,id))objc_msgSend)(attributeClass,NSSelectorFromString(@"attributeWithDomain:name:"),@"com.apple.frontboard",@"Workspace-BackgroundActive");
     id target=((id (*)(id,SEL,pid_t))objc_msgSend)(targetClass,NSSelectorFromString(@"targetWithPid:"),pid);
     if (!attribute || !target) return NO;
-    candidate=((id (*)(id,SEL,id,id,id))objc_msgSend)(candidate,NSSelectorFromString(@"initWithExplanation:target:attributes:"),@"GMapHUD active CarPlay source",target,@[attribute]);
+    candidate=((id (*)(id,SEL,id,id,id))objc_msgSend)(candidate,NSSelectorFromString(@"initWithExplanation:target:attributes:"),@"GMapHUD visible Google Maps source",target,@[attribute]);
     NSError *error=nil;
     BOOL acquired=((BOOL (*)(id,SEL,NSError *__autoreleasing *))objc_msgSend)(candidate,NSSelectorFromString(@"acquireWithError:"),&error);
     Record([NSString stringWithFormat:@"background execution acquired=%d error=%@ code=%ld",acquired,error.domain ?: @"none",(long)error.code]);
@@ -99,11 +134,11 @@ static void Launch(void) {
     Record(@"suspended launch requested; fresh source data still requires verification");
 }
 static void Tick(void) {
-    uint64_t heartbeat=0;
+    uint64_t heartbeat=0, phoneHeartbeat=0;
     double now=NSProcessInfo.processInfo.systemUptime;
     BOOL enabled=AutoWakeEnabled();
     NSInteger permission=ProviderLocationPermission();
-    BOOL allowed=permission==kCLAuthorizationStatusAuthorizedAlways && [CLLocationManager locationServicesEnabled];
+    BOOL allowed=GVMBackgroundLocationAuthorized((int)permission) && [CLLocationManager locationServicesEnabled];
     if (permissionToken>=0) notify_set_state(permissionToken,GVMBackgroundPermissionState(now,allowed));
     if (enabled && !allowed) {
         CFPreferencesSetAppValue(CFSTR("autoWake"),kCFBooleanFalse,CFSTR("com.chou.gmaphud"));
@@ -116,26 +151,38 @@ static void Tick(void) {
         lastEnabled=enabled; lastPermission=permission;
     }
     if (!enabled || !allowed) {
+        if (locationSessionToken>=0) notify_set_state(locationSessionToken,0);
+        ReleaseLocationUsage();
         Release();
         sessionActive=NO; googlePID=0; attempts=0; nextLaunch=0; nextAssertion=0;
         return;
     }
-    BOOL active=heartbeatToken>=0 && notify_get_state(heartbeatToken,&heartbeat)==NOTIFY_STATUS_OK && GVMBackgroundActive(now,heartbeat);
+    if (heartbeatToken>=0) notify_get_state(heartbeatToken,&heartbeat);
+    if (phoneToken>=0) notify_get_state(phoneToken,&phoneHeartbeat);
+    BOOL active=GVMBackgroundAnyHostActive(now,heartbeat,phoneHeartbeat);
+    if (locationSessionToken>=0) notify_set_state(locationSessionToken,GVMBackgroundPermissionState(now,active));
     if (!active) {
+        ReleaseLocationUsage();
         Release();
-        if (sessionActive) Record(@"CarPlay inactive; supervisor released");
+        if (sessionActive) Record(@"Google Maps no longer visible; supervisor released");
         sessionActive=NO; googlePID=0; attempts=0; nextLaunch=0; nextAssertion=0; return;
     }
-    if (!sessionActive) { sessionActive=YES; Record(@"CarPlay active; supervisor started"); }
+    if (!sessionActive) {
+        sessionActive=YES;
+        Record([NSString stringWithFormat:@"Google Maps visible; supervisor started CarPlay=%d iPhone=%d",
+            GVMBackgroundActive(now,heartbeat),GVMBackgroundActive(now,phoneHeartbeat)]);
+    }
     id service=Shared(@"FBSSystemService",@"sharedService");
-    if (!Matches(service,@"pidForApplication:","i",@[@"@"])) { Release(); return; }
+    if (!Matches(service,@"pidForApplication:","i",@[@"@"])) { ReleaseLocationUsage(); Release(); return; }
     pid_t clientPID=((pid_t (*)(id,SEL,id))objc_msgSend)(service,NSSelectorFromString(@"pidForApplication:"),@"com.google.Maps");
     if (GVMBackgroundNewClient(googlePID,clientPID)) {
         attempts=0; nextLaunch=0;
         Record(@"Google Maps restarted; background launch budget renewed");
     }
-    if (clientPID<=0) { Release(); return; }
+    if (clientPID<=0) { ReleaseLocationUsage(); Release(); return; }
     googlePID=clientPID;
+    // Establish bundle-scoped usage before suspended launch, including completely cold starts.
+    RefreshLocationUsage(permission,active,now);
     pid_t pid=((pid_t (*)(id,SEL,id))objc_msgSend)(service,NSSelectorFromString(@"pidForApplication:"),providerID);
     if (heldPID && heldPID!=pid) Release();
     if (pid>0) {
@@ -145,7 +192,7 @@ static void Tick(void) {
     if (GVMBackgroundMayLaunch(now,nextLaunch,attempts)) {
         attempts++; nextLaunch=now+GVMBackgroundRetryDelay(attempts);
         Launch();
-        if (attempts==3) Record(@"automatic launch budget exhausted for this CarPlay session");
+        if (attempts==3) Record(@"automatic launch budget exhausted for this Google Maps session");
     }
 }
 __attribute__((constructor)) static void Start(void) {
@@ -154,13 +201,17 @@ __attribute__((constructor)) static void Start(void) {
     dlopen("/System/Library/PrivateFrameworks/RunningBoardServices.framework/RunningBoardServices",RTLD_NOW);
     dispatch_async(dispatch_get_main_queue(), ^{
         if (notify_register_check(GVM_BACKGROUND_SIGNAL,&heartbeatToken)!=NOTIFY_STATUS_OK) return;
+        notify_register_check(GVM_BACKGROUND_PHONE_SIGNAL,&phoneToken);
         notify_register_check(GVM_BACKGROUND_PERMISSION,&permissionToken);
+        notify_register_check(GVM_BACKGROUND_LOCATION_SESSION,&locationSessionToken);
         Tick();
-        Record(@"supervisor 0.1.17 loaded; awaiting active Google CarPlay");
+        Record(@"supervisor 0.1.19 loaded; awaiting visible Google Maps on CarPlay or iPhone");
         [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(__unused NSTimer *timer) {
             @try { Tick(); }
             @catch (__unused NSException *exception) {
+                @try { ReleaseLocationUsage(); } @catch (__unused NSException *cleanup) {}
                 @try { Release(); } @catch (__unused NSException *cleanup) {}
+                nextUsageContext=NSProcessInfo.processInfo.systemUptime+30;
                 nextAssertion=NSProcessInfo.processInfo.systemUptime+30;
             }
         }];

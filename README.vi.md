@@ -61,7 +61,7 @@ Giao diện đã được kiểm tra bằng iPhone thật kết nối với CarP
 3. Cài bằng trình quản lý gói của jailbreak. Kiểm tra thông báo gỡ các gói bridge/probe cũ được liệt kê trong [tweak/control](tweak/control). Gói này không gỡ TrueDash của nhà phát triển. Nguồn gồm gói rootless (`iphoneos-arm64`) và rootful (`iphoneos-arm`). Rootful cần kiểm thử trên iOS 14; các bản app cũ có thể cần sửa tích hợp thêm.
 4. Đóng và mở lại VietMap cùng Google Maps, rồi mở Google Maps trên CarPlay. Duy trì chế độ cảnh báo nền của VietMap. Chỉ có Live Activity chưa chứng minh dữ liệu tốc độ vẫn được cập nhật.
 
-Không cung cấp hay yêu cầu mật khẩu SSH mặc định. Sau khi cập nhật 0.1.18, respring một lần để nạp phần khôi phục kích cỡ/vị trí đã lưu, rồi mở lại Google Maps và Cài đặt.
+Không cung cấp hay yêu cầu mật khẩu SSH mặc định. Sau khi cập nhật 0.1.19, respring một lần để nạp phần chạy nền, rồi mở lại Google Maps và Cài đặt. Tự đánh thức hỗ trợ quyền Khi dùng ứng dụng hoặc Luôn luôn; cần bật cảnh báo trong VietMap trước.
 
 Để gỡ: gỡ `com.chou.googlemaps.vietmap` bằng trình quản lý gói, rồi đóng và mở lại cả hai ứng dụng. Xóa tệp không tự dỡ thư viện đã được nạp vào một tiến trình còn đang chạy.
 
@@ -126,11 +126,11 @@ Mã do dự án viết được cung cấp theo [MIT](LICENSE). Gói cũng chứ
 
 Để chụp ảnh gốc cho Cài đặt, thêm `--photo` ở cuối lệnh để ẩn nhãn trong lượt mẫu có thời hạn đó. `gvm-test-speed position top-left left` đổi tạm vị trí Full Map/Dashboard, không ghi đè tùy chọn đã lưu; trả vị trí cũ sau khi chụp.
 
-## Tự đánh thức VietMap Live · 0.1.17
+## Tự đánh thức VietMap Live
 
-Sau khi cài, respring một lần để nạp phần chạy trong SpringBoard. Bật Dịch vụ định vị, cấp quyền **Luôn luôn** cho VietMap Live, rồi bật **Cài đặt → GMapHUD → Tự đánh thức VietMap Live**. Công tắc mặc định tắt, bị khóa khi chưa xác nhận đủ điều kiện và cập nhật khi đang xem trang. Nếu thu hồi quyền hoặc tắt Dịch vụ định vị, tính năng tự tắt; cấp lại quyền không tự bật lại.
+Sau khi cài, respring một lần để nạp phần chạy trong SpringBoard. Bật Dịch vụ định vị, cấp quyền **Khi dùng ứng dụng** hoặc **Luôn luôn** cho VietMap Live, rồi bật **Cài đặt → GMapHUD → Tự đánh thức VietMap Live**. Công tắc mặc định tắt, bị khóa khi chưa xác nhận đủ điều kiện và cập nhật khi đang xem trang. Nếu thu hồi quyền hoặc tắt Dịch vụ định vị, tính năng tự tắt; cấp lại quyền không tự bật lại.
 
-Khi Google Maps đang hiện trên CarPlay, tweak có thể mở VietMap ở nền và giữ ứng dụng hoạt động mà không đưa lên màn hình iPhone. Cần bật cảnh báo trong VietMap trước; tweak không đăng nhập, kích hoạt thuê bao hay bảo đảm luôn có dữ liệu. Số lần mở lại được giới hạn để tránh vòng lặp. Khi rời Google Maps CarPlay, quyền giữ chạy nền được nhả sau khi tín hiệu hết hạn. Nếu API hệ thống không tương thích, tính năng bị vô hiệu hóa. Đã thử đánh thức nền trên iPhone 11/iOS 18.6.2; phần khóa công tắc mới đã qua kiểm thử mã và build, chưa kiểm chứng đầy đủ chuyển quyền trên từng iOS. Rootful/iOS 14 còn cần kiểm thử thực tế. Bản này chưa tích hợp Waze.
+Từ 0.1.19, khi Google Maps đang hiện trên CarPlay hoặc iPhone, tweak có thể mở VietMap ở nền và giữ ứng dụng hoạt động mà không đưa lên màn hình iPhone. Cần bật cảnh báo trong VietMap trước; tweak không đăng nhập, kích hoạt thuê bao hay bảo đảm luôn có dữ liệu. Số lần mở lại được giới hạn để tránh vòng lặp. Khi rời Google Maps trên cả hai màn hình, phiên chạy nền bổ sung được gỡ sau khi tín hiệu hết hạn; quyền định vị gốc của VietMap được giữ nguyên. Nếu API hệ thống không tương thích, tính năng bị vô hiệu hóa. Đã thử đánh thức nền trên iPhone 11/iOS 18.6.2; phần khóa công tắc mới đã qua kiểm thử mã và build, chưa kiểm chứng đầy đủ chuyển quyền trên từng iOS. Rootful/iOS 14 còn cần kiểm thử thực tế. Bản này chưa tích hợp Waze.
 
 Trạng thái nền ghi cục bộ tại `/var/mobile/Library/Logs/gmaphud-background.log`, giới hạn dung lượng và không ghi tọa độ. Google Maps có thể yêu cầu nguồn đang chạy gửi lại dữ liệu còn mới; dữ liệu cũ không được làm mới thời gian để tiếp tục hiển thị.
 
@@ -138,7 +138,7 @@ Trạng thái nền ghi cục bộ tại `/var/mobile/Library/Logs/gmaphud-backg
 
 Cài đặt → GMapHUD có ba thanh trượt riêng cho Bản đồ đầy đủ, Dashboard và Google Maps trên iPhone. Mỗi thanh từ 50% đến 150%, mặc định 100%; kích cỡ được giới hạn theo vùng hiển thị để không tràn màn hình. Các giá trị được lưu riêng và áp dụng khi app cập nhật giao diện. Respring một lần sau khi cài để nạp phần khôi phục kích cỡ trong SpringBoard; đóng/mở lại Google Maps và Cài đặt để nạp giao diện mới.
 
-Bubble iPhone chỉ nằm trong Google Maps khi app ở phía trước, mặc định neo ở góc trên phải. Chế độ Tự động chuyển dạng dọc khi khung cao/hẹp và dạng ngang khi khung rộng/xoay ngang; không phải cửa sổ nổi toàn hệ thống và không chặn chạm bản đồ. Dùng dữ liệu VietMap thật với cùng thời hạn hết hiệu lực như CarPlay, hiển thị dấu gạch nếu thiếu dữ liệu. Cần mở VietMap và bật cảnh báo để có nguồn; tính năng tự đánh thức 0.1.17 vẫn chỉ kích hoạt từ Google Maps CarPlay. Waze không có trong bản này. Vị trí, kích cỡ và bố cục dọc/ngang đã được xác nhận trên iPhone thử nghiệm; các thiết bị và iOS khác còn cần kiểm chứng.
+Bubble iPhone chỉ nằm trong Google Maps khi app ở phía trước, mặc định neo ở góc trên phải. Chế độ Tự động chuyển dạng dọc khi khung cao/hẹp và dạng ngang khi khung rộng/xoay ngang; không phải cửa sổ nổi toàn hệ thống và không chặn chạm bản đồ. Dùng dữ liệu VietMap thật với cùng thời hạn hết hiệu lực như CarPlay, hiển thị dấu gạch nếu thiếu dữ liệu. Cần mở VietMap và bật cảnh báo để có nguồn; từ 0.1.19, tùy chọn tự đánh thức hỗ trợ cả Google Maps trên iPhone. Waze không có trong bản này. Vị trí, kích cỡ và bố cục dọc/ngang đã được xác nhận trên iPhone thử nghiệm; các thiết bị và iOS khác còn cần kiểm chứng.
 
 Từ 0.1.18, menu **Kích cỡ bong bóng** chỉ chỉnh Bản đồ đầy đủ và Dashboard trên CarPlay. Menu riêng **Google Maps trên iPhone** chứa kích cỡ, bốn góc, bố cục Tự động/Ngang/Dọc và vị trí X/Y từ −100% đến +100%. X tính theo chiều rộng, Y theo chiều cao vùng bản đồ; giá trị dương sang phải/xuống dưới. Vị trí dùng toàn cửa sổ ứng dụng, không chừa safe area; bubble vẫn được giữ trong mép màn hình. Các thanh có khấc giữa ở 0% cho vị trí và 100% cho kích cỡ, kéo gần mốc sẽ về đúng mốc. Khi mở Cài đặt lần đầu, vị trí cũ theo pt được chuyển sang % dựa trên kích thước màn hình lúc đó.
 
@@ -147,3 +147,19 @@ Các lựa chọn góc và bố cục dùng thanh chọn phân đoạn iOS. Số
 Trên iPhone, X/Y dùng toàn cửa sổ Google Maps, không chừa thanh công cụ, tai thỏ hay thanh home. Mốc 0% neo sát góc đã chọn; chỉ chặn ở mép cửa sổ để không kéo bubble mất hẳn. Thanh hệ thống/tai thỏ có thể che nội dung nếu đặt ở đó.
 
 Trên CarPlay, cùng khung bản đồ, cảnh báo và mức % thì bubble có cùng kích thước ở mọi góc. Bảng dẫn đường và vùng dành cho thanh công cụ chỉ ảnh hưởng vị trí. Khi vùng trống quá hẹp, bubble vẫn giữ kích thước và nằm trong bản đồ; có thể tự giảm bằng thanh trượt nếu che nút điều khiển.
+
+## 0.1.19 · hiệu năng
+
+Bubble iPhone và CarPlay dùng chung một timer, giữ nhịp 0,5 giây. Mỗi lượt CarPlay chỉ đọc tốc độ/giới hạn một lần và tái sử dụng model khi dữ liệu, kiểu hiển thị, đơn vị và view gốc chưa đổi; cập nhật từ Google vẫn được đồng bộ. Giữ nguyên thời hạn dữ liệu, yêu cầu nguồn và kiểm tra quyền đánh thức nền. Ảnh xem trước trong Cài đặt được nén lại không mất dữ liệu, giữ nguyên kích thước và từng pixel. Các lượt đo ngắn trước/sau trên máy ghi nhận CPU của tiến trình Google Maps thấp hơn trong các tình huống CarPlay dùng dữ liệu hiển thị cố định. Số đo toàn tiến trình chưa tách được phần riêng của tweak hay chứng minh tiết kiệm pin; mở lại ứng dụng cũng làm thay đổi cache.
+
+## 0.1.19 · phiên định vị tạm
+
+Công tắc tự đánh thức hiện có được mở rộng cho Google Maps đang hiện trên CarPlay hoặc iPhone. Tín hiệu iPhone được xóa khi Google Maps chuyển sang nền; chỉ cần một màn hình còn hoạt động để duy trì phiên. Khi mất tín hiệu, thời hạn 12 giây cùng lượt kiểm tra sẽ kết thúc phiên bổ sung và trả cấu hình manager. Tắt công tắc hoặc mất quyền định vị phù hợp cũng kết thúc phiên. Không tắt cơ chế chạy nền riêng của VietMap.
+
+Giữ nguyên quyền thật ‘Khi dùng ứng dụng’ hoặc ‘Luôn luôn’. Với ‘Khi dùng ứng dụng’, tweak giữ một CLBackgroundActivitySession trên iOS17 trở lên khi phiên sử dụng còn hiệu lực; iOS18 có log chẩn đoán. Không xin/nâng quyền, sửa TCC/locationd, tạo nguồn GPS riêng hay kéo dài thời gian dữ liệu cũ. Callback GPS và lệnh dừng của app được chuyển tiếp nguyên trạng. iOS14–16 dùng cơ chế duy trì manager trước đó, không có API phiên mới này.
+
+Chỉ tạo phiên nền công khai chưa đủ trên máy thử: phiên báo `insufficientlyInUse=1` cho đến khi dùng app trực tiếp. Với quyền Khi dùng ứng dụng và tính năng đã bật, SpringBoard nay yêu cầu một phiên sử dụng định vị tạm riêng cho VietMap trước khi mở app ở trạng thái nền. Kiểm tra chữ ký API lúc chạy và dùng mức mặc định đã đối chiếu trên máy. Phiên được gỡ khi Google Maps không còn hiện hoặc mất điều kiện. Không đưa VietMap lên trước hay thay đổi quyền; API riêng không tương thích sẽ không được gọi.
+
+Trên iPhone 11/iOS 18.6.2/VietMap 3.4.3, lượt thử có kiểm soát bắt đầu khi VietMap không còn tiến trình và điện thoại giữ ở Cài đặt. Chỉ mở Google Maps CarPlay đã tự mở VietMap nền, hết cờ thiếu điều kiện sử dụng và nhận GPS mới cùng dữ liệu thật 0/50 liên tục. Người dùng xác nhận không mở VietMap thủ công trong lượt thử lại này. Lượt chỉ mở Google Maps iPhone cũng nhận GPS mới/0/50, quyền thật vẫn Khi dùng ứng dụng. Rời Google Maps CarPlay đã trả cấu hình manager và kết thúc phiên bổ sung; bằng chứng kết thúc phiên riêng iPhone được ghi trong báo cáo thử nội bộ.
+
+Đã thử thêm khi iPhone khóa và VietMap không còn tiến trình hơn mười phút sau một lần dừng tiến trình có kiểm soát. Chỉ mở Google Maps CarPlay đã tự mở tiến trình VietMap mới ở nền và khôi phục GPS mới/0/50, điện thoại vẫn khóa và quyền thật vẫn Khi dùng ứng dụng. Lượt khóa mười phút với tiến trình còn sẵn cũng tiếp tục dữ liệu, nhưng VietMap vẫn tự nhận GPS trong khoảng đó. Chưa bảo đảm sau reboot, mọi lỗi tự thoát, vuốt đóng app, nghỉ qua đêm hoặc mức tiêu hao pin. iOS cũ chưa được kiểm thử thực tế. Sáu nhóm test và hai loại gói build đều qua; tính năng chạy nền đã được kiểm thử trên cấu hình nêu trên. VietMap phải có sẵn cấu hình cảnh báo và tài khoản/gói sử dụng phù hợp. Log `gmaphud-location-session.log` giới hạn dung lượng trong thư mục tạm của VietMap ghi vòng đời, cờ chẩn đoán, tuổi/số mẫu và trạng thái app, không ghi tọa độ.

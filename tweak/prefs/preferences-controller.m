@@ -263,14 +263,14 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     if (_specifiers) return _specifiers;
     NSMutableArray *items = [NSMutableArray new];
     PSSpecifier *group = [PSSpecifier groupSpecifierWithName:@"Nguồn cảnh báo"];
-    [group setProperty:@"Hiện chỉ hỗ trợ VietMap Live. Tùy chọn nguồn sẽ mở khi có thêm ứng dụng được hỗ trợ." forKey:@"footerText"];
+    [group setProperty:@"Hiện hỗ trợ nguồn cảnh báo VietMap Live." forKey:@"footerText"];
     [items addObject:group];
     PSSpecifier *source = [PSSpecifier preferenceSpecifierNamed:@"VietMap Live" target:self
         set:NULL get:NULL detail:Nil cell:PSTitleValueCell edit:Nil];
     [source setProperty:@NO forKey:@"enabled"];
     [items addObject:source];
     group = [PSSpecifier groupSpecifierWithName:@"Chạy nền"];
-    [group setProperty:@"Công tắc chỉ mở khi Dịch vụ định vị đang bật và VietMap Live được cấp quyền ‘Luôn luôn’. Vào Cài đặt → Quyền riêng tư → Dịch vụ định vị → VietMap Live để cấp quyền. Khi mất quyền, công tắc tự tắt và khóa lại; cấp lại quyền không tự bật tính năng. Sau khi cài, cần respring để kiểm tra quyền. Chỉ đánh thức nền khi Google Maps đang hiện trên CarPlay; cần bật cảnh báo trong VietMap Live." forKey:@"footerText"];
+    [group setProperty:@"Tự mở VietMap Live ở nền khi dùng Google Maps trên CarPlay hoặc iPhone. Cần bật cảnh báo trong VietMap và cấp định vị ‘Khi dùng ứng dụng’ hoặc ‘Luôn luôn’. Công tắc tự tắt khi thiếu quyền." forKey:@"footerText"];
     [items addObject:group];
     PSSpecifier *autoWake = [PSSpecifier preferenceSpecifierNamed:@"Tự đánh thức VietMap Live" target:self
         set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSSwitchCell edit:Nil];
@@ -284,7 +284,7 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     [items addObject:[PSSpecifier preferenceSpecifierNamed:@"Kích cỡ bong bóng" target:self
         set:NULL get:NULL detail:GVMSizeController.class cell:PSLinkCell edit:Nil]];
     group = [PSSpecifier groupSpecifierWithName:@"Vị trí bong bóng"];
-    [group setProperty:@"Thay đổi áp dụng ngay trên Google Maps CarPlay. Dashboard chọn cạnh trái hoặc phải của phần bản đồ." forKey:@"footerText"];
+    [group setProperty:@"Chọn góc trên bản đồ đầy đủ hoặc cạnh trái/phải trong Dashboard." forKey:@"footerText"];
     [items addObject:group];
     PSSpecifier *full = [PSSpecifier preferenceSpecifierNamed:@"Bản đồ đầy đủ" target:self
         set:NULL get:NULL detail:GVMPositionController.class cell:PSLinkCell edit:Nil];
@@ -392,7 +392,7 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     explanation.lineBreakMode=NSLineBreakByWordWrapping;
     [explanation setContentCompressionResistancePriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
     explanation.text=dashboard ?
-        @"Bong bóng nằm ở cạnh trái hoặc phải của ô bản đồ, cạnh các tiện ích CarPlay." :
+        @"Chọn cạnh trái hoặc phải của ô bản đồ Dashboard." :
         @"Chọn một trong bốn góc của màn hình Google Maps CarPlay.";
     [content addArrangedSubview:explanation];
     UIImageView *preview=[[UIImageView alloc] init];
@@ -405,7 +405,7 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     [content addArrangedSubview:preview];
     [preview.heightAnchor constraintEqualToAnchor:preview.widthAnchor multiplier:0.60].active=YES;
     UILabel *caption=[[UILabel alloc] init];
-    caption.text=@"Ảnh mô tả CarPlay với giới hạn sắp tới và cảnh báo camera.";
+    caption.text=@"Ảnh minh họa vị trí bong bóng.";
     caption.font=[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
     caption.adjustsFontForContentSizeCategory=YES;
     caption.textColor=UIColor.tertiaryLabelColor;
@@ -448,7 +448,7 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     self.title=@"Kích cỡ bong bóng";
     NSMutableArray *items=[NSMutableArray new];
     PSSpecifier *group=[PSSpecifier groupSpecifierWithName:@""];
-    [group setProperty:@"Điều chỉnh riêng từ 50% đến 150%; Mốc giữa 100% là kích cỡ mặc định. Kích cỡ được giới hạn để không vượt màn hình." forKey:@"footerText"];
+    [group setProperty:@"Chỉnh kích cỡ riêng cho từng chế độ. 100% là mặc định." forKey:@"footerText"];
     [items addObject:group];
     NSArray *sizeKeys=@[@"fullScale",@"dashboardScale"];
     NSArray *sizeTitles=@[@"Bản đồ đầy đủ",@"Dashboard"];
@@ -520,7 +520,7 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     self.title=@"Google Maps trên iPhone";
     NSMutableArray *items=[NSMutableArray new];
     PSSpecifier *group=[PSSpecifier groupSpecifierWithName:@"Hiển thị"];
-    [group setProperty:@"Chọn một góc, sau đó tinh chỉnh X/Y. X âm: sang trái, X dương: sang phải. Y âm: lên trên, Y dương: xuống dưới. Di chuyển trong toàn màn hình Google Maps; 0% là vị trí theo góc đã chọn. X tính theo chiều rộng, Y theo chiều cao màn hình; mốc giữa là 0%. Bubble có thể nằm dưới vùng tai thỏ hoặc thanh hệ thống." forKey:@"footerText"];
+    [group setProperty:@"Chọn góc và bố cục bong bóng. Dùng thanh trượt bên dưới để dịch trái/phải, lên/xuống; 0% giữ vị trí theo góc đã chọn." forKey:@"footerText"];
     [items addObject:group];
     for (NSString *key in @[@"phonePosition",@"phoneLayout"]) {
         PSSpecifier *position=[PSSpecifier preferenceSpecifierNamed:[key isEqual:@"phoneLayout"] ? @"Bố cục" : @"Vị trí" target:self set:NULL get:NULL detail:Nil cell:PSStaticTextCell edit:Nil];
@@ -531,7 +531,7 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
         [items addObject:position];
     }
     PSSpecifier *sizeGroup=[PSSpecifier groupSpecifierWithName:@"Kích cỡ"];
-    [sizeGroup setProperty:@"Từ 50% đến 150%, mốc giữa 100% là mặc định. Tự động đổi bố cục khi xoay máy; chọn Ngang hoặc Dọc để giữ bố cục theo ý bạn." forKey:@"footerText"];
+    [sizeGroup setProperty:@"100% là kích cỡ mặc định. Bố cục Tự động đổi theo chiều xoay máy." forKey:@"footerText"];
     [items addObject:sizeGroup];
     PSSpecifier *size=[PSSpecifier preferenceSpecifierNamed:@"Kích cỡ bong bóng" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSStaticTextCell edit:Nil];
     [size setProperty:@"phoneScale" forKey:@"key"];

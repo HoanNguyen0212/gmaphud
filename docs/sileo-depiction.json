@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.1.19"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Tối ưu cập nhật bong bóng và giảm dung lượng gói cài. Tự đánh thức VietMap Live hỗ trợ cả Google Maps trên CarPlay và iPhone, với quyền định vị Khi dùng ứng dụng hoặc Luôn luôn. Cải thiện tự nhận lại dữ liệu khi VietMap chưa chạy; làm gọn mô tả trong Cài đặt.\n\n**English:** Optimizes bubble updates and reduces package size. Automatic VietMap Live wake now supports Google Maps on both CarPlay and iPhone with When In Use or Always location access. Improves data recovery when VietMap is not running and simplifies Settings descriptions."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.1.18"
         },
         {
