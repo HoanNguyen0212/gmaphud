@@ -125,3 +125,11 @@ Tweak không mở dịch vụ mạng, tải dữ liệu đo lường lên máy c
 Mã do dự án viết được cung cấp theo [MIT](LICENSE). Gói cũng chứa một số ảnh VietMap Live để hiển thị; đây là tài liệu bên thứ ba, không thuộc MIT và vẫn chịu quyền/điều khoản của chủ sở hữu. Dự án không nhận quyền sở hữu hoặc cấp phép phân phối lại các ảnh này. Ứng dụng, bản đồ, dữ liệu giao thông, nhãn hiệu, SDK và phụ thuộc của bên thứ ba vẫn thuộc quyền và điều khoản của chủ sở hữu. Xem [thông báo tiếng Việt](DISCLAIMER.vi.md) và [bản tiếng Anh](DISCLAIMER.md) về sử dụng hợp pháp, an toàn, tương thích và bảo hành. Giấy phép không chứng nhận tính hợp pháp, độ chính xác hay khả năng sử dụng trên đường.
 
 Để chụp ảnh gốc cho Cài đặt, thêm `--photo` ở cuối lệnh để ẩn nhãn trong lượt mẫu có thời hạn đó. `gvm-test-speed position top-left left` đổi tạm vị trí Full Map/Dashboard, không ghi đè tùy chọn đã lưu; trả vị trí cũ sau khi chụp.
+
+## Tự đánh thức VietMap Live · 0.1.17
+
+Sau khi cài, respring một lần để nạp phần chạy trong SpringBoard. Bật Dịch vụ định vị, cấp quyền **Luôn luôn** cho VietMap Live, rồi bật **Cài đặt → GMapHUD → Tự đánh thức VietMap Live**. Công tắc mặc định tắt, bị khóa khi chưa xác nhận đủ điều kiện và cập nhật khi đang xem trang. Nếu thu hồi quyền hoặc tắt Dịch vụ định vị, tính năng tự tắt; cấp lại quyền không tự bật lại.
+
+Khi Google Maps đang hiện trên CarPlay, tweak có thể mở VietMap ở nền và giữ ứng dụng hoạt động mà không đưa lên màn hình iPhone. Cần bật cảnh báo trong VietMap trước; tweak không đăng nhập, kích hoạt thuê bao hay bảo đảm luôn có dữ liệu. Số lần mở lại được giới hạn để tránh vòng lặp. Khi rời Google Maps CarPlay, quyền giữ chạy nền được nhả sau khi tín hiệu hết hạn. Nếu API hệ thống không tương thích, tính năng bị vô hiệu hóa. Đã thử đánh thức nền trên iPhone 11/iOS 18.6.2; phần khóa công tắc mới đã qua kiểm thử mã và build, chưa kiểm chứng đầy đủ chuyển quyền trên từng iOS. Rootful/iOS 14 còn cần kiểm thử thực tế. Bản này chưa tích hợp Waze.
+
+Trạng thái nền ghi cục bộ tại `/var/mobile/Library/Logs/gmaphud-background.log`, giới hạn dung lượng và không ghi tọa độ. Google Maps có thể yêu cầu nguồn đang chạy gửi lại dữ liệu còn mới; dữ liệu cũ không được làm mới thời gian để tiếp tục hiển thị.

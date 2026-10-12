@@ -11,6 +11,8 @@
 #import "alert-state.h"
 #import "vietmap-alert-assets.h"
 static int speedToken = -1, limitToken = -1, firstAlertToken = -1, secondAlertToken = -1;
+static int requestToken=-1;
+static NSTimeInterval lastRequestHandled=-1;
 static BOOL relayReady, speedPublished, limitPublished;
 static uint64_t lastSpeed, lastLimit;
 static NSArray<NSDictionary *> *upcomingAlerts, *stickyAlerts;
@@ -118,6 +120,7 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
     dispatch_async(dispatch_get_main_queue(), ^{ BridgeLog(@"VietMap overlay handler registered"); GVMDiagnosticsRecord(GVMDiagnosticChannel,1); });
     VMFlutterHandler wrapped = ^(id<VMFlutterMethodCall> call, VMFlutterResult result) {
         NSArray *update = nil;
+        id mainLimit=nil; BOOL hasMainLimit=NO;
         NSTimeInterval received = NSProcessInfo.processInfo.systemUptime;
         @try {
     #ifdef VM_GOOGLE_MAPS_RELAY
@@ -134,15 +137,65 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
                 });
             }
 #endif
+            if ([name isEqualToString:@"vml_main_channel"] &&
+                ([[call method] isEqualToString:@"updateCurrentSpeed"] || [[call method] isEqualToString:@"updateSpeedLimit"])) {
+                id value=[call arguments];
+                if ([[call method] isEqualToString:@"updateSpeedLimit"]) {
+                    hasMainLimit=YES;
+                    mainLimit=[value isKindOfClass:NSNumber.class] ? [value copy] : NSNull.null;
+                }
+                NSString *method=[[call method] copy];
+                BOOL numeric=[value isKindOfClass:NSNumber.class];
+                NSString *type=value ? NSStringFromClass([value class]) : @"nil";
+                NSString *safeValue=numeric ? [value description] : @"not-numeric";
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    static NSMutableDictionary *last;
+                    if (!last) last=[NSMutableDictionary new];
+                    if (!last[method] || received-[last[method] doubleValue]>=2) {
+                        last[method]=@(received);
+                        BridgeLog([NSString stringWithFormat:@"source-scalar method=%@ type=%@ value=%@",method,type,safeValue]);
+                    }
+                });
+            }
+            // Log only bounded method/type metadata; never argument values or coordinates.
+            static NSMutableDictionary *methodTimes;
+            @synchronized(source) {
+                if (!methodTimes) methodTimes=[NSMutableDictionary new];
+                NSString *method=[call method];
+                if ([method isKindOfClass:NSString.class] && method.length<=80 &&
+                    [method rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"] invertedSet]].location==NSNotFound) {
+                    NSString *key=[name stringByAppendingFormat:@"/%@",method];
+                    if (methodTimes[key] || methodTimes.count<32) {
+                        if (!methodTimes[key] || received-[methodTimes[key] doubleValue]>=10) {
+                            methodTimes[key]=@(received);
+                            id args=[call arguments];
+                            NSString *shape=[args isKindOfClass:NSArray.class] ? @"array" : [args isKindOfClass:NSDictionary.class] ? @"dictionary" : [args isKindOfClass:NSString.class] ? @"string" : @"other";
+                            NSString *line=[NSString stringWithFormat:@"channel=%@ method=%@ type=%@",name,method,shape];
+                            dispatch_async(dispatch_get_main_queue(), ^{ BridgeLog(line); });
+                        }
+                    }
+                }
+            }
             if ([name isEqualToString:@"vietmap_car_method_channel"] && [[call method] isEqualToString:@"updateMapOverlayData"])
             {
                 update = VMNavCopyOverlayArguments([call arguments]);
                 BOOL valid=update!=nil;
+                if (valid) {
+                    NSUInteger shape=(update[0][@"speed"] ? 1 : 0) | (update[0][@"speedLimit"] ? 2 : 0) | ([update[1] boolValue] ? 4 : 0);
+                    dispatch_async(dispatch_get_main_queue(), ^{ GVMDiagnosticsRecord(GVMDiagnosticShape,shape); });
+                }
                 dispatch_async(dispatch_get_main_queue(), ^{ GVMDiagnosticsRecord(GVMDiagnosticPayload,valid ? 1 : 2); });
             }
         } @catch (__unused NSException *exception) {}
         // Forward every call and its original reply block exactly once.
         handler(call, result);
+        if (hasMainLimit) {
+            id copiedLimit=mainLimit;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [source applyMainSpeedLimit:copiedLimit receivedAt:received];
+                Publish();
+            });
+        }
         if (!update) return;
         dispatch_async(dispatch_get_main_queue(), ^{
             [source applyArguments:update receivedAt:received];
@@ -205,6 +258,18 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
         if (!relayReady) GVMDiagnosticsRecord(GVMDiagnosticError,1);
 #endif
         source = [VMNavSource new];
+#ifdef VM_GOOGLE_MAPS_RELAY
+        notify_register_dispatch(GVMSourceRequestName,&requestToken,dispatch_get_main_queue(), ^(__unused int token) {
+            NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
+            if (lastRequestHandled>=0 && now-lastRequestHandled<2) return;
+            lastRequestHandled=now;
+            NSDictionary *samples=[source freshSamplesAtUptime:now];
+            GVMDiagnosticsRecord(GVMDiagnosticResponse,(samples[@"speed"] ? 1 : 0)|(samples[@"speedLimit"] ? 2 : 0));
+            // Republish only fresh values with original timestamps. No undocumented Flutter calls.
+            speedPublished=NO; limitPublished=NO;
+            Publish();
+        });
+#endif
         // Catch channel registration during application launch when Flutter is already loaded.
         InstallHook();
         _dyld_register_func_for_add_image(ImageLoaded);

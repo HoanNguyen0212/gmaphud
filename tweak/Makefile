@@ -15,9 +15,9 @@ GoogleMapsVietMap_FILES = diagnostics.m google-hook.m carplay-style.m speed-pres
 GoogleMapsVietMap_CFLAGS = -fobjc-arc -Wall -Wextra
 GoogleMapsVietMap_FRAMEWORKS = UIKit Foundation
 GoogleMapsVietMap_LIBRARIES = substrate
-GMapHUDPlacementRelay_FILES = placement-relay.m placement-state.m
+GMapHUDPlacementRelay_FILES = placement-relay.m placement-state.m background-supervisor.m
 GMapHUDPlacementRelay_CFLAGS = -fobjc-arc -Wall -Wextra
-GMapHUDPlacementRelay_FRAMEWORKS = Foundation
+GMapHUDPlacementRelay_FRAMEWORKS = Foundation CoreLocation
 include $(THEOS)/makefiles/tweak.mk
 
 BUNDLE_NAME = GMapHUDPrefs

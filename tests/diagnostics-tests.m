@@ -4,7 +4,7 @@
 #include <math.h>
 int main(void) { @autoreleasepool {
     assert(!GVMEncodeDiagnostic(0,1,100));
-    assert(!GVMEncodeDiagnostic(8,1,100));
+    assert(!GVMEncodeDiagnostic(11,1,100));
     assert(!GVMEncodeDiagnostic(1,0x1000000,100));
     assert(!GVMEncodeDiagnostic(1,0,NAN));
     assert(!GVMEncodeDiagnostic(1,0,-1));

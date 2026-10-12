@@ -31,3 +31,6 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   -I"$source_dir/common" "$source_dir/common/diagnostics.m" \
   "$source_dir/tests/diagnostics-tests.m" -o "$test_dir/diagnostics"
 "$test_dir/diagnostics"
+
+xcrun clang -Wall -Wextra -Werror "$source_dir/tests/background-policy-tests.c" -o "$test_dir/background-policy"
+"$test_dir/background-policy"

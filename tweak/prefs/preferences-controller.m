@@ -4,9 +4,25 @@
 #import "placement-state.h"
 #import "diagnostics-controller.h"
 #include <notify.h>
+#import "background-policy.h"
 
 @interface GVMPreferencesController : PSListController
+@property(nonatomic, strong) NSTimer *permissionTimer;
+@property(nonatomic, strong) PSSpecifier *wakeSpecifier;
+@property(nonatomic) BOOL wakeAllowed;
 @end
+static BOOL GVMWakeAllowed(void) {
+    int token=-1; uint64_t state=0;
+    if (notify_register_check(GVM_BACKGROUND_PERMISSION,&token)!=NOTIFY_STATUS_OK) return NO;
+    BOOL read=notify_get_state(token,&state)==NOTIFY_STATUS_OK;
+    notify_cancel(token);
+    return read && GVMBackgroundPermissionAllowed(NSProcessInfo.processInfo.systemUptime,state);
+}
+static void GVMDisableWake(void) {
+    CFStringRef domain=CFSTR("com.chou.gmaphud");
+    CFPreferencesSetAppValue(CFSTR("autoWake"),kCFBooleanFalse,domain);
+    CFPreferencesAppSynchronize(domain);
+}
 @interface GVMPositionController : GVMPreferencesController
 @property(nonatomic, strong) UIButton *positionButton;
 @property(nonatomic, strong) UILabel *positionValue;
@@ -47,6 +63,29 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     return compact ? GVMPositionRight : GVMPositionTopRight;
 }
 @implementation GVMPreferencesController
+- (void)refreshWakePermission {
+    if (!self.wakeSpecifier) return;
+    BOOL allowed=GVMWakeAllowed();
+    if (!allowed) GVMDisableWake();
+    if (self.wakeAllowed!=allowed) {
+        self.wakeAllowed=allowed;
+        [self.wakeSpecifier setProperty:@(allowed) forKey:@"enabled"];
+        [self reloadSpecifier:self.wakeSpecifier];
+    }
+}
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self refreshWakePermission];
+    [self.permissionTimer invalidate];
+    __weak GVMPreferencesController *weakSelf=self;
+    self.permissionTimer=[NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(__unused NSTimer *timer) {
+        [weakSelf refreshWakePermission];
+    }];
+}
+- (void)viewWillDisappear:(BOOL)animated {
+    [self.permissionTimer invalidate]; self.permissionTimer=nil;
+    [super viewWillDisappear:animated];
+}
 - (NSArray *)specifiers {
     if (_specifiers) return _specifiers;
     NSMutableArray *items = [NSMutableArray new];
@@ -57,6 +96,18 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
         set:NULL get:NULL detail:Nil cell:PSTitleValueCell edit:Nil];
     [source setProperty:@NO forKey:@"enabled"];
     [items addObject:source];
+    group = [PSSpecifier groupSpecifierWithName:@"Chạy nền"];
+    [group setProperty:@"Công tắc chỉ mở khi Dịch vụ định vị đang bật và VietMap Live được cấp quyền ‘Luôn luôn’. Vào Cài đặt → Quyền riêng tư → Dịch vụ định vị → VietMap Live để cấp quyền. Khi mất quyền, công tắc tự tắt và khóa lại; cấp lại quyền không tự bật tính năng. Sau khi cài, cần respring để kiểm tra quyền. Chỉ đánh thức nền khi Google Maps đang hiện trên CarPlay; cần bật cảnh báo trong VietMap Live." forKey:@"footerText"];
+    [items addObject:group];
+    PSSpecifier *autoWake = [PSSpecifier preferenceSpecifierNamed:@"Tự đánh thức VietMap Live" target:self
+        set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSSwitchCell edit:Nil];
+    [autoWake setProperty:@"autoWake" forKey:@"key"];
+    [autoWake setProperty:@NO forKey:@"default"];
+    self.wakeAllowed=GVMWakeAllowed();
+    [autoWake setProperty:@(self.wakeAllowed) forKey:@"enabled"];
+    self.wakeSpecifier=autoWake;
+    if (!self.wakeAllowed) GVMDisableWake();
+    [items addObject:autoWake];
     group = [PSSpecifier groupSpecifierWithName:@"Vị trí bong bóng"];
     [group setProperty:@"Thay đổi áp dụng ngay trên Google Maps CarPlay. Dashboard chọn cạnh trái hoặc phải của phần bản đồ." forKey:@"footerText"];
     [items addObject:group];
@@ -81,15 +132,20 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     if (![key isKindOfClass:NSString.class]) return nil;
     CFStringRef domain=CFSTR("com.chou.gmaphud");
     CFPreferencesAppSynchronize(domain);
+    if ([key isEqualToString:@"autoWake"] && !GVMWakeAllowed()) return @NO;
     id value=CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key,domain));
     return value ?: [specifier propertyForKey:@"default"];
 }
 - (void)setPreferenceValue:(id)value specifier:(PSSpecifier *)specifier {
     NSString *key=[specifier propertyForKey:@"key"];
-    if (![key isEqualToString:@"fullPosition"] && ![key isEqualToString:@"dashboardPosition"]) return;
+    if (![key isEqualToString:@"fullPosition"] && ![key isEqualToString:@"dashboardPosition"] && ![key isEqualToString:@"autoWake"]) return;
+    if ([key isEqualToString:@"autoWake"] && !GVMWakeAllowed()) {
+        GVMDisableWake(); [self refreshWakePermission]; return;
+    }
     CFStringRef domain=CFSTR("com.chou.gmaphud");
     CFPreferencesSetAppValue((__bridge CFStringRef)key,(__bridge CFPropertyListRef)value,domain);
     if (!CFPreferencesAppSynchronize(domain)) return;
+    if ([key isEqualToString:@"autoWake"]) return;
     NSString *full=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("fullPosition"),domain));
     NSString *dashboard=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("dashboardPosition"),domain));
     int token=-1;

@@ -8,14 +8,14 @@ Section: Tweaks
 Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm
-Version: 0.1.16
-Installed-Size: 2852
-Filename: pool/com.chou.googlemaps.vietmap_0.1.16_iphoneos-arm.deb
-Size: 1777008
-MD5sum: 46c9a33018e525c45662722b917d5b4b
-SHA1: 7ef6ff23da34c4ecbb84a05977c7e41977f8dcfe
-SHA256: 79f3a1916adc156e16d8a5c1d35bbfd52e6b2947d922093b33417d39e3dd1154
-SHA512: ea0cce2002c774e8a85d692541e40b3f54387bcba8ade4c55b98e0b4a45073b4b4e4c18ca41cc3d5f5f40cb847e1f2874c09b1ce0af15eb114e2f44db1cfef9c
+Version: 0.1.17
+Installed-Size: 2888
+Filename: pool/com.chou.googlemaps.vietmap_0.1.17_iphoneos-arm.deb
+Size: 1787960
+MD5sum: 61724b0dcdca0861d38d6c13092a74fc
+SHA1: aeac5c84f4ac633d7684435ce6def4ac80dbe763
+SHA256: 5db4c3ed2b03f1ce2ccf9a4bab176b8de96bf2073b3f173e76d02537a68744c6
+SHA512: 2eca61e6a4c6edf5d3f51d1909cf3eb26ee192ecd7df9764c84a020c1ca16bcaca540d7459ef46ed6f1573f29c2759f1c1a3fe21d5d479c3e89ec9a09bd2195e
 Depiction: https://bechou0410.github.io/gmaphud/
 SileoDepiction: https://bechou0410.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/bechou0410/gmaphud
@@ -31,14 +31,14 @@ Section: Tweaks
 Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm64
-Version: 0.1.16
-Installed-Size: 2852
-Filename: pool/com.chou.googlemaps.vietmap_0.1.16_iphoneos-arm64.deb
-Size: 1776972
-MD5sum: ed6224af67718af9f0a830e5a5857f34
-SHA1: d4749aa60241268d614fa1dab09475f5447994a4
-SHA256: eb047a26342a63fe795e4c6d8ba6d811d8a308559648d458294eafd73c76c43d
-SHA512: a1c85d1dd732c1a9ef56d0bc9e6eae430e6a36d4c5b1c1deda7033fce9742946aaa50ab1af97334b23d9ccf3f52ec638fa5b435ab252c7519091288ffa6f38c4
+Version: 0.1.17
+Installed-Size: 2888
+Filename: pool/com.chou.googlemaps.vietmap_0.1.17_iphoneos-arm64.deb
+Size: 1787858
+MD5sum: f2c87a1a2aaa3432dd25b705a9cc97d0
+SHA1: 5e99f1c483e920de968f0b9a989d99b86f108db1
+SHA256: 03caa1af501dc1f3b29e5b8d94ef5d02e4b7e76da732a2b612c627f9b3949cfc
+SHA512: a91d538c3305003462655643df11a381b2b1d1e23cf1be7c67d2977495f1b0ead4e70c63044f17b2f090f7ab092c876c81b59341e3d38a4a63a8dcc3abfe617f
 Depiction: https://bechou0410.github.io/gmaphud/
 SileoDepiction: https://bechou0410.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/bechou0410/gmaphud

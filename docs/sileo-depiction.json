@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.1.17"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Thêm tùy chọn tự đánh thức VietMap Live khi mở Google Maps trên CarPlay. Công tắc chỉ khả dụng khi đã cấp định vị Luôn luôn; tự tắt nếu không còn đủ quyền. Cải thiện kết nối dữ liệu và chẩn đoán.\n\n**English:** Adds optional background wake for VietMap Live while Google Maps is shown on CarPlay. Requires Always location permission; the switch turns off when requirements are no longer met. Improves data delivery and diagnostics."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.1.16"
         },
         {

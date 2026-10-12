@@ -5,6 +5,7 @@ NSArray *VMNavCopyOverlayArguments(id arguments);
 
 // Access only from one serial queue. Each field retains its own sample age.
 @interface VMNavSource : NSObject
+- (void)applyMainSpeedLimit:(id)value receivedAt:(NSTimeInterval)received;
 - (void)applyArguments:(id)arguments receivedAt:(NSTimeInterval)received;
 - (NSDictionary *)freshSamplesAtUptime:(NSTimeInterval)uptime;
 - (NSDictionary *)payloadAtUptime:(NSTimeInterval)uptime timestamp:(NSTimeInterval)timestamp;

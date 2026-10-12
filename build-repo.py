@@ -104,6 +104,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.1.17", "Thêm tùy chọn tự đánh thức VietMap Live khi mở Google Maps trên CarPlay. Công tắc chỉ khả dụng khi đã cấp định vị Luôn luôn; tự tắt nếu không còn đủ quyền. Cải thiện kết nối dữ liệu và chẩn đoán.",
+         "Adds optional background wake for VietMap Live while Google Maps is shown on CarPlay. Requires Always location permission; the switch turns off when requirements are no longer met. Improves data delivery and diagnostics."),
         ("0.1.16", "Bổ sung gói rootful cùng nguồn Sileo với rootless. Bản rootful cần kiểm thử thực tế trên iOS 14; giữ tính năng chẩn đoán để gửi hỗ trợ.",
          "Adds a rootful package alongside rootless in the same Sileo source. Rootful still needs iOS 14 device testing; support diagnostics remain available."),
         ("0.1.15", "Thêm mục Chẩn đoán trong Cài đặt: xem, sao chép hoặc xuất báo cáo để được hỗ trợ khi bong bóng thiếu thông tin. Không thu thập vị trí hay tự gửi báo cáo.",

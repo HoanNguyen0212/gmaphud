@@ -47,6 +47,12 @@ NSArray *VMNavCopyOverlayArguments(id arguments) {
     }
 }
 
+- (void)applyMainSpeedLimit:(id)value receivedAt:(NSTimeInterval)received {
+    // Verified VietMap 3.4.3 main-channel numeric limit, in km/h.
+    // Invalid/zero values invalidate the field; they must not preserve an old sign.
+    [self applyArguments:@[@{@"speedLimit":value ?: NSNull.null}, @NO] receivedAt:received];
+}
+
 - (NSDictionary *)payloadAtUptime:(NSTimeInterval)uptime timestamp:(NSTimeInterval)timestamp {
     NSMutableDictionary *payload = [VMNavPayload(nil, INFINITY, timestamp) mutableCopy];
     NSDictionary *samples = [self freshSamplesAtUptime:uptime];

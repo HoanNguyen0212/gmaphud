@@ -10,6 +10,7 @@
 #import "carplay-style.h"
 #import "placement-state.h"
 #import "diagnostics.h"
+#import "background-policy.h"
 #include <notify.h>
 
 static NSHashTable *views;
@@ -17,6 +18,9 @@ static NSMapTable *models, *statuses;
 static int speedToken = -1, limitToken = -1, testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1, firstAlertToken = -1, secondAlertToken = -1;
 static int placementToken = -1;
 static BOOL installed;
+static int backgroundToken=-1;
+static double lastBackgroundHeartbeat=-1;
+static NSTimeInterval lastSourceRequest=-1;
 static __thread BOOL constructingCarPlay, applyingCarPlay;
 static void (*originalModel)(id, SEL, id), (*originalChildModel)(id, SEL, id);
 static void (*originalSupports)(id, SEL, BOOL), (*originalDisplay)(id, SEL, BOOL);
@@ -33,6 +37,28 @@ static BOOL MethodMatches(Class cls, NSString *name, const char *encoding) {
     return method && strcmp(method_getTypeEncoding(method), encoding) == 0;
 }
 static BOOL External(UIView *view) { return view.window && view.window.screen != UIScreen.mainScreen; }
+static void PublishBackgroundHeartbeat(UIView *view, BOOL test, double now) {
+    static NSString *lastState;
+    NSString *state=[NSString stringWithFormat:@"window=%@ scene=%@ activation=%ld app=%ld test=%d token=%d hidden=%d alpha=%.2f boundsEmpty=%d",
+        NSStringFromClass(view.window.class),NSStringFromClass(view.window.windowScene.class),
+        (long)view.window.windowScene.activationState,(long)UIApplication.sharedApplication.applicationState,
+        test,backgroundToken,view.hidden,view.alpha,CGRectIsEmpty(view.bounds)];
+    if (![state isEqual:lastState]) {
+        lastState=state;
+        [state writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-background-client.log"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    }
+    UIWindow *window=view.window;
+    UIWindowScene *scene=window.windowScene;
+    // Both Google's full-map CPWindow and Dashboard UIWindow lack a UIWindowScene here.
+    BOOL active=scene ? scene.activationState==UISceneActivationStateForegroundActive :
+        UIApplication.sharedApplication.applicationState==UIApplicationStateActive;
+    if (test || backgroundToken<0 || now-lastBackgroundHeartbeat<3 || !active ||
+        ![UIScreen.screens containsObject:window.screen] || CGRectIsEmpty(view.bounds)) return;
+    for (UIView *ancestor=view; ancestor; ancestor=ancestor.superview)
+        if (ancestor.hidden || ancestor.alpha<=0.01) return;
+    lastBackgroundHeartbeat=now;
+    notify_set_state(backgroundToken,(uint64_t)(now*1000));
+}
 static NSNumber *Value(int token, BOOL zero) {
     uint64_t state = 0;
     if (token < 0 || notify_get_state(token, &state) != NOTIFY_STATUS_OK) return nil;
@@ -44,7 +70,8 @@ static NSDictionary *Alert(int token) {
     return GVMDecodeAlert(state,NSProcessInfo.processInfo.systemUptime);
 }
 static NSArray<NSDictionary *> *Alerts(void) {
-    NSDictionary *first=Alert(firstAlertToken), *second=Alert(secondAlertToken);
+    NSDictionary *first=Alert(firstAlertToken);
+    NSDictionary *second=Alert(secondAlertToken);
     if (!first) return @[];
     return second ? @[first,second] : @[first];
 }
@@ -105,8 +132,16 @@ static void Apply(UIView *view) {
             GVMStyleNativeSpeedView(child);
         }
         NSDictionary *test = TestSample();
+        NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
+        PublishBackgroundHeartbeat(view,test!=nil,now);
+        if (GVMShouldRequestSource(now,lastSourceRequest,!view.hidden && view.alpha>0, test!=nil,
+                                  !Value(speedToken,YES) || !Value(limitToken,NO))) {
+            lastSourceRequest=now;
+            if (notify_post(GVMSourceRequestName)==NOTIFY_STATUS_OK) GVMDiagnosticsRecord(GVMDiagnosticRequest,1);
+        }
         GVMUpdateSpeedCard(view, test ? test[@"speed"] : Value(speedToken, YES),
-            test ? test[@"limit"] : Value(limitToken, NO), test ? TestAlerts() : Alerts(),
+            test ? test[@"limit"] : Value(limitToken, NO),
+            test ? TestAlerts() : Alerts(),
             ((BOOL (*)(id, SEL))objc_msgSend)(view, NSSelectorFromString(@"nightModeMap")));
         GVMDiagnosticsRecord(GVMDiagnosticCarPlay,((test ? test[@"speed"] : Value(speedToken,YES)) ? 1 : 0) | ((test ? test[@"limit"] : Value(limitToken,NO)) ? 2 : 0) | (test ? 4 : 0));
         NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@ bounds=%@ safe=%@ windowSafe=%@ screen=%@",
@@ -212,6 +247,7 @@ static void Install(void) {
         notify_register_check(GVMLimitStateName, &limitToken) != NOTIFY_STATUS_OK) {
         GVMDiagnosticsRecord(GVMDiagnosticHook,4); Log(@"speed transport unavailable; replacement inactive"); return;
     }
+    notify_register_check(GVM_BACKGROUND_SIGNAL,&backgroundToken);
     // Test transport failure must not disable the production source.
     notify_register_check(GVMTestStateName, &testToken);
     notify_register_check("com.chou.googlemaps.vietmap.test.photo", &photoToken);

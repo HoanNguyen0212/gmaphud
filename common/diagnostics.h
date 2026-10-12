@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
 typedef NS_ENUM(NSUInteger, GVMDiagnosticEvent) {
     GVMDiagnosticLoaded=1, GVMDiagnosticHook, GVMDiagnosticChannel,
-    GVMDiagnosticPayload, GVMDiagnosticSamples, GVMDiagnosticCarPlay, GVMDiagnosticError
+    GVMDiagnosticPayload, GVMDiagnosticSamples, GVMDiagnosticCarPlay, GVMDiagnosticError, GVMDiagnosticRequest, GVMDiagnosticResponse, GVMDiagnosticShape
 };
 void GVMDiagnosticsStart(NSString *component);
 void GVMDiagnosticsRecord(GVMDiagnosticEvent event, NSUInteger detail);

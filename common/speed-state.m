@@ -22,3 +22,8 @@ NSNumber *GVMDecodeSample(uint64_t state, NSTimeInterval uptime, BOOL allowZero)
     if (!isfinite(age) || age < 0 || age >= 5) return nil;
     return @(value);
 }
+
+const char *const GVMSourceRequestName = "com.chou.gmaphud.source.vietmap.request";
+BOOL GVMShouldRequestSource(NSTimeInterval now, NSTimeInterval last, BOOL visible, BOOL test, BOOL missing) {
+    return isfinite(now) && isfinite(last) && now>=0 && visible && !test && missing && (last<0 || now-last>=2);
+}
