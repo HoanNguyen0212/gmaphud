@@ -30,7 +30,7 @@ GMapHUDPrefs_RESOURCE_DIRS = prefs/Resources
 include $(THEOS)/makefiles/bundle.mk
 
 TOOL_NAME = gvm-test-speed
-gvm-test-speed_FILES = placement-state.m test-speed.m test-state.m alert-state.m vietmap-alert-assets.m speed-state.m
+gvm-test-speed_FILES = placement-state.m test-speed.m test-state.m alert-state.m vietmap-alert-assets.m speed-state.m tpms-state.m
 gvm-test-speed_CFLAGS = -fobjc-arc -Wall -Wextra
 gvm-test-speed_FRAMEWORKS = Foundation
 gvm-test-speed_INSTALL_PATH = /usr/bin

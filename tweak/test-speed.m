@@ -3,6 +3,7 @@
 #import "speed-state.h"
 #import "placement-state.h"
 #import "alert-state.h"
+#import "tpms-state.h"
 #import "vietmap-alert-assets.h"
 #include <notify.h>
 #include <errno.h>
@@ -40,6 +41,36 @@ int main(int argc, char **argv) {
             notify_cancel(token);
             return result==NOTIFY_STATUS_OK ? 0 : 3;
         }
+        if (argc >= 6 && strcmp(argv[1], "tpms") == 0) {
+            float fl = (float)atof(argv[2]);
+            float fr = (float)atof(argv[3]);
+            float rl = (float)atof(argv[4]);
+            float rr = (float)atof(argv[5]);
+            GVMTPMSData tpmsData = {0};
+            tpmsData.fl.pressure = fl; tpmsData.fl.active = fl > 0;
+            tpmsData.fr.pressure = fr; tpmsData.fr.active = fr > 0;
+            tpmsData.rl.pressure = rl; tpmsData.rl.active = rl > 0;
+            tpmsData.rr.pressure = rr; tpmsData.rr.active = rr > 0;
+            if (fl < 1.8f && fl > 0.1f) tpmsData.fl.warning = 1; else if (fl > 2.8f) tpmsData.fl.warning = 2;
+            if (fr < 1.8f && fr > 0.1f) tpmsData.fr.warning = 1; else if (fr > 2.8f) tpmsData.fr.warning = 2;
+            if (rl < 1.8f && rl > 0.1f) tpmsData.rl.warning = 1; else if (rl > 2.8f) tpmsData.rl.warning = 2;
+            if (rr < 1.8f && rr > 0.1f) tpmsData.rr.warning = 1; else if (rr > 2.8f) tpmsData.rr.warning = 2;
+            tpmsData.hasData = (tpmsData.fl.active || tpmsData.fr.active || tpmsData.rl.active || tpmsData.rr.active);
+            
+            NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+            uint64_t encoded = GVMEncodeTPMS(&tpmsData, now);
+            int tpmsTok = -1;
+            if (notify_register_check(GVMTPMSStateName, &tpmsTok) == NOTIFY_STATUS_OK) {
+                notify_set_state(tpmsTok, encoded);
+                notify_post(GVMTPMSStateName);
+                notify_cancel(tpmsTok);
+                printf("TPMS test published: FL=%.1f FR=%.1f RL=%.1f RR=%.1f\n", fl, fr, rl, rr);
+                return 0;
+            }
+            return 3;
+        }
+        BOOL includeTpms = argc > 1 && strcmp(argv[argc-1], "--tpms") == 0;
+        if (includeTpms) argc--;
         BOOL photo=argc>1 && strcmp(argv[argc-1],"--photo")==0;
         if (photo) argc--;
         uint64_t state = 0;
@@ -93,6 +124,26 @@ int main(int argc, char **argv) {
             notify_set_state(limitTok, state ? GVMEncodeSample(@(limit), NSProcessInfo.processInfo.systemUptime) : 0);
             notify_post(GVMLimitStateName);
             notify_cancel(limitTok);
+        }
+        
+        if (includeTpms || !state) {
+            int tpmsTok = -1;
+            if (notify_register_check(GVMTPMSStateName, &tpmsTok) == NOTIFY_STATUS_OK) {
+                if (state) {
+                    GVMTPMSData tpmsData = {0};
+                    tpmsData.fl.pressure = 2.3f; tpmsData.fl.active = YES;
+                    tpmsData.fr.pressure = 2.3f; tpmsData.fr.active = YES;
+                    tpmsData.rl.pressure = 2.2f; tpmsData.rl.active = YES;
+                    tpmsData.rr.pressure = 2.2f; tpmsData.rr.active = YES;
+                    tpmsData.hasData = YES;
+                    uint64_t encoded = GVMEncodeTPMS(&tpmsData, NSProcessInfo.processInfo.systemUptime);
+                    notify_set_state(tpmsTok, encoded);
+                } else {
+                    notify_set_state(tpmsTok, 0);
+                }
+                notify_post(GVMTPMSStateName);
+                notify_cancel(tpmsTok);
+            }
         }
         
         if (result != NOTIFY_STATUS_OK) { fprintf(stderr, "Test publication refused\n"); return 3; }

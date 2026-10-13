@@ -51,7 +51,7 @@ GVMTPMSData GVMDecodeTPMS(uint64_t state, NSTimeInterval uptime) {
     uint64_t currentSec = ((uint64_t)floor(uptime)) & 0xFFFF;
     int64_t age = (int64_t)currentSec - (int64_t)timeSec;
     if (age < -30000) age += 65536; // rollover handle
-    if (age < 0 || age > 30) return result; // Stale after 30 seconds
+    if (age < 0 || age > 300) return result; // Stale after 300 seconds (5 minutes)
     
     uint32_t flVal = (state >> 37) & 0x7FF;
     uint32_t frVal = (state >> 26) & 0x7FF;

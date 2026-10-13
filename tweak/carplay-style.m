@@ -226,6 +226,15 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     BOOL compact=size.compact;
     GVMCardPlacement placement=phone ? (GVMCardPlacement)phoneCorner : compact ? (dashboardLeft ? GVMCardTopLeft : GVMCardTopRight) : fullPlacement;
     size=GVMScaleCardSize(size,SizePercent(phone ? 2 : compact ? 1 : 0),MAX(0,right-left),MAX(0,bottom-top));
+    if (card && card.tpms.hasData) {
+        if (compact) {
+            CGFloat baseH = card.alerts.count >= 2 ? 350.0 : card.alerts.count == 1 ? 260.0 : 160.0;
+            size.height = size.height * ((baseH + 65.0) / baseH);
+        } else {
+            CGFloat baseW = card.alerts.count >= 2 ? 296.0 : card.alerts.count == 1 ? 240.0 : 208.0;
+            size.width = size.width * ((baseW + 80.0) / baseW);
+        }
+    }
     CGFloat viewportLeft=left, viewportRight=right, viewportTop=top, viewportBottom=bottom;
     if (!phone) {
         top+=insets.top;
@@ -261,10 +270,26 @@ void GVMUpdateSpeedCard(UIView *map, NSNumber *speed, NSNumber *limit, NSArray<N
     }
     BOOL alertsChanged=!((card.alerts==alerts)||[card.alerts isEqual:alerts]);
     card.alerts=alerts;
-    if (tpms) card.tpms = *tpms;
+    
+    BOOL tpmsChanged = NO;
+    if (tpms) {
+        tpmsChanged = (card.tpms.hasData != tpms->hasData) ||
+            fabsf(card.tpms.fl.pressure - tpms->fl.pressure) > 0.05f ||
+            fabsf(card.tpms.fr.pressure - tpms->fr.pressure) > 0.05f ||
+            fabsf(card.tpms.rl.pressure - tpms->rl.pressure) > 0.05f ||
+            fabsf(card.tpms.rr.pressure - tpms->rr.pressure) > 0.05f ||
+            card.tpms.fl.warning != tpms->fl.warning ||
+            card.tpms.fr.warning != tpms->fr.warning ||
+            card.tpms.rl.warning != tpms->rl.warning ||
+            card.tpms.rr.warning != tpms->rr.warning;
+        card.tpms = *tpms;
+    } else if (card.tpms.hasData) {
+        tpmsChanged = YES;
+        card.tpms = (GVMTPMSData){0};
+    }
     
     CGRect frame = GVMLayoutSpeedCard(map);
-    BOOL changed = alertsChanged || !CGRectEqualToRect(card.frame,frame) || card.night!=night ||
+    BOOL changed = alertsChanged || tpmsChanged || !CGRectEqualToRect(card.frame,frame) || card.night!=night ||
         !((card.speed==speed)||[card.speed isEqual:speed]) || !((card.limit==limit)||[card.limit isEqual:limit]);
     card.frame=frame; card.speed=speed; card.limit=limit; card.night=night;
     if (changed) [card setNeedsDisplay];
