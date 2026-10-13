@@ -1,30 +1,5 @@
 Package: com.chou.googlemaps.vietmap
-Name: GMapHUD (iOS 15.8 Rootful)
-Version: 0.1.20
-Architecture: iphoneos-arm
-Description: VietMap speed, alerts, and TPMS in Google Maps for iOS 15.8 (iPhone SE).
-Icon: https://hoannguyen0212.github.io/gmaphud/gmaphud-icon.png
-Maintainer: Hoan Nguyen
-Author: Hoan Nguyen
-Section: Tweaks
-Recommends: preferenceloader
-Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
-Installed-Size: 3020
-Filename: pool/com.chou.googlemaps.vietmap_0.1.20_iphoneos-arm.deb
-Size: 2004206
-MD5sum: dd2ddc63fa4d89935068f8000c269e46
-SHA1: 6523397714eebafb2b8c971b7df9ebb784b6c0e6
-SHA256: c8b12cc7b3750531ad4ba41ee1739d75541bcfa743137fa3b4fb10eb659512e7
-SHA512: 15c99997bd097dfefeab1d78191e97f2826813d82b4f7e277c48970491311ee982a42f2273faf0fe9e614e7e7921c9d080df5fcc765431379c8afb428e3a9de2
-Depiction: https://hoannguyen0212.github.io/gmaphud/
-SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
-Homepage: https://github.com/HoanNguyen0212/gmaphud
-Bugs: https://github.com/HoanNguyen0212/gmaphud/issues
-
-Package: com.chou.googlemaps.vietmap
 Name: GMapHUD (iOS 15.8 Dopamine)
-Version: 0.1.20
-Architecture: iphoneos-arm64
 Description: VietMap speed, alerts, and TPMS in Google Maps for iOS 15.8 Dopamine (iPhone SE).
 Icon: https://hoannguyen0212.github.io/gmaphud/gmaphud-icon.png
 Maintainer: Hoan Nguyen
@@ -32,13 +7,38 @@ Author: Hoan Nguyen
 Section: Tweaks
 Recommends: preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
+Architecture: iphoneos-arm
+Version: 0.1.21
 Installed-Size: 3020
-Filename: pool/com.chou.googlemaps.vietmap_0.1.20_iphoneos-arm64.deb
-Size: 2004632
-MD5sum: 777770416d6cdd2e01984fa9173df87f
-SHA1: 5afdf72b7b9ab6f0c31be61e2d49549e6bd22571
-SHA256: e03880317bdecc6a35702cfe6ced384dd4603b594e51e13a2e2e1e0087e51c3e
-SHA512: 2b3e13d6f3c5a16ef8848133cf02d88dcf3cb80e8fe1231309975ca9b67ee80163054c26f99b58b266bcb0e6b7059268be08dafd2a08951619bd0956c740e776
+Filename: pool/com.chou.googlemaps.vietmap_0.1.21_iphoneos-arm.deb
+Size: 1809650
+MD5sum: 160e5b5fee44ab16f51773d012266b6b
+SHA1: 2a8be1d96bc75ded0d0f459ec016f5fa7792f3f5
+SHA256: 54e26cd5865ca628ab1b254e9b2073cb1e1b667483e249a785d3f7a0c0ec4ef0
+SHA512: 333aaf9e72c25aa034688107c30fa9aa1a708900b3cd995843548560906fc7894d071eb0b12e400490c04d14201e33ca2a9f1ea999e8440ade5dedfb1fbae23f
+Depiction: https://hoannguyen0212.github.io/gmaphud/
+SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
+Homepage: https://github.com/HoanNguyen0212/gmaphud
+Bugs: https://github.com/HoanNguyen0212/gmaphud/issues
+
+Package: com.chou.googlemaps.vietmap
+Name: GMapHUD (iOS 15.8 Dopamine)
+Description: VietMap speed, alerts, and TPMS in Google Maps for iOS 15.8 Dopamine (iPhone SE).
+Icon: https://hoannguyen0212.github.io/gmaphud/gmaphud-icon.png
+Maintainer: Hoan Nguyen
+Author: Hoan Nguyen
+Section: Tweaks
+Recommends: preferenceloader
+Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
+Architecture: iphoneos-arm64
+Version: 0.1.21
+Installed-Size: 3020
+Filename: pool/com.chou.googlemaps.vietmap_0.1.21_iphoneos-arm64.deb
+Size: 2007122
+MD5sum: c99be8249d989c95bb6147fccda445f7
+SHA1: facf8ec84e24743086b6d8599058671f42916dcd
+SHA256: 83ed59600605ec8716f4efb2a2ce4cbf9410969a5549130d46b8e01364b26fb2
+SHA512: 21b47ad8d67c1be9ba7c88408c181d17085fb5c8ff249bd7d23a4ea46859f6da231ffed7b992bcee4f5065da91de5e7c0fd534148fa164b79bf6b9ac449474cd
 Depiction: https://hoannguyen0212.github.io/gmaphud/
 SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/HoanNguyen0212/gmaphud
