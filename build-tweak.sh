@@ -1,5 +1,9 @@
 #!/bin/sh
 set -eu
+source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ "${GMAPHUD_CHECK_RUNNING:-0}" != 1 ] && [ "${GMAPHUD_CHECK_RAW:-0}" != 1 ]; then
+  exec python3 "$source_dir/gmaphud-check.py" build "$@"
+fi
 scheme=${1:-all}
 case "$scheme" in
   all) sh "$0" rootless; sh "$0" rootful; exit ;;
@@ -7,7 +11,6 @@ case "$scheme" in
   rootful) package_scheme= ;;
   *) echo "Usage: $0 [all|rootless|rootful]" >&2; exit 1 ;;
 esac
-source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 build_dir=$(mktemp -d /tmp/gmaphud-build.XXXXXX)
 trap 'rm -rf "$build_dir"' EXIT HUP INT TERM
 cp -R "$source_dir/tweak/." "$build_dir/"

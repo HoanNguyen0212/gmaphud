@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ "${GMAPHUD_CHECK_RUNNING:-0}" != 1 ] && [ "${GMAPHUD_CHECK_RAW:-0}" != 1 ]; then
+  exec python3 "$source_dir/gmaphud-check.py" source-test "$@"
+fi
 test_dir=$(mktemp -d /tmp/gmaphud-output-tests.XXXXXX)
 trap 'rm -rf "$test_dir"' EXIT HUP INT TERM
 xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \

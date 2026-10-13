@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ "${GMAPHUD_CHECK_RUNNING:-0}" != 1 ] && [ "${GMAPHUD_CHECK_RAW:-0}" != 1 ]; then
+  exec python3 "$source_dir/gmaphud-check.py" test "$@"
+fi
 sh "$source_dir/test-source-output.sh"
 test_dir=$(mktemp -d /tmp/gmaphud-tests.XXXXXX)
 trap 'rm -rf "$test_dir"' EXIT HUP INT TERM
@@ -35,3 +38,5 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
 
 xcrun clang -Wall -Wextra -Werror "$source_dir/tests/background-policy-tests.c" -o "$test_dir/background-policy"
 "$test_dir/background-policy"
+python3 "$source_dir/tests/log-triage-tests.py"
+python3 "$source_dir/tests/check-runner-tests.py"
