@@ -37,7 +37,11 @@ static BOOL MethodMatches(Class cls, NSString *name, const char *encoding) {
     Method method = class_getInstanceMethod(cls, NSSelectorFromString(name));
     return method && strcmp(method_getTypeEncoding(method), encoding) == 0;
 }
-static BOOL External(UIView *view) { return view.window && view.window.screen != UIScreen.mainScreen; }
+static BOOL External(UIView *view) {
+    if (!view) return NO;
+    if ([view isKindOfClass:NSClassFromString(@"AZCarPlayView")]) return YES;
+    return view.window && view.window.screen != UIScreen.mainScreen;
+}
 static void PublishBackgroundHeartbeat(UIView *view, BOOL test, double now) {
     static NSString *lastState;
     NSString *state=[NSString stringWithFormat:@"window=%@ scene=%@ activation=%ld app=%ld test=%d token=%d hidden=%d alpha=%.2f boundsEmpty=%d",
@@ -126,18 +130,20 @@ static id ModelFor(id view) {
     }
     return nil;
 }
+static void (*originalMapMoveToWindow)(id, SEL);
+
 static void Apply(UIView *view) {
     if (!NSThread.isMainThread || !External(view)) return;
-    originalSupports(view, NSSelectorFromString(@"setSupportsSpeedLimitView:"), YES);
-    originalDisplay(view, NSSelectorFromString(@"setShouldDisplaySpeedLimitView:"), YES);
-    SetBool(view, @"setSupportsHeadingView:", NO);
-    SetBool(view, @"setShouldDisplayHeadingView:", NO);
+    if (originalSupports) originalSupports(view, NSSelectorFromString(@"setSupportsSpeedLimitView:"), YES);
+    if (originalDisplay) originalDisplay(view, NSSelectorFromString(@"setShouldDisplaySpeedLimitView:"), YES);
+    if ([view respondsToSelector:NSSelectorFromString(@"setSupportsHeadingView:")]) SetBool(view, @"setSupportsHeadingView:", NO);
+    if ([view respondsToSelector:NSSelectorFromString(@"setShouldDisplayHeadingView:")]) SetBool(view, @"setShouldDisplayHeadingView:", NO);
     BOOL prior = applyingCarPlay; applyingCarPlay = YES;
     @try {
-        originalModel(view, NSSelectorFromString(@"setSpeedLimitInfo:"), ModelFor(view));
-        id child = Read(view, @"speedLimitView");
+        if (originalModel) originalModel(view, NSSelectorFromString(@"setSpeedLimitInfo:"), ModelFor(view));
+        id child = [view respondsToSelector:NSSelectorFromString(@"speedLimitView")] ? Read(view, @"speedLimitView") : nil;
         if (child) {
-            SetBool(child, @"setSpeedometerEnabled:", YES);
+            if ([child respondsToSelector:NSSelectorFromString(@"setSpeedometerEnabled:")]) SetBool(child, @"setSpeedometerEnabled:", YES);
             GVMStyleNativeSpeedView(child);
         }
         NSDictionary *test = TestSample();
@@ -155,15 +161,14 @@ static void Apply(UIView *view) {
             test ? test[@"limit"] : Value(limitToken, NO),
             test ? TestAlerts() : Alerts(),
             &tpmsData,
-            ((BOOL (*)(id, SEL))objc_msgSend)(view, NSSelectorFromString(@"nightModeMap")));
+            [view respondsToSelector:NSSelectorFromString(@"nightModeMap")] ? ((BOOL (*)(id, SEL))objc_msgSend)(view, NSSelectorFromString(@"nightModeMap")) : NO);
         GVMDiagnosticsRecord(GVMDiagnosticCarPlay,((test ? test[@"speed"] : Value(speedToken,YES)) ? 1 : 0) | ((test ? test[@"limit"] : Value(limitToken,NO)) ? 2 : 0) | (test ? 4 : 0));
-        NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@ bounds=%@ safe=%@ windowSafe=%@ screen=%@",
+        NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@ bounds=%@ tpms=%d",
             test ? @"TEST" : @"live",
             (test ? test[@"speed"] : Value(speedToken, YES)) ?: @"unavailable",
             (test ? test[@"limit"] : Value(limitToken, NO)) ?: @"unavailable",
             NSStringFromClass(view.window.class), child ? NSStringFromClass([child class]) : @"none",
-            NSStringFromCGRect(view.bounds),NSStringFromUIEdgeInsets(view.safeAreaInsets),
-            NSStringFromUIEdgeInsets(view.window.safeAreaInsets),NSStringFromCGRect(view.window.screen.bounds)];
+            NSStringFromCGRect(view.bounds), tpmsData.hasData];
         if (![[statuses objectForKey:view] isEqual:status]) {
             Log(status); [statuses setObject:status forKey:view];
         }
@@ -191,8 +196,6 @@ static void SetModel(id self, SEL selector, id info) {
     if (External(self)) Apply(self); else originalModel(self, selector, info);
 }
 static void SetChildModel(id self, SEL selector, id info) {
-    // The native CarPlay setter can strip speed when a Google feature flag is off.
-    // Replace at its existing child model boundary only during our CarPlay update.
     if (applyingCarPlay) {
         UIView *owner = self;
         while (owner && ![owner isKindOfClass:NSClassFromString(@"AZCarPlayView")]) owner = owner.superview;
@@ -229,41 +232,39 @@ static void LayoutChild(id self, SEL selector) {
 }
 static void LayoutMap(id self, SEL selector) {
     originalMapLayout(self, selector);
-    GVMLayoutSpeedCard(self);
+    if (NSThread.isMainThread && External(self)) {
+        if (![views containsObject:self]) [views addObject:self];
+        Apply(self);
+    } else {
+        GVMLayoutSpeedCard(self);
+    }
+}
+static void MapMoveToWindow(id self, SEL selector) {
+    if (originalMapMoveToWindow) originalMapMoveToWindow(self, selector);
+    if (NSThread.isMainThread && External(self)) {
+        if (![views containsObject:self]) [views addObject:self];
+        Apply(self);
+    }
+}
+static void ScanForCarPlayViews(UIView *root, NSHashTable *targetViews) {
+    if (!root) return;
+    if ([root isKindOfClass:NSClassFromString(@"AZCarPlayView")]) {
+        [targetViews addObject:root];
+    }
+    for (UIView *sub in root.subviews) {
+        ScanForCarPlayViews(sub, targetViews);
+    }
 }
 static void Install(void) {
     if (installed) return;
     Class map = NSClassFromString(@"AZCarPlayView"), child = NSClassFromString(@"GMSNSpeedLimitView");
-    Class info = NSClassFromString(@"GMSNSpeedLimitInfo"), configuration = NSClassFromString(@"GMSNSpeedLimitViewConfiguration");
-    if (!map || !child || !info || !configuration) { GVMDiagnosticsRecord(GVMDiagnosticHook,2); return; }
-    if (!MethodMatches(map, @"setSpeedLimitInfo:", "v24@0:8@16") ||
-        !MethodMatches(map, @"setSupportsSpeedLimitView:", "v20@0:8B16") ||
-        !MethodMatches(map, @"setShouldDisplaySpeedLimitView:", "v20@0:8B16") ||
-        !MethodMatches(map, @"setSupportsHeadingView:", "v20@0:8B16") ||
-        !MethodMatches(map, @"setShouldDisplayHeadingView:", "v20@0:8B16") ||
-        !MethodMatches(map, @"setupSpeedLimitViewIfNeeded", "v16@0:8") ||
-        !MethodMatches(map, @"supportsSpeedLimitView", "B16@0:8") ||
-        !MethodMatches(map, @"shouldDisplaySpeedLimitView", "B16@0:8") ||
-        !MethodMatches(map, @"layoutSubviews", "v16@0:8") ||
-        !MethodMatches(map, @"nightModeMap", "B16@0:8") ||
-        !MethodMatches(map, @"speedLimitView", "@16@0:8") ||
-        !MethodMatches(child, @"setSpeedLimitInfo:", "v24@0:8@16") ||
-        !MethodMatches(child, @"setSpeedometerEnabled:", "v20@0:8B16") ||
-        !MethodMatches(child, @"initWithConfiguration:", "@24@0:8@16") ||
-        !MethodMatches(child, @"layoutSubviews", "v16@0:8") ||
-        !MethodMatches(configuration, @"setSpeedometerCapable:", "v20@0:8B16") ||
-        (!MethodMatches(info, @"initWithSpeedLimit:speed:style:distanceUnit:speedingType:", "@56@0:8d16d24Q32q40Q48") &&
-         !MethodMatches(info, @"initWithSpeedLimit:speed:style:distanceUnit:", "@48@0:8d16d24Q32q40")) ||
-        !MethodMatches(info, @"style", "Q16@0:8") || !MethodMatches(info, @"distanceUnit", "q16@0:8")) {
-        GVMDiagnosticsRecord(GVMDiagnosticHook,3); Log(@"unsupported Google Maps ABI; replacement inactive"); return;
-    }
+    if (!map) { GVMDiagnosticsRecord(GVMDiagnosticHook,2); return; }
     if (notify_register_check(GVMSpeedStateName, &speedToken) != NOTIFY_STATUS_OK ||
         notify_register_check(GVMLimitStateName, &limitToken) != NOTIFY_STATUS_OK) {
         GVMDiagnosticsRecord(GVMDiagnosticHook,4); Log(@"speed transport unavailable; replacement inactive"); return;
     }
     notify_register_check(GVM_BACKGROUND_SIGNAL,&backgroundToken);
     notify_register_check(GVMTPMSStateName, &tpmsToken);
-    // Test transport failure must not disable the production source.
     notify_register_check(GVMTestStateName, &testToken);
     notify_register_check("com.chou.googlemaps.vietmap.test.photo", &photoToken);
     notify_register_check(GVMTestFirstAlertStateName, &testFirstAlertToken);
@@ -281,23 +282,47 @@ static void Install(void) {
     uint64_t placementState=0;
     if (placementToken>=0 && notify_get_state(placementToken,&placementState)==NOTIFY_STATUS_OK)
         GVMSetPlacementState(placementState);
-    MSHookMessageEx(map, NSSelectorFromString(@"setSpeedLimitInfo:"), (IMP)SetModel, (IMP *)&originalModel);
-    MSHookMessageEx(map, NSSelectorFromString(@"setSupportsSpeedLimitView:"), (IMP)SetSupports, (IMP *)&originalSupports);
-    MSHookMessageEx(map, NSSelectorFromString(@"setShouldDisplaySpeedLimitView:"), (IMP)SetDisplay, (IMP *)&originalDisplay);
-    MSHookMessageEx(map, NSSelectorFromString(@"setupSpeedLimitViewIfNeeded"), (IMP)Setup, (IMP *)&originalSetup);
-    MSHookMessageEx(child, NSSelectorFromString(@"initWithConfiguration:"), (IMP)InitChild, (IMP *)&originalChildInit);
-    MSHookMessageEx(child, NSSelectorFromString(@"setSpeedLimitInfo:"), (IMP)SetChildModel, (IMP *)&originalChildModel);
-    MSHookMessageEx(child, NSSelectorFromString(@"setSpeedometerEnabled:"), (IMP)SetSpeedEnabled, (IMP *)&originalSpeedEnabled);
+    if ([map instancesRespondToSelector:NSSelectorFromString(@"setSpeedLimitInfo:")]) {
+        MSHookMessageEx(map, NSSelectorFromString(@"setSpeedLimitInfo:"), (IMP)SetModel, (IMP *)&originalModel);
+    }
+    if ([map instancesRespondToSelector:NSSelectorFromString(@"setSupportsSpeedLimitView:")]) {
+        MSHookMessageEx(map, NSSelectorFromString(@"setSupportsSpeedLimitView:"), (IMP)SetSupports, (IMP *)&originalSupports);
+    }
+    if ([map instancesRespondToSelector:NSSelectorFromString(@"setShouldDisplaySpeedLimitView:")]) {
+        MSHookMessageEx(map, NSSelectorFromString(@"setShouldDisplaySpeedLimitView:"), (IMP)SetDisplay, (IMP *)&originalDisplay);
+    }
+    if ([map instancesRespondToSelector:NSSelectorFromString(@"setupSpeedLimitViewIfNeeded")]) {
+        MSHookMessageEx(map, NSSelectorFromString(@"setupSpeedLimitViewIfNeeded"), (IMP)Setup, (IMP *)&originalSetup);
+    }
     MSHookMessageEx(map, @selector(layoutSubviews), (IMP)LayoutMap, (IMP *)&originalMapLayout);
-    MSHookMessageEx(child, @selector(layoutSubviews), (IMP)LayoutChild, (IMP *)&originalChildLayout);
+    MSHookMessageEx(map, @selector(didMoveToWindow), (IMP)MapMoveToWindow, (IMP *)&originalMapMoveToWindow);
+    if (child) {
+        if ([child instancesRespondToSelector:NSSelectorFromString(@"initWithConfiguration:")]) {
+            MSHookMessageEx(child, NSSelectorFromString(@"initWithConfiguration:"), (IMP)InitChild, (IMP *)&originalChildInit);
+        }
+        if ([child instancesRespondToSelector:NSSelectorFromString(@"setSpeedLimitInfo:")]) {
+            MSHookMessageEx(child, NSSelectorFromString(@"setSpeedLimitInfo:"), (IMP)SetChildModel, (IMP *)&originalChildModel);
+        }
+        if ([child instancesRespondToSelector:NSSelectorFromString(@"setSpeedometerEnabled:")]) {
+            MSHookMessageEx(child, NSSelectorFromString(@"setSpeedometerEnabled:"), (IMP)SetSpeedEnabled, (IMP *)&originalSpeedEnabled);
+        }
+        MSHookMessageEx(child, @selector(layoutSubviews), (IMP)LayoutChild, (IMP *)&originalChildLayout);
+    }
     installed = YES;
     GVMDiagnosticsRecord(GVMDiagnosticHook,1);
     [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
         (void)timer;
-        @try { for (UIView *view in views.allObjects) Apply(view); }
+        @try {
+            for (UIWindow *win in UIApplication.sharedApplication.windows) {
+                ScanForCarPlayViews(win, views);
+            }
+            for (UIView *view in views.allObjects) {
+                if (External(view)) Apply(view);
+            }
+        }
         @catch (NSException *exception) { GVMDiagnosticsRecord(GVMDiagnosticError,1); Log([@"refresh refused: " stringByAppendingString:exception.name]); }
     }];
-    Log(@"native CarPlay replacement loaded 0.1.8; awaiting fresh VietMap samples");
+    Log(@"native CarPlay replacement loaded 0.1.24; awaiting fresh VietMap samples");
 }
 static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
     (void)header; (void)slide;

@@ -188,8 +188,9 @@ static UIWindow *HostWindow(UIView *host) {
     return [host isKindOfClass:UIWindow.class] ? (UIWindow *)host : host.window;
 }
 static BOOL ExternalMap(UIView *map) {
-    return NSThread.isMainThread && [map isKindOfClass:NSClassFromString(@"AZCarPlayView")] &&
-        map.window && map.window.screen != UIScreen.mainScreen;
+    if (!NSThread.isMainThread || !map) return NO;
+    if ([map isKindOfClass:NSClassFromString(@"AZCarPlayView")]) return YES;
+    return map.window && map.window.screen != UIScreen.mainScreen;
 }
 void GVMStyleNativeSpeedView(UIView *view) {
     UIView *owner = view.superview;
@@ -201,6 +202,7 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     if (!ExternalMap(map) && !(phone && NSThread.isMainThread && HostWindow(map).screen==UIScreen.mainScreen)) return CGRectZero;
     GVMSpeedCard *card = objc_getAssociatedObject(map,cardKey);
     CGRect screen=HostWindow(map).screen.bounds;
+    if (screen.size.width <= 0 || screen.size.height <= 0) screen = CGRectMake(0, 0, 800, 480);
     UIEdgeInsets insets=map.safeAreaInsets;
     CGFloat margin=MIN(10,MAX(5,MIN(screen.size.width,screen.size.height)*0.03));
     CGFloat left=CGRectGetMinX(map.bounds)+margin;
