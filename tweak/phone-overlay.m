@@ -2,10 +2,12 @@
 #import "carplay-style.h"
 #import "speed-state.h"
 #import "alert-state.h"
+#import "test-state.h"
 #import "tpms-state.h"
 #include <notify.h>
 
 static int speedToken = -1, limitToken = -1, firstAlertToken = -1, secondAlertToken = -1, tpmsToken = -1;
+static int testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1;
 static __weak UIView *phoneHost;
 static double lastRequest = -1;
 
@@ -73,11 +75,37 @@ static void UpdatePhone(void) {
         if (alert) [alerts addObject:alert];
     }
     
+    // Test mode fallback
+    NSDictionary *test = testToken >= 0 ? GVMDecodeTest(NotifyState(testToken), now) : nil;
+    if (test) {
+        speed = test[@"speed"];
+        limit = test[@"limit"];
+        NSDictionary *t1 = testFirstAlertToken >= 0 ? GVMDecodeAlert(NotifyState(testFirstAlertToken), now) : nil;
+        NSDictionary *t2 = testSecondAlertToken >= 0 ? GVMDecodeAlert(NotifyState(testSecondAlertToken), now) : nil;
+        if (t1) [alerts addObject:t1];
+        if (t2) [alerts addObject:t2];
+    }
+    
     GVMTPMSData tpms = GVMDecodeTPMS(NotifyState(tpmsToken), now);
     
-    if (GVMShouldRequestSource(now, lastRequest, YES, NO, !speed || !limit)) {
+    if (GVMShouldRequestSource(now, lastRequest, YES, test != nil, !speed || !limit)) {
         lastRequest = now;
         notify_post(GVMSourceRequestName);
+    }
+    
+    static double lastLog = 0;
+    if (now - lastLog > 5.0) {
+        lastLog = now;
+        NSString *line = [NSString stringWithFormat:@"%f phone host=%@ speed=%@ limit=%@ alerts=%lu tpms=%d\n",
+            now, NSStringFromClass(host.class), speed, limit, (unsigned long)alerts.count, tpms.hasData];
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Logs/gmaphud-phone.log"];
+        if (fh) {
+            [fh seekToEndOfFile];
+            [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+            [fh closeFile];
+        } else {
+            [line writeToFile:@"/var/mobile/Library/Logs/gmaphud-phone.log" atomically:NO encoding:NSUTF8StringEncoding error:nil];
+        }
     }
     
     GVMUpdatePhoneSpeedCard(host, speed, limit, alerts, &tpms, host.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
@@ -91,6 +119,9 @@ __attribute__((constructor)) static void StartPhone(void) {
         notify_register_check(GVMFirstAlertStateName, &firstAlertToken);
         notify_register_check(GVMSecondAlertStateName, &secondAlertToken);
         notify_register_check(GVMTPMSStateName, &tpmsToken);
+        notify_register_check(GVMTestStateName, &testToken);
+        notify_register_check(GVMTestFirstAlertStateName, &testFirstAlertToken);
+        notify_register_check(GVMTestSecondAlertStateName, &testSecondAlertToken);
         
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(__unused NSNotification *note) {
             GVMRemovePhoneSpeedCard(phoneHost);

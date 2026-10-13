@@ -21,6 +21,6 @@ notice_dir="$build_dir/layout/usr/share/doc/com.chou.googlemaps.vietmap"
 mkdir -p "$notice_dir"
 cp "$source_dir/LICENSE" "$notice_dir/LICENSE"
 cp "$source_dir/DISCLAIMER.md" "$notice_dir/DISCLAIMER"
-make -C "$build_dir" THEOS="${THEOS:-$HOME/theos}" THEOS_PACKAGE_SCHEME="$package_scheme" FINALPACKAGE=1 package
+make -C "$build_dir" THEOS="${THEOS:-$HOME/theos}" THEOS_PACKAGE_SCHEME="$package_scheme" THEOS_PACKAGE_COMPRESSION_TYPE=gzip FINALPACKAGE=1 package
 mkdir -p "$source_dir/packages"
 cp "$build_dir"/packages/*.deb "$source_dir/packages/"

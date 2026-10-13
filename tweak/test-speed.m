@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "test-state.h"
+#import "speed-state.h"
 #import "placement-state.h"
 #import "alert-state.h"
 #import "vietmap-alert-assets.h"
@@ -43,8 +44,8 @@ int main(int argc, char **argv) {
         if (photo) argc--;
         uint64_t state = 0;
         uint64_t firstAlert = 0, secondAlert = 0;
+        NSInteger speed = 0, limit = 0, duration = 0;
         if (!(argc == 2 && strcmp(argv[1], "off") == 0)) {
-            NSInteger speed, limit, duration;
             if ((argc != 4 && argc != 6) || !Number(argv[1], &speed) || !Number(argv[2], &limit) || !Number(argv[3], &duration) ||
                 !(state = GVMEncodeTest(speed, limit, NSProcessInfo.processInfo.systemUptime, duration))) {
                 fprintf(stderr, "Usage: gvm-test-speed SPEED_KMH LIMIT_KMH SECONDS [SIGN1:METERS SIGN2:METERS], [--photo], or off; position FULL DASHBOARD\n"); return 2;
@@ -80,8 +81,22 @@ int main(int argc, char **argv) {
             notify_post(GVMTestStateName);
         }
         notify_cancel(secondToken); notify_cancel(firstToken); notify_cancel(token);
+        
+        // Also broadcast directly to phone live speed channels
+        int speedTok = -1, limitTok = -1;
+        if (notify_register_check(GVMSpeedStateName, &speedTok) == NOTIFY_STATUS_OK) {
+            notify_set_state(speedTok, state ? GVMEncodeSample(@(speed), NSProcessInfo.processInfo.systemUptime) : 0);
+            notify_post(GVMSpeedStateName);
+            notify_cancel(speedTok);
+        }
+        if (notify_register_check(GVMLimitStateName, &limitTok) == NOTIFY_STATUS_OK) {
+            notify_set_state(limitTok, state ? GVMEncodeSample(@(limit), NSProcessInfo.processInfo.systemUptime) : 0);
+            notify_post(GVMLimitStateName);
+            notify_cancel(limitTok);
+        }
+        
         if (result != NOTIFY_STATUS_OK) { fprintf(stderr, "Test publication refused\n"); return 3; }
-        printf(state ? "TEST active on Google CarPlay; display values expire automatically\n" : "TEST off; live VietMap restored\n");
+        printf(state ? "TEST active on Google Maps (Phone & CarPlay); expires in %ld seconds\n" : "TEST off; live VietMap restored\n", (long)duration);
         return 0;
     }
 }
