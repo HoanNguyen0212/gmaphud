@@ -33,10 +33,6 @@ static void Log(NSString *message) {
     NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"googlemaps-vietmap.log"];
     [message writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
-static BOOL MethodMatches(Class cls, NSString *name, const char *encoding) {
-    Method method = class_getInstanceMethod(cls, NSSelectorFromString(name));
-    return method && strcmp(method_getTypeEncoding(method), encoding) == 0;
-}
 static BOOL External(UIView *view) {
     if (!view) return NO;
     if ([view isKindOfClass:NSClassFromString(@"AZCarPlayView")]) return YES;
