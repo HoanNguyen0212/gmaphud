@@ -4,12 +4,13 @@
 #import "alert-state.h"
 #import "test-state.h"
 #import "tpms-state.h"
+#import "background-policy.h"
 #include <notify.h>
 
 static int speedToken = -1, limitToken = -1, firstAlertToken = -1, secondAlertToken = -1, tpmsToken = -1;
-static int testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1;
+static int testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1, backgroundToken = -1;
 static __weak UIView *phoneHost;
-static double lastRequest = -1;
+static double lastRequest = -1, lastBackgroundHeartbeat = 0;
 
 static uint64_t NotifyState(int token) {
     uint64_t state = 0;
@@ -93,18 +94,25 @@ static void UpdatePhone(void) {
         notify_post(GVMSourceRequestName);
     }
     
+    // Maintain RunningBoard background supervisor for VietMap Live while Google Maps is active
+    if (!test && backgroundToken >= 0 && (now - lastBackgroundHeartbeat >= 3.0 || lastBackgroundHeartbeat == 0)) {
+        lastBackgroundHeartbeat = now;
+        notify_set_state(backgroundToken, (uint64_t)(now * 1000));
+    }
+    
     static double lastLog = 0;
     if (now - lastLog > 5.0) {
         lastLog = now;
         NSString *line = [NSString stringWithFormat:@"%f phone host=%@ speed=%@ limit=%@ alerts=%lu tpms=%d\n",
             now, NSStringFromClass(host.class), speed, limit, (unsigned long)alerts.count, tpms.hasData];
-        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Logs/gmaphud-phone.log"];
+        NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-phone.log"];
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:path];
         if (fh) {
             [fh seekToEndOfFile];
             [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
             [fh closeFile];
         } else {
-            [line writeToFile:@"/var/mobile/Library/Logs/gmaphud-phone.log" atomically:NO encoding:NSUTF8StringEncoding error:nil];
+            [line writeToFile:path atomically:NO encoding:NSUTF8StringEncoding error:nil];
         }
     }
     
@@ -122,6 +130,7 @@ __attribute__((constructor)) static void StartPhone(void) {
         notify_register_check(GVMTestStateName, &testToken);
         notify_register_check(GVMTestFirstAlertStateName, &testFirstAlertToken);
         notify_register_check(GVMTestSecondAlertStateName, &testSecondAlertToken);
+        notify_register_check(GVM_BACKGROUND_SIGNAL, &backgroundToken);
         
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(__unused NSNotification *note) {
             GVMRemovePhoneSpeedCard(phoneHost);

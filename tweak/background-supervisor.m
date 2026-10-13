@@ -20,6 +20,7 @@ static BOOL AutoWakeEnabled(void) {
     CFStringRef domain=CFSTR("com.chou.gmaphud");
     CFPreferencesAppSynchronize(domain);
     id value=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("autoWake"),domain));
+    if (!value) return YES; // Default to YES so VietMap is kept alive out of the box
     return [value isKindOfClass:NSNumber.class] && [value boolValue];
 }
 static NSInteger ProviderLocationPermission(void) {
@@ -113,11 +114,9 @@ static void Tick(void) {
     double now=NSProcessInfo.processInfo.systemUptime;
     BOOL enabled=AutoWakeEnabled();
     NSInteger permission=ProviderLocationPermission();
-    BOOL allowed=permission==kCLAuthorizationStatusAuthorizedAlways && [CLLocationManager locationServicesEnabled];
+    BOOL allowed=(permission==kCLAuthorizationStatusAuthorizedAlways || permission==kCLAuthorizationStatusAuthorizedWhenInUse) && [CLLocationManager locationServicesEnabled];
     if (permissionToken>=0) notify_set_state(permissionToken,GVMBackgroundPermissionState(now,allowed));
     if (enabled && !allowed) {
-        CFPreferencesSetAppValue(CFSTR("autoWake"),kCFBooleanFalse,CFSTR("com.chou.gmaphud"));
-        CFPreferencesAppSynchronize(CFSTR("com.chou.gmaphud"));
         enabled=NO;
     }
     if (enabled!=lastEnabled || (enabled && permission!=lastPermission)) {
