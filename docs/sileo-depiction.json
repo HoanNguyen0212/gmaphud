@@ -159,6 +159,22 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.1.24"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Khắc phục triệt để lỗi không hiện HUD trên CarPlay: tự động phát hiện và gắn cụm HUD vào `AZCarPlayView` mà không phụ thuộc vào dữ liệu tốc độ gốc của Google Maps (do Google Maps VN không có sẵn giới hạn tốc độ); tích hợp hiển thị 4 lốp xe TPMS VietMap Live và tự động mở rộng kích thước thẻ trên CarPlay.\n\n**English:** Actively discovers and attaches HUD to CarPlay without relying on native Google Maps speed limits. Integrates 4-tire TPMS display with auto-expanding CarPlay card."
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.1.23"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Bổ sung hiển thị áp suất lốp xe TPMS từ VietMap Live (MethodChannel/EventChannel & TPMSData native), mở rộng bố cục CarPlay.\n\n**English:** Adds VietMap Live TPMS tire pressure monitoring and auto-scaling CarPlay HUD layout."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.1.18"
         },
         {
