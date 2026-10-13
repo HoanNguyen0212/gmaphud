@@ -16,6 +16,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent
 URL = "https://bechou0410.github.io/gmaphud/"
+SOURCE_URL = "https://gmaphud.caidat.app/"
 SILEO_DEPICTION_URL = URL + "sileo-depiction.json"
 SCREENSHOTS = (
     URL + "screenshots/full-map-top-left.png",
@@ -240,9 +241,17 @@ def main():
     template = (ROOT / "repo-template.html").read_text(encoding="utf-8")
     locales = json.loads((ROOT / "repo-locales.json").read_text(encoding="utf-8"))
     for language, filename in (("vi", "index.html"), ("en", "en.html")):
-        values = {**locales[language], "LANG": language, "VERSION": version, "REPO_URL": URL,
-                  "PACKAGE_PATH": "pool/" + name, "ROOTFUL_PACKAGE_PATH": "pool/" + records["iphoneos-arm"][1], "VI_CURRENT": "page" if language == "vi" else "false",
-                  "EN_CURRENT": "page" if language == "en" else "false"}
+        values = {
+            **locales[language],
+            "LANG": language,
+            "VERSION": version,
+            "REPO_URL": SOURCE_URL,
+            "FALLBACK_URL": URL,
+            "PACKAGE_PATH": SOURCE_URL + "pool/" + name,
+            "ROOTFUL_PACKAGE_PATH": SOURCE_URL + "pool/" + records["iphoneos-arm"][1],
+            "VI_CURRENT": "page" if language == "vi" else "false",
+            "EN_CURRENT": "page" if language == "en" else "false",
+        }
         page = re.sub(r"\{\{([A-Z_]+)\}\}", lambda match: html.escape(values[match[1]], quote=True), template)
         (site / filename).write_text(page, encoding="utf-8")
     notices = "<!doctype html><html lang='vi'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>GMapHUD · Thông báo / Notices</title><style>body{max-width:800px;margin:40px auto;padding:0 20px;font:16px/1.6 system-ui}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}</style><a href='./'>GMapHUD</a><nav aria-label='Ngôn ngữ / Language'><a href='#vi' lang='vi'>Tiếng Việt</a> · <a href='#en' lang='en'>English</a> · <a href='#license' lang='en'>MIT</a></nav>"
