@@ -25,27 +25,27 @@
           "itemCornerRadius": 10,
           "screenshots": [
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-top-left.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/full-map-top-left.png",
               "accessibilityText": "Bản đồ đầy đủ: bong bóng ở góc trên trái."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-top-right.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/full-map-top-right.png",
               "accessibilityText": "Bản đồ đầy đủ: bong bóng ở góc trên phải."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-bottom-left.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/full-map-bottom-left.png",
               "accessibilityText": "Bản đồ đầy đủ: bong bóng ở góc dưới trái."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-bottom-right.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/full-map-bottom-right.png",
               "accessibilityText": "Bản đồ đầy đủ: bong bóng ở góc dưới phải."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/dashboard-left.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/dashboard-left.png",
               "accessibilityText": "Dashboard: bong bóng ở bên trái."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/dashboard-right.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/dashboard-right.png",
               "accessibilityText": "Dashboard: bong bóng ở bên phải."
             }
           ]
@@ -72,7 +72,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "[Trang chủ](https://bechou0410.github.io/gmaphud/) · [GitHub](https://github.com/bechou0410/gmaphud) · [Thông báo trách nhiệm](https://bechou0410.github.io/gmaphud/notices.html#vi)"
+          "markdown": "[Trang chủ](https://hoannguyen0212.github.io/gmaphud/) · [GitHub](https://github.com/bechou0410/gmaphud) · [Thông báo trách nhiệm](https://hoannguyen0212.github.io/gmaphud/notices.html#vi)"
         }
       ]
     },
@@ -98,27 +98,27 @@
           "itemCornerRadius": 10,
           "screenshots": [
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-top-left.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/full-map-top-left.png",
               "accessibilityText": "Full map: bubble in the top-left corner."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-top-right.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/full-map-top-right.png",
               "accessibilityText": "Full map: bubble in the top-right corner."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-bottom-left.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/full-map-bottom-left.png",
               "accessibilityText": "Full map: bubble in the bottom-left corner."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/full-map-bottom-right.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/full-map-bottom-right.png",
               "accessibilityText": "Full map: bubble in the bottom-right corner."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/dashboard-left.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/dashboard-left.png",
               "accessibilityText": "Dashboard: bubble on the left."
             },
             {
-              "url": "https://bechou0410.github.io/gmaphud/screenshots/dashboard-right.png",
+              "url": "https://hoannguyen0212.github.io/gmaphud/screenshots/dashboard-right.png",
               "accessibilityText": "Dashboard: bubble on the right."
             }
           ]
@@ -145,7 +145,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "[Project website](https://bechou0410.github.io/gmaphud/) · [GitHub](https://github.com/bechou0410/gmaphud) · [Disclaimer](https://bechou0410.github.io/gmaphud/notices.html#en)"
+          "markdown": "[Project website](https://hoannguyen0212.github.io/gmaphud/) · [GitHub](https://github.com/HoanNguyen0212/gmaphud) · [Disclaimer](https://hoannguyen0212.github.io/gmaphud/notices.html#en)"
         }
       ]
     },

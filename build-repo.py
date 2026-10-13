@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
-URL = "https://bechou0410.github.io/gmaphud/"
+URL = "https://hoannguyen0212.github.io/gmaphud/"
 SILEO_DEPICTION_URL = URL + "sileo-depiction.json"
 SCREENSHOTS = (
     URL + "screenshots/full-map-top-left.png",
@@ -98,7 +98,7 @@ def build_sileo_depiction():
             ),
             "links": "Links",
             "links_text": (
-                f"[Project website]({URL}) · [GitHub](https://github.com/bechou0410/gmaphud) · "
+                f"[Project website]({URL}) · [GitHub](https://github.com/HoanNguyen0212/gmaphud) · "
                 f"[Disclaimer]({URL}notices.html#en)"
             ),
         },
@@ -205,7 +205,7 @@ def main():
         for field, algorithm in (("MD5sum", "md5"), ("SHA1", "sha1"), ("SHA256", "sha256"), ("SHA512", "sha512")):
             stanza += f"{field}: {hashlib.new(algorithm, data).hexdigest()}\n"
         stanza += f"Depiction: {URL}\nSileoDepiction: {SILEO_DEPICTION_URL}\n"
-        stanza += "Homepage: https://github.com/bechou0410/gmaphud\nBugs: https://github.com/bechou0410/gmaphud/issues\n"
+        stanza += "Homepage: https://github.com/HoanNguyen0212/gmaphud\nBugs: https://github.com/HoanNguyen0212/gmaphud/issues\n"
         stanzas.append(stanza)
     stanza = "\n".join(stanzas)
     version, name, data, _ = records["iphoneos-arm64"]
