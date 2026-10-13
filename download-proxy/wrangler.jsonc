@@ -1,0 +1,14 @@
+{
+	"name": "gmaphud-downloads",
+	"account_id": "d62577f0807884d8befc91d52c72e191",
+	"pages_build_output_dir": "./pages-output",
+	"compatibility_date": "2026-10-13",
+	"compatibility_flags": [],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "gmaphud-downloads",
+			"database_id": "f48269c1-985e-4010-a562-360fd1837459"
+		}
+	]
+}
