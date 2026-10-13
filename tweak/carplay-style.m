@@ -19,19 +19,29 @@ static UIColor *RGB(unsigned value, CGFloat alpha) {
     return [UIColor colorWithRed:((value >> 16) & 255)/255.0 green:((value >> 8) & 255)/255.0
         blue:(value & 255)/255.0 alpha:alpha];
 }
-static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight, UIColor *color) {
+static void DrawText(NSString *text, CGRect rect, UIFont *font, UIColor *color) {
     if (!text.length) return;
     NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
     paragraph.alignment = NSTextAlignmentCenter;
-    UIFont *font=[UIFont monospacedDigitSystemFontOfSize:size weight:weight];
     CGSize measured=[text sizeWithAttributes:@{NSFontAttributeName:font}];
     CGFloat fit=MIN(1,MIN(rect.size.width/MAX(1,measured.width),rect.size.height/MAX(1,measured.height)));
-    if (fit<1) font=[UIFont monospacedDigitSystemFontOfSize:size*fit weight:weight];
+    if (fit<1) font=[font fontWithSize:font.pointSize*fit];
     measured=[text sizeWithAttributes:@{NSFontAttributeName:font}];
     rect.origin.y+=(rect.size.height-measured.height)/2;
     rect.size.height=measured.height;
     [text drawInRect:rect withAttributes:@{NSFontAttributeName:font,
         NSForegroundColorAttributeName:color, NSParagraphStyleAttributeName:paragraph}];
+}
+static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight, UIColor *color) {
+    DrawText(text,rect,[UIFont monospacedDigitSystemFontOfSize:size weight:weight],color);
+}
+static UIFont *LimitFont(CGFloat size) {
+    UIFont *font=[UIFont fontWithName:@"SFProCondensed-Semibold" size:size];
+    if (font) return font;
+    UIFont *system=[UIFont systemFontOfSize:size weight:UIFontWeightSemibold];
+    UIFontDescriptor *descriptor=[system.fontDescriptor fontDescriptorWithSymbolicTraits:
+        system.fontDescriptor.symbolicTraits|UIFontDescriptorTraitCondensed];
+    return descriptor ? [UIFont fontWithDescriptor:descriptor size:size] : system;
 }
 static CGRect ModuleRect(NSArray *order,NSString *module,BOOL vertical,NSUInteger count,NSUInteger index) {
     GVMModuleRect frame=GVMModuleFrame(order,module,vertical,count,index);
@@ -101,8 +111,8 @@ static void DrawArtwork(UIImage *image,CGRect frame) {
         CGFloat dash[]={5,3}; [sign setLineDash:dash count:2 phase:0]; [muted setStroke];
     }
     [sign stroke];
-    Text(self.limit ? self.limit.stringValue : @"–",CGRectInset(signRect,7,7),
-        self.limit.doubleValue>=100 ? 28 : 32,UIFontWeightBold,self.limit ? RGB(0x17191d,1) : muted);
+    DrawText(self.limit ? self.limit.stringValue : @"–",CGRectInset(signRect,7,7),
+        LimitFont(self.limit.doubleValue>=100 ? 28 : 32),self.limit ? RGB(0x17191d,1) : muted);
     CGRect speedGroup=CenteredRect(speedCell,speedCell.size.width-8,62);
     Text(self.speed ? self.speed.stringValue : @"--",CGRectMake(speedGroup.origin.x,speedGroup.origin.y,speedGroup.size.width,44),
         36,UIFontWeightBold,self.speed ? accent : muted);

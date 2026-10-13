@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.1.22"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Cập nhật bộ icon biển báo; đồng bộ font số trên biển giới hạn tốc độ chính.\n\n**English:** Updates road-sign icons and aligns the main speed-limit digits with the new artwork."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.1.21"
         },
         {

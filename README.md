@@ -39,6 +39,10 @@ In iPhone Settings → GMapHUD, choose any of the four corners for the full map 
 
 Published 0.1.13 does not port road alerts. Release 0.1.14 recognizes 46 known alert-image digests from VietMap Live 3.4.3; unknown or changed artwork stays hidden. VietMap's upcoming speed-limit message may omit its image, so supported numeric limits use the matching bundled VietMap Live sign. Camera and upcoming 80 km/h delivery were observed live; other sign categories are mapped from observed app artwork but have not yet been observed in live payloads. Navigation instructions and Live Activities remain unsupported. It includes no GPS spoofing, location replay, DRM bypass or subscription bypass.
 
+## 0.1.22 · updated sign artwork
+
+All 46 display icons now use the supplied condensed-font artwork. The main speed-limit sign uses SF Pro Condensed Semibold, with the system Semibold Condensed descriptor when the named font is unavailable. Font fitting preserves the chosen face; source recognition and bubble geometry are unchanged.
+
 ## 0.1.21 · modular bubble
 
 Settings → GMapHUD now groups the master **Hiển thị bong bóng** switch, **Nguồn cảnh báo**, **Chạy nền**, three screen settings and **Chẩn đoán / Xuất log**. Under **Thiết lập bong bóng cảnh báo**, choose **Bản đồ đầy đủ**, **Dashboard** or **Trên iPhone**. Each screen has its own visibility switch, position, Auto/Horizontal/Vertical layout, draggable module order and size slider. iPhone position also keeps the X/Y sliders. Existing selections are preserved; missing visibility settings default to on. The master switch hides all GMapHUD bubbles without changing individual screen choices or the separate background-wake option. Visibility changes apply while Google Maps is open.
@@ -49,7 +53,7 @@ The **Đặt lại** row beneath each adjustment resets only that part: size to 
 
 Each speed, current-limit and individual warning cell now has equal dimensions in either orientation. Content is centered inside each cell; sign artwork preserves its aspect ratio, and a sign with distance is centered as one unit. Two warnings still move together and occupy two cells. The shared grid has been checked on iPhone, CarPlay Full Map and Dashboard with live data.
 
-Host tests and rootful/rootless arm64/arm64e builds passed. Earlier 0.1.21 trial builds were installed on iPhone 11/iOS 18.6.2; the new menu, Full Map reorder page and drag persistence were verified. Turning off Full Map hid its bubble while Dashboard remained visible. The custom table uses an independent UIKit delegate to avoid Preferences-specific callbacks. App metadata and related crash listing were observed; file sharing and other devices still need validation. The final Dashboard sizing correction passed host tests and builds; its device retest is pending.
+Host tests and rootful/rootless arm64/arm64e builds passed. Earlier 0.1.21 trial builds were installed on iPhone 11/iOS 18.6.2; the new menu, Full Map reorder page and drag persistence were verified. Turning off Full Map hid its bubble while Dashboard remained visible. The custom table uses an independent UIKit delegate to avoid Preferences-specific callbacks. App metadata and related crash listing were observed; file sharing and other devices still need validation. The final Dashboard sizing correction was subsequently verified on iPhone with 0/1/2/0 alerts; existing content retained its size.
 
 Version 0.1.21 replaces all 46 bundled display signs with user-supplied redesigned artwork, optimized to transparent 256 px PNGs. Original VietMap input digests remain unchanged; display images are no longer recognition fixtures. Earlier published packages still contain their original artwork.
 
@@ -140,7 +144,7 @@ The tweak creates no network listener, telemetry upload, publisher daemon or sav
 
 ## License
 
-Project-authored code is offered under [MIT](LICENSE). The package also contains selected VietMap Live artwork for display; these images are third-party material, are not covered by MIT, and remain subject to their rights holders' terms. The project does not claim ownership or grant permission to redistribute them. Third-party apps, maps, traffic/sign data, trademarks, SDKs and dependencies retain their owners' rights and terms. See [DISCLAIMER.md](DISCLAIMER.md) for lawful-use, safety, compatibility and warranty notices. Licensing does not certify legality, accuracy or roadworthiness.
+Project-authored code is offered under [MIT](LICENSE). Current display artwork is supplied by the user; replacing images does not establish their provenance or grant redistribution rights. Artwork is not automatically covered by the code’s MIT license. Older published packages may contain original VietMap images. Third-party apps, maps, traffic/sign data, trademarks, SDKs and dependencies retain their owners' rights and terms. See [DISCLAIMER.md](DISCLAIMER.md) for lawful-use, safety, compatibility and warranty notices. Licensing does not certify legality, accuracy or roadworthiness.
 
 For unedited Settings screenshots, append `--photo` to hide the badge for that bounded sample only. `gvm-test-speed position top-left left` changes Full Map/Dashboard placement temporarily without writing user preferences; restore the previous placement after capture.
 

@@ -104,6 +104,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.1.22", "Cập nhật bộ icon biển báo; đồng bộ font số trên biển giới hạn tốc độ chính.",
+         "Updates road-sign icons and aligns the main speed-limit digits with the new artwork."),
         ("0.1.21", "Tùy chỉnh bố cục ngang/dọc và kéo đổi thứ tự các phần trong bong bóng. Làm mới Cài đặt, thêm công tắc từng màn hình và nút đặt lại. Cập nhật bộ icon biển báo, giữ kích cỡ Dashboard ổn định khi đổi bố cục hoặc thêm/bớt cảnh báo. Báo cáo hỗ trợ có thêm phiên bản ứng dụng và tùy chọn đính kèm crash.",
          "Customize horizontal/vertical layouts and drag to reorder bubble sections. Refreshes Settings with per-screen switches and reset controls. Updates road-sign icons and keeps Dashboard content sizes stable when changing layouts or adding/removing alerts. Support reports now include app versions and optional crash attachments."),
         ("0.1.20", "Cải thiện tính ổn định", "Improved stability"),

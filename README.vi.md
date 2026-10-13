@@ -39,6 +39,10 @@ Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đ
 
 Bản công khai 0.1.13 chưa hỗ trợ biển cảnh báo. Bản 0.1.14 nhận diện 46 mã băm ảnh cảnh báo đã quan sát từ VietMap Live 3.4.3; ảnh lạ hoặc đã đổi sẽ không hiển thị. Thông báo giới hạn tốc độ sắp tới của VietMap có thể không kèm ảnh; giới hạn hợp lệ sẽ dùng ảnh VietMap Live tương ứng trong gói. Dữ liệu camera và biển giới hạn sắp tới đã được quan sát trực tiếp; các loại cảnh báo khác mới được ánh xạ theo ảnh app đã thấy, chưa có mẫu payload thực tế. Chưa hỗ trợ chỉ dẫn đường hoặc Live Activity. Không bao gồm giả lập GPS, phát lại vị trí, vượt DRM hay vượt kiểm tra thuê bao.
 
+## 0.1.22 · cập nhật bộ biển báo
+
+Cập nhật đủ 46 icon từ bộ thiết kế mới dùng chữ condensed. Số trên biển giới hạn chính dùng SF Pro Condensed Semibold; nếu tên font không có, dùng font hệ thống Semibold với kiểu Condensed. Khi co chữ cho vừa biển vẫn giữ kiểu font đã chọn; nhận diện nguồn và kích cỡ bong bóng giữ nguyên.
+
 ## 0.1.21 · bubble dạng module
 
 Cài đặt → GMapHUD gồm công tắc tổng **Hiển thị bong bóng**, **Nguồn cảnh báo**, **Chạy nền**, ba màn hình thiết lập và **Chẩn đoán / Xuất log**. Trong **Thiết lập bong bóng cảnh báo**, chọn **Bản đồ đầy đủ**, **Dashboard** hoặc **Trên iPhone**. Mỗi mục có công tắc riêng, vị trí, bố cục Tự động/Ngang/Dọc, kéo thứ tự các phần và kích cỡ. Vị trí iPhone vẫn có thanh X/Y. Giữ nguyên các lựa chọn đã lưu; công tắc mới mặc định bật. Tắt công tắc tổng ẩn toàn bộ bubble GMapHUD, không đổi lựa chọn từng màn hình hay tùy chọn chạy nền. Thay đổi bật/tắt áp dụng khi Google Maps đang mở.
@@ -49,7 +53,7 @@ Hàng **Đặt lại** bên dưới mỗi phần chỉ khôi phục phần tinh 
 
 Tốc độ, giới hạn hiện tại và từng cảnh báo nay dùng các ô cùng kích thước ở cả dạng ngang/dọc. Nội dung căn giữa từng ô; ảnh biển giữ đúng tỉ lệ và biển kèm khoảng cách được căn giữa theo cả cụm. Hai cảnh báo vẫn di chuyển cùng nhau, chiếm hai ô. Đã kiểm tra bố cục mới trên iPhone, CarPlay Full Map và Dashboard với dữ liệu đang nhận.
 
-Đã qua test trên Mac và build rootful/rootless arm64/arm64e. Các bản thử 0.1.21 trước đó đã cài trên iPhone 11/iOS 18.6.2; xác nhận menu mới hiện đủ, trang Bản đồ đầy đủ mở được, kéo và lưu thứ tự đúng. Tắt riêng Bản đồ đầy đủ đã ẩn bong bóng ở đó, Dashboard vẫn hiện. Bảng dùng bộ xử lý UIKit riêng để tránh các hàm nội bộ của Cài đặt. Đã quan sát thông tin phiên bản app và danh sách crash liên quan; chia sẻ file và các máy khác còn cần kiểm chứng. Bản sửa cuối về ổn định kích cỡ Dashboard đã qua test và build, chưa kiểm tra lại trên thiết bị.
+Đã qua test trên Mac và build rootful/rootless arm64/arm64e. Các bản thử 0.1.21 trước đó đã cài trên iPhone 11/iOS 18.6.2; xác nhận menu mới hiện đủ, trang Bản đồ đầy đủ mở được, kéo và lưu thứ tự đúng. Tắt riêng Bản đồ đầy đủ đã ẩn bong bóng ở đó, Dashboard vẫn hiện. Bảng dùng bộ xử lý UIKit riêng để tránh các hàm nội bộ của Cài đặt. Đã quan sát thông tin phiên bản app và danh sách crash liên quan; chia sẻ file và các máy khác còn cần kiểm chứng. Bản sửa cuối về ổn định kích cỡ Dashboard đã kiểm tra lại trên iPhone với 0/1/2/0 cảnh báo; các phần đang có giữ nguyên kích cỡ.
 
 Bản 0.1.21 thay đủ 46 ảnh hiển thị bằng bộ thiết kế lại do người dùng cung cấp, tối ưu PNG trong suốt 256 px. Giữ nguyên hash nhận diện ảnh đầu vào VietMap; ảnh hiển thị mới được tách khỏi phần nhận diện. Gói đã xuất bản trước đây vẫn giữ bộ ảnh cũ.
 
@@ -140,7 +144,7 @@ Tweak không mở dịch vụ mạng, tải dữ liệu đo lường lên máy c
 
 ## Giấy phép
 
-Mã do dự án viết được cung cấp theo [MIT](LICENSE). Gói cũng chứa một số ảnh VietMap Live để hiển thị; đây là tài liệu bên thứ ba, không thuộc MIT và vẫn chịu quyền/điều khoản của chủ sở hữu. Dự án không nhận quyền sở hữu hoặc cấp phép phân phối lại các ảnh này. Ứng dụng, bản đồ, dữ liệu giao thông, nhãn hiệu, SDK và phụ thuộc của bên thứ ba vẫn thuộc quyền và điều khoản của chủ sở hữu. Xem [thông báo tiếng Việt](DISCLAIMER.vi.md) và [bản tiếng Anh](DISCLAIMER.md) về sử dụng hợp pháp, an toàn, tương thích và bảo hành. Giấy phép không chứng nhận tính hợp pháp, độ chính xác hay khả năng sử dụng trên đường.
+Mã do dự án viết được cung cấp theo [MIT](LICENSE). Bộ ảnh hiển thị hiện tại do người dùng cung cấp; thay ảnh không xác nhận nguồn gốc hoặc cấp quyền phân phối lại. Ảnh không tự động thuộc giấy phép MIT của mã nguồn. Gói đã công khai trước đây có thể chứa ảnh VietMap nguyên bản. Ứng dụng, bản đồ, dữ liệu giao thông, nhãn hiệu, SDK và phụ thuộc của bên thứ ba vẫn thuộc quyền và điều khoản của chủ sở hữu. Xem [thông báo tiếng Việt](DISCLAIMER.vi.md) và [bản tiếng Anh](DISCLAIMER.md) về sử dụng hợp pháp, an toàn, tương thích và bảo hành. Giấy phép không chứng nhận tính hợp pháp, độ chính xác hay khả năng sử dụng trên đường.
 
 Để chụp ảnh gốc cho Cài đặt, thêm `--photo` ở cuối lệnh để ẩn nhãn trong lượt mẫu có thời hạn đó. `gvm-test-speed position top-left left` đổi tạm vị trí Full Map/Dashboard, không ghi đè tùy chọn đã lưu; trả vị trí cũ sau khi chụp.
 
