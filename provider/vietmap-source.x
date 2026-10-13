@@ -114,6 +114,57 @@ static void Publish(void) {
 
 static GVMTPMSData g_liveTPMS;
 
+static void GVMParseTireEntry(NSDictionary *d) {
+    if (!d || ![d isKindOfClass:NSDictionary.class]) return;
+    id codeVal = d[@"code"] ?: d[@"position"] ?: d[@"tireId"] ?: d[@"tire"] ?: d[@"id"] ?: d[@"deviceID"];
+    id pressVal = d[@"pressure"] ?: d[@"press"] ?: d[@"bar"] ?: d[@"kpa"] ?: d[@"p"];
+    id tempVal = d[@"temperature"] ?: d[@"temp"] ?: d[@"t"];
+    id warnVal = d[@"isPressureWarning"] ?: d[@"warning"] ?: d[@"warn"];
+    id xieYaVal = d[@"isXieYa"] ?: d[@"leak"];
+    
+    GVMTPMSTire *target = NULL;
+    NSString *codeStr = [codeVal description].lowercaseString;
+    if ([codeStr isEqualToString:@"0"] || [codeStr containsString:@"fl"] || [codeStr containsString:@"front_left"] || [codeStr containsString:@"frontleft"]) {
+        target = &g_liveTPMS.fl;
+    } else if ([codeStr isEqualToString:@"1"] || [codeStr containsString:@"fr"] || [codeStr containsString:@"front_right"] || [codeStr containsString:@"frontright"]) {
+        target = &g_liveTPMS.fr;
+    } else if ([codeStr isEqualToString:@"2"] || [codeStr containsString:@"rl"] || [codeStr containsString:@"rear_left"] || [codeStr containsString:@"rearleft"]) {
+        target = &g_liveTPMS.rl;
+    } else if ([codeStr isEqualToString:@"3"] || [codeStr containsString:@"rr"] || [codeStr containsString:@"rear_right"] || [codeStr containsString:@"rearright"]) {
+        target = &g_liveTPMS.rr;
+    }
+    
+    if (!target) {
+        if (d[@"fl"] || d[@"fr"] || d[@"rl"] || d[@"rr"] || d[@"0"] || d[@"1"] || d[@"2"] || d[@"3"]) {
+            if (d[@"fl"] || d[@"0"]) { id sub = d[@"fl"] ?: d[@"0"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseTireEntry(sub); }
+            if (d[@"fr"] || d[@"1"]) { id sub = d[@"fr"] ?: d[@"1"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseTireEntry(sub); }
+            if (d[@"rl"] || d[@"2"]) { id sub = d[@"rl"] ?: d[@"2"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseTireEntry(sub); }
+            if (d[@"rr"] || d[@"3"]) { id sub = d[@"rr"] ?: d[@"3"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseTireEntry(sub); }
+        }
+        return;
+    }
+    
+    float p = 0.0f;
+    if ([pressVal isKindOfClass:NSNumber.class]) p = [pressVal floatValue];
+    else if ([pressVal isKindOfClass:NSString.class]) p = [pressVal floatValue];
+    if (p > 50.0f) p = p / 100.0f;
+    
+    if (p > 0.01f) {
+        target->pressure = p;
+        target->active = YES;
+    }
+    if ([tempVal respondsToSelector:@selector(intValue)]) {
+        target->temperature = [tempVal intValue];
+    }
+    BOOL isWarn = [warnVal respondsToSelector:@selector(boolValue)] && [warnVal boolValue];
+    BOOL isLeak = [xieYaVal respondsToSelector:@selector(boolValue)] && [xieYaVal boolValue];
+    if (isLeak) target->warning = 3;
+    else if (isWarn) target->warning = (target->pressure < 1.8f) ? 1 : 2;
+    else if (target->pressure < 1.8f && target->pressure > 0.1f) target->warning = 1;
+    else if (target->pressure > 2.8f) target->warning = 2;
+    else target->warning = 0;
+}
+
 static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
     if (!payload) return;
     if ([payload isKindOfClass:NSString.class]) {
@@ -123,64 +174,12 @@ static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
             if (json) payload = json;
         }
     }
-    __block void (^parseTireEntry)(NSDictionary *);
-    parseTireEntry = ^(NSDictionary *d) {
-        if (!d || ![d isKindOfClass:NSDictionary.class]) return;
-        id codeVal = d[@"code"] ?: d[@"position"] ?: d[@"tireId"] ?: d[@"tire"] ?: d[@"id"] ?: d[@"deviceID"];
-        id pressVal = d[@"pressure"] ?: d[@"press"] ?: d[@"bar"] ?: d[@"kpa"] ?: d[@"p"];
-        id tempVal = d[@"temperature"] ?: d[@"temp"] ?: d[@"t"];
-        id warnVal = d[@"isPressureWarning"] ?: d[@"warning"] ?: d[@"warn"];
-        id xieYaVal = d[@"isXieYa"] ?: d[@"leak"];
-        
-        GVMTPMSTire *target = NULL;
-        NSString *codeStr = [codeVal description].lowercaseString;
-        if ([codeStr isEqualToString:@"0"] || [codeStr containsString:@"fl"] || [codeStr containsString:@"front_left"] || [codeStr containsString:@"frontleft"]) {
-            target = &g_liveTPMS.fl;
-        } else if ([codeStr isEqualToString:@"1"] || [codeStr containsString:@"fr"] || [codeStr containsString:@"front_right"] || [codeStr containsString:@"frontright"]) {
-            target = &g_liveTPMS.fr;
-        } else if ([codeStr isEqualToString:@"2"] || [codeStr containsString:@"rl"] || [codeStr containsString:@"rear_left"] || [codeStr containsString:@"rearleft"]) {
-            target = &g_liveTPMS.rl;
-        } else if ([codeStr isEqualToString:@"3"] || [codeStr containsString:@"rr"] || [codeStr containsString:@"rear_right"] || [codeStr containsString:@"rearright"]) {
-            target = &g_liveTPMS.rr;
-        }
-        
-        if (!target) {
-            if (d[@"fl"] || d[@"fr"] || d[@"rl"] || d[@"rr"] || d[@"0"] || d[@"1"] || d[@"2"] || d[@"3"]) {
-                if (d[@"fl"] || d[@"0"]) { id sub = d[@"fl"] ?: d[@"0"]; if ([sub isKindOfClass:NSDictionary.class]) parseTireEntry(sub); }
-                if (d[@"fr"] || d[@"1"]) { id sub = d[@"fr"] ?: d[@"1"]; if ([sub isKindOfClass:NSDictionary.class]) parseTireEntry(sub); }
-                if (d[@"rl"] || d[@"2"]) { id sub = d[@"rl"] ?: d[@"2"]; if ([sub isKindOfClass:NSDictionary.class]) parseTireEntry(sub); }
-                if (d[@"rr"] || d[@"3"]) { id sub = d[@"rr"] ?: d[@"3"]; if ([sub isKindOfClass:NSDictionary.class]) parseTireEntry(sub); }
-            }
-            return;
-        }
-        
-        float p = 0.0f;
-        if ([pressVal isKindOfClass:NSNumber.class]) p = [pressVal floatValue];
-        else if ([pressVal isKindOfClass:NSString.class]) p = [pressVal floatValue];
-        if (p > 50.0f) p = p / 100.0f;
-        
-        if (p > 0.01f) {
-            target->pressure = p;
-            target->active = YES;
-        }
-        if ([tempVal respondsToSelector:@selector(intValue)]) {
-            target->temperature = [tempVal intValue];
-        }
-        BOOL isWarn = [warnVal respondsToSelector:@selector(boolValue)] && [warnVal boolValue];
-        BOOL isLeak = [xieYaVal respondsToSelector:@selector(boolValue)] && [xieYaVal boolValue];
-        if (isLeak) target->warning = 3;
-        else if (isWarn) target->warning = (target->pressure < 1.8f) ? 1 : 2;
-        else if (target->pressure < 1.8f && target->pressure > 0.1f) target->warning = 1;
-        else if (target->pressure > 2.8f) target->warning = 2;
-        else target->warning = 0;
-    };
-    
     if ([payload isKindOfClass:NSArray.class]) {
         for (id item in (NSArray *)payload) {
-            if ([item isKindOfClass:NSDictionary.class]) parseTireEntry(item);
+            if ([item isKindOfClass:NSDictionary.class]) GVMParseTireEntry(item);
         }
     } else if ([payload isKindOfClass:NSDictionary.class]) {
-        parseTireEntry((NSDictionary *)payload);
+        GVMParseTireEntry((NSDictionary *)payload);
     }
     
     g_liveTPMS.hasData = (g_liveTPMS.fl.active || g_liveTPMS.fr.active || g_liveTPMS.rl.active || g_liveTPMS.rr.active);
