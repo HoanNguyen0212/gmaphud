@@ -123,7 +123,8 @@ static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
             if (json) payload = json;
         }
     }
-    void (^parseTireEntry)(NSDictionary *) = ^(NSDictionary *d) {
+    __block void (^parseTireEntry)(NSDictionary *);
+    parseTireEntry = ^(NSDictionary *d) {
         if (!d || ![d isKindOfClass:NSDictionary.class]) return;
         id codeVal = d[@"code"] ?: d[@"position"] ?: d[@"tireId"] ?: d[@"tire"] ?: d[@"id"] ?: d[@"deviceID"];
         id pressVal = d[@"pressure"] ?: d[@"press"] ?: d[@"bar"] ?: d[@"kpa"] ?: d[@"p"];
