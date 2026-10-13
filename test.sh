@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+sh "$source_dir/test-source-output.sh"
 test_dir=$(mktemp -d /tmp/gmaphud-tests.XXXXXX)
 trap 'rm -rf "$test_dir"' EXIT HUP INT TERM
 xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \

@@ -12,12 +12,14 @@
 #import "diagnostics.h"
 #import "background-policy.h"
 #import "refresh-loop.h"
+#import "source-transport.h"
+#import "vietmap-output.h"
 #include <notify.h>
 
 static NSHashTable *views;
 static NSMapTable *models, *statuses, *nativeInputs, *nativeChildren;
 static id applyingNativeModel;
-static int speedToken = -1, limitToken = -1, testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1, firstAlertToken = -1, secondAlertToken = -1;
+static int testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1;
 static int placementToken = -1;
 static BOOL installed;
 static int backgroundToken=-1;
@@ -61,22 +63,6 @@ static void PublishBackgroundHeartbeat(UIView *view, BOOL test, double now) {
     lastBackgroundHeartbeat=now;
     notify_set_state(backgroundToken,(uint64_t)(now*1000));
 }
-static NSNumber *Value(int token, BOOL zero) {
-    uint64_t state = 0;
-    if (token < 0 || notify_get_state(token, &state) != NOTIFY_STATUS_OK) return nil;
-    return GVMDecodeSample(state, NSProcessInfo.processInfo.systemUptime, zero);
-}
-static NSDictionary *Alert(int token) {
-    uint64_t state=0;
-    if (token<0 || notify_get_state(token,&state)!=NOTIFY_STATUS_OK) return nil;
-    return GVMDecodeAlert(state,NSProcessInfo.processInfo.systemUptime);
-}
-static NSArray<NSDictionary *> *Alerts(void) {
-    NSDictionary *first=Alert(firstAlertToken);
-    NSDictionary *second=Alert(secondAlertToken);
-    if (!first) return @[];
-    return second ? @[first,second] : @[first];
-}
 static id Read(id object, NSString *name) { return ((id (*)(id, SEL))objc_msgSend)(object, NSSelectorFromString(name)); }
 static void SetBool(id object, NSString *name, BOOL value) { ((void (*)(id, SEL, BOOL))objc_msgSend)(object, NSSelectorFromString(name), value); }
 
@@ -91,14 +77,15 @@ static BOOL PhotoSample(void) {
     return photoToken>=0 && testToken>=0 && notify_get_state(photoToken,&photo)==NOTIFY_STATUS_OK &&
         notify_get_state(testToken,&current)==NOTIFY_STATUS_OK && photo && photo==current && TestSample();
 }
-static NSArray<NSDictionary *> *TestAlerts(void) {
+static NSArray<NSDictionary *> *TestAlerts(NSTimeInterval now) {
     NSMutableArray<NSDictionary *> *alerts=[NSMutableArray arrayWithCapacity:2];
     for (int tokenIndex=0;tokenIndex<2;tokenIndex++) {
         int token=tokenIndex==0 ? testFirstAlertToken : testSecondAlertToken;
         uint64_t state=0;
         if (token<0 || notify_get_state(token,&state)!=NOTIFY_STATUS_OK) continue;
-        NSDictionary *alert=GVMDecodeAlertWithin(state,NSProcessInfo.processInfo.systemUptime,300);
-        if (alert) [alerts addObject:alert];
+        NSDictionary *alert=GVMDecodeAlertWithin(state,now,300);
+        NSDictionary *normalized=alert ? GVMVietMapOutputAlert(alert,now) : nil;
+        if (normalized) [alerts addObject:normalized];
     }
     return alerts;
 }
@@ -117,8 +104,11 @@ static void Apply(UIView *view, BOOL forceNative) {
     if (!NSThread.isMainThread || !External(view)) return;
     // Decode each field once so all consumers see the same update.
     NSDictionary *test = TestSample();
-    NSNumber *speed = test ? test[@"speed"] : Value(speedToken,YES);
-    NSNumber *limit = test ? test[@"limit"] : Value(limitToken,NO);
+    NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
+    NSDictionary *output=test ? GVMSourceOutput(GVMSourceVietMap,
+        @{@"speed":@{@"value":test[@"speed"],@"receivedAt":@(now)},
+          @"speedLimit":@{@"value":test[@"limit"],@"receivedAt":@(now)}},TestAlerts(now),now) : GVMReadSourceOutput(now);
+    NSNumber *speed=output[@"speed"][@"value"], *limit=output[@"speedLimit"][@"value"];
     id googleModel=[models objectForKey:view];
     NSUInteger style=googleModel ? ((NSUInteger (*)(id,SEL))objc_msgSend)(googleModel,NSSelectorFromString(@"style")) : 1;
     NSInteger unit=googleModel ? ((NSInteger (*)(id,SEL))objc_msgSend)(googleModel,NSSelectorFromString(@"distanceUnit")) : 1;
@@ -147,15 +137,13 @@ static void Apply(UIView *view, BOOL forceNative) {
             SetBool(child,@"setSpeedometerEnabled:",YES);
             GVMStyleNativeSpeedView(child);
         }
-        NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
         PublishBackgroundHeartbeat(view,test!=nil,now);
         if (GVMShouldRequestSource(now,lastSourceRequest,!view.hidden && view.alpha>0, test!=nil,
                                   !speed || !limit)) {
             lastSourceRequest=now;
-            if (notify_post(GVMSourceRequestName)==NOTIFY_STATUS_OK) GVMDiagnosticsRecord(GVMDiagnosticRequest,1);
+            if (GVMRequestSelectedSource()) GVMDiagnosticsRecord(GVMDiagnosticRequest,1);
         }
-        GVMUpdateSpeedCard(view,speed,limit,
-            test ? TestAlerts() : Alerts(),
+        GVMUpdateSpeedCard(view,output,
             ((BOOL (*)(id, SEL))objc_msgSend)(view, NSSelectorFromString(@"nightModeMap")));
         GVMDiagnosticsRecord(GVMDiagnosticCarPlay,(speed ? 1 : 0) | (limit ? 2 : 0) | (test ? 4 : 0));
         NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@ bounds=%@ safe=%@ windowSafe=%@ screen=%@",
@@ -252,18 +240,12 @@ static void Install(void) {
         !MethodMatches(info, @"style", "Q16@0:8") || !MethodMatches(info, @"distanceUnit", "q16@0:8")) {
         GVMDiagnosticsRecord(GVMDiagnosticHook,3); Log(@"unsupported Google Maps ABI; replacement inactive"); return;
     }
-    if (notify_register_check(GVMSpeedStateName, &speedToken) != NOTIFY_STATUS_OK ||
-        notify_register_check(GVMLimitStateName, &limitToken) != NOTIFY_STATUS_OK) {
-        GVMDiagnosticsRecord(GVMDiagnosticHook,4); Log(@"speed transport unavailable; replacement inactive"); return;
-    }
     notify_register_check(GVM_BACKGROUND_SIGNAL,&backgroundToken);
     // Test transport failure must not disable the production source.
     notify_register_check(GVMTestStateName, &testToken);
     notify_register_check("com.chou.googlemaps.vietmap.test.photo", &photoToken);
     notify_register_check(GVMTestFirstAlertStateName, &testFirstAlertToken);
     notify_register_check(GVMTestSecondAlertStateName, &testSecondAlertToken);
-    notify_register_check(GVMFirstAlertStateName, &firstAlertToken);
-    notify_register_check(GVMSecondAlertStateName, &secondAlertToken);
     views = [NSHashTable weakObjectsHashTable]; models = [NSMapTable weakToStrongObjectsMapTable];
     statuses = [NSMapTable weakToStrongObjectsMapTable];
     nativeInputs=[NSMapTable weakToStrongObjectsMapTable];

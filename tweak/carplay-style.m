@@ -3,6 +3,7 @@
 #import "speed-presentation.h"
 #import "vietmap-alert-assets.h"
 #import "placement-state.h"
+#import "source-transport.h"
 #import <objc/runtime.h>
 #include <notify.h>
 
@@ -10,6 +11,7 @@
 @property(nonatomic, copy) NSNumber *speed, *limit;
 @property(nonatomic, copy) NSArray<NSDictionary *> *alerts;
 @property(nonatomic) BOOL night, compact;
+@property(nonatomic) NSUInteger sourceID;
 @end
 
 static UIColor *RGB(unsigned value, CGFloat alpha) {
@@ -40,7 +42,7 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
         CGFloat badgeX = (canvasWidth - 112) / 2;
         UIBezierPath *badge = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(badgeX,1,112,32) cornerRadius:12];
         [RGB(0x202631,0.94) setFill]; [badge fill];
-        Text(@"VIETMAP LIVE",CGRectMake(badgeX+2,5,108,19),13,UIFontWeightBold,UIColor.whiteColor);
+        Text(GVMSourceDisplayName(self.sourceID).uppercaseString,CGRectMake(badgeX+2,5,108,19),13,UIFontWeightBold,UIColor.whiteColor);
     }
     UIBezierPath *bubble = [UIBezierPath bezierPathWithRoundedRect:body cornerRadius:self.compact ? 41 : 24];
     [RGB(self.night ? 0x303642 : 0x59616f,0.60) setFill]; [bubble fill];
@@ -93,10 +95,10 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
             CGFloat x=self.compact ? 42 : 205+60*i;
             CGFloat alertY=y+(self.compact ? 90*i : 0);
             NSDictionary *alert=self.alerts[i];
-            NSNumber *kind=alert[@"kind"];
-            NSNumber *cacheKey=@(([alert[@"provider"] unsignedIntegerValue]<<8)|kind.unsignedIntegerValue);
+            NSNumber *kind=alert[@"artworkID"];
+            NSNumber *cacheKey=@((self.sourceID<<8)|kind.unsignedIntegerValue);
             UIImage *artwork=artworkCache[cacheKey];
-            if (!artwork && [alert[@"provider"] unsignedIntegerValue]==GVMVietMapProviderID) {
+            if (!artwork && self.sourceID==GVMVietMapProviderID) {
                 NSString *name=GVMVietMapAssetName(kind.unsignedIntegerValue);
                 if (name) {
                     NSString *path=[ROOT_PATH_NS(@"/usr/share/gmaphud/vietmap") stringByAppendingPathComponent:name];
@@ -104,7 +106,23 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
                     if (artwork) artworkCache[cacheKey]=artwork;
                 }
             }
-            [artwork drawInRect:CGRectMake(x-alertDiameter/2,alertY-alertDiameter/2,alertDiameter,alertDiameter)];
+            CGRect alertRect=CGRectMake(x-alertDiameter/2,alertY-alertDiameter/2,alertDiameter,alertDiameter);
+            if (artwork) [artwork drawInRect:alertRect];
+            else if ([alert[@"type"] unsignedIntegerValue]==GVMRoadAlertSpeedLimit) {
+                UIBezierPath *nextLimit=[UIBezierPath bezierPathWithOvalInRect:CGRectInset(alertRect,3,3)];
+                [UIColor.whiteColor setFill]; [nextLimit fill]; [RGB(0xff3b30,1) setStroke];
+                nextLimit.lineWidth=5; [nextLimit stroke];
+                Text([alert[@"value"] stringValue],CGRectMake(x-alertDiameter/2,alertY-14,alertDiameter,28),
+                    alertDiameter*0.37,UIFontWeightBold,RGB(0x17191d,1));
+            } else {
+                BOOL camera=[alert[@"type"] unsignedIntegerValue]==GVMRoadAlertCameraAI ||
+                    [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertPenaltyCamera ||
+                    [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertSpeedCamera ||
+                    [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertTrafficCamera;
+                UIImage *symbol=[[UIImage systemImageNamed:camera ? @"camera.fill" : @"exclamationmark.triangle.fill"]
+                    imageWithTintColor:UIColor.whiteColor renderingMode:UIImageRenderingModeAlwaysOriginal];
+                [symbol drawInRect:CGRectInset(alertRect,5,5)];
+            }
             id meters=alert[@"distance"];
             NSString *distance=meters==NSNull.null ? @"" : ([meters integerValue]>=1000 ?
                 [NSString stringWithFormat:@"%.1f km",[meters doubleValue]/1000] :
@@ -202,7 +220,15 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     if (card && !CGRectEqualToRect(card.frame,frame)) { card.frame=frame; [card setNeedsDisplay]; }
     return frame;
 }
-void GVMUpdateSpeedCard(UIView *map, NSNumber *speed, NSNumber *limit, NSArray<NSDictionary *> *alerts, BOOL night) {
+void GVMUpdateSpeedCard(UIView *map, NSDictionary *output, BOOL night) {
+    NSNumber *speed=output[@"speed"][@"value"], *limit=output[@"speedLimit"][@"value"];
+    // Freshness is validated upstream; a new receive time alone must not repaint.
+    NSMutableArray *visibleAlerts=[NSMutableArray new];
+    for (NSDictionary *alert in output[@"alerts"])
+        [visibleAlerts addObject:@{@"type":alert[@"type"],@"value":alert[@"value"],
+            @"distance":alert[@"distance"],@"artworkID":alert[@"artworkID"]}];
+    NSArray *alerts=[visibleAlerts copy];
+    NSUInteger sourceID=output ? [output[@"sourceID"] unsignedIntegerValue] : GVMSelectedSourceID();
     if (!ExternalMap(map) && !([objc_getAssociatedObject(map,phoneKey) boolValue] && NSThread.isMainThread && HostWindow(map).screen==UIScreen.mainScreen)) return;
     GVMSpeedCard *card = objc_getAssociatedObject(map,cardKey);
     if (!card) {
@@ -216,24 +242,25 @@ void GVMUpdateSpeedCard(UIView *map, NSNumber *speed, NSNumber *limit, NSArray<N
     BOOL alertsChanged=!((card.alerts==alerts)||[card.alerts isEqual:alerts]);
     card.alerts=alerts;
     CGRect frame = GVMLayoutSpeedCard(map);
-    BOOL changed = alertsChanged || !CGRectEqualToRect(card.frame,frame) || card.night!=night ||
+    BOOL changed = card.sourceID!=sourceID || alertsChanged || !CGRectEqualToRect(card.frame,frame) || card.night!=night ||
         !((card.speed==speed)||[card.speed isEqual:speed]) || !((card.limit==limit)||[card.limit isEqual:limit]);
-    card.frame=frame; card.speed=speed; card.limit=limit; card.night=night;
+    card.sourceID=sourceID; card.frame=frame; card.speed=speed; card.limit=limit; card.night=night;
     if (changed) [card setNeedsDisplay];
     card.accessibilityLabel=[NSString stringWithFormat:@"Speed %@ km/h, limit %@ km/h", speed ?: @"unavailable",limit ?: @"unavailable"];
     for (NSDictionary *alert in alerts) {
-        NSString *name=GVMVietMapAssetName([alert[@"kind"] unsignedIntegerValue]) ?: @"road warning";
+        NSString *name=GVMRoadAlertName([alert[@"type"] unsignedIntegerValue]) ?: @"road warning";
         id meters=alert[@"distance"];
-        card.accessibilityLabel=[card.accessibilityLabel stringByAppendingFormat:@", VietMap %@%@",name,
+        card.accessibilityLabel=[card.accessibilityLabel stringByAppendingFormat:@", %@ %@%@%@",GVMSourceDisplayName(sourceID),name,
+            alert[@"value"]==NSNull.null ? @"" : [NSString stringWithFormat:@" %@ km/h",alert[@"value"]],
             meters==NSNull.null ? @"" : [NSString stringWithFormat:@" %@ meters",meters]];
     }
     [map bringSubviewToFront:card];
 }
 
-void GVMUpdatePhoneSpeedCard(UIView *host,NSNumber *speed,NSNumber *limit,NSArray<NSDictionary *> *alerts,BOOL night) {
+void GVMUpdatePhoneSpeedCard(UIView *host,NSDictionary *output,BOOL night) {
     if (!host || !NSThread.isMainThread) return;
     objc_setAssociatedObject(host,phoneKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    GVMUpdateSpeedCard(host,speed,limit,alerts,night);
+    GVMUpdateSpeedCard(host,output,night);
 }
 void GVMRemovePhoneSpeedCard(UIView *host) {
     UIView *card=objc_getAssociatedObject(host,cardKey);

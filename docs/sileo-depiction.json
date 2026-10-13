@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.1.20"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Cải thiện tính ổn định\n\n**English:** Improved stability"
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.1.19"
         },
         {

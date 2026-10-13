@@ -46,9 +46,9 @@ Bản công khai 0.1.13 chưa hỗ trợ biển cảnh báo. Bản 0.1.14 nhận
 | Thiết bị / hệ điều hành | iPhone 11, iOS 18.6.2, jailbreak rootless |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Gói | `com.chou.googlemaps.vietmap` 0.1.18, arm64/arm64e |
+| Gói | `com.chou.googlemaps.vietmap` 0.1.20, arm64/arm64e |
 
-Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói và định danh thông báo giữ nguyên để tương thích với bản đang cài.
+Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói giữ nguyên. Từ 0.1.20, tweak dùng kênh thông báo dữ liệu thật có phiên bản mới; kênh thử hiển thị có thời hạn vẫn giữ tên cũ.
 
 Từ 0.1.13, nguồn VietMap cũng không còn khóa phiên bản. Kiểm tra cấu trúc kênh Flutter và dữ liệu đầu vào vẫn được giữ lại. Các bản app mới vẫn cần kiểm chứng trên thiết bị.
 
@@ -61,7 +61,7 @@ Giao diện đã được kiểm tra bằng iPhone thật kết nối với CarP
 3. Cài bằng trình quản lý gói của jailbreak. Kiểm tra thông báo gỡ các gói bridge/probe cũ được liệt kê trong [tweak/control](tweak/control). Gói này không gỡ TrueDash của nhà phát triển. Nguồn gồm gói rootless (`iphoneos-arm64`) và rootful (`iphoneos-arm`). Rootful cần kiểm thử trên iOS 14; các bản app cũ có thể cần sửa tích hợp thêm.
 4. Đóng và mở lại VietMap cùng Google Maps, rồi mở Google Maps trên CarPlay. Duy trì chế độ cảnh báo nền của VietMap. Chỉ có Live Activity chưa chứng minh dữ liệu tốc độ vẫn được cập nhật.
 
-Không cung cấp hay yêu cầu mật khẩu SSH mặc định. Sau khi cập nhật 0.1.19, respring một lần để nạp phần chạy nền, rồi mở lại Google Maps và Cài đặt. Tự đánh thức hỗ trợ quyền Khi dùng ứng dụng hoặc Luôn luôn; cần bật cảnh báo trong VietMap trước.
+Không cung cấp hay yêu cầu mật khẩu SSH mặc định. Sau khi cập nhật 0.1.20, respring một lần để nạp phần chạy nền, rồi mở lại Google Maps và Cài đặt. Tự đánh thức hỗ trợ quyền Khi dùng ứng dụng hoặc Luôn luôn; cần bật cảnh báo trong VietMap trước.
 
 Để gỡ: gỡ `com.chou.googlemaps.vietmap` bằng trình quản lý gói, rồi đóng và mở lại cả hai ứng dụng. Xóa tệp không tự dỡ thư viện đã được nạp vào một tiến trình còn đang chạy.
 
@@ -116,7 +116,7 @@ Bản 0.1.15 đã qua kiểm thử trên máy build, build arm64/arm64e và cài
 
 ## Kiến trúc và quyền riêng tư
 
-`provider/vietmap-source.x` quan sát kênh Flutter overlay đang có của VietMap, chuyển tiếp handler/reply gốc không thay đổi. Tốc độ và giới hạn đã được kiểm tra, mỗi trường có thời điểm nhận theo đồng hồ đơn điệu riêng, được truyền qua trạng thái thông báo Darwin cục bộ. Cảnh báo được đọc từ các chuỗi JSON trong `vml_main_channel/updateUpcommingAlerts` và `updateStickyAlerts`, đối chiếu mã băm chính xác với bộ ảnh 3.4.3 và truyền tối đa hai trạng thái dạng mã nguồn/mã biển/khoảng cách. Danh sách rỗng sẽ xóa trạng thái nguồn; dữ liệu tự hết hạn sau 5 giây. Bản 0.1.14 đóng gói 46 ảnh biển VietMap để hiển thị; thông báo chỉ truyền dữ liệu số. Ảnh bên thứ ba không thuộc giấy phép MIT của dự án. Hook CarPlay áp dụng cho cửa sổ bản đồ ngoài màn hình điện thoại. Một lớp hiển thị riêng dùng cùng dữ liệu còn mới trong cửa sổ Google Maps trên iPhone, chỉ khi app ở phía trước và không chặn thao tác chạm.
+`provider/vietmap-source.x` quan sát kênh Flutter overlay đang có của VietMap, chuyển tiếp handler/reply gốc không thay đổi. Tốc độ và giới hạn đã được kiểm tra, mỗi trường có thời điểm nhận theo đồng hồ đơn điệu riêng, được truyền qua trạng thái thông báo Darwin cục bộ. Cảnh báo được đọc từ các chuỗi JSON trong `vml_main_channel/updateUpcommingAlerts` và `updateStickyAlerts`, đối chiếu mã băm chính xác với bộ ảnh 3.4.3 và chuyển qua bộ chuyển đổi VietMap thành tối đa hai cảnh báo có loại chung. Từ 0.1.20, tweak dùng [chuẩn đầu ra chung có phiên bản](docs/source-output-contract.md) cho tốc độ, giới hạn và cảnh báo trên cả hai giao diện Google Maps. Mỗi gói chỉ thuộc một nguồn đang chọn; gói chưa ghi xong hoặc thuộc lượt chọn cũ không được đọc. Hiện chỉ VietMap được kích hoạt. Danh sách rỗng sẽ xóa trạng thái nguồn; dữ liệu tự hết hạn sau 5 giây. Bản 0.1.14 đóng gói 46 ảnh biển VietMap để hiển thị; thông báo chỉ truyền dữ liệu số. Ảnh bên thứ ba không thuộc giấy phép MIT của dự án. Hook CarPlay áp dụng cho cửa sổ bản đồ ngoài màn hình điện thoại. Một lớp hiển thị riêng dùng cùng dữ liệu còn mới trong cửa sổ Google Maps trên iPhone, chỉ khi app ở phía trước và không chặn thao tác chạm.
 
 Tweak không mở dịch vụ mạng, tải dữ liệu đo lường lên máy chủ, tạo daemon xuất bản hay lưu thông tin đăng nhập. `tmp/googlemaps-vietmap-source.log` và `tmp/googlemaps-vietmap.log` trong sandbox ứng dụng ghi giá trị/khả năng có dữ liệu tốc độ và giới hạn cùng trạng thái hook, không ghi tọa độ hay tuyến đường. Trạng thái thông báo cục bộ không được xác thực bằng mật mã và có thể bị phần mềm đặc quyền hoặc phần mềm được chèn khác tác động. Rà soát log trước khi chia sẻ.
 

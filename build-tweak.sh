@@ -13,6 +13,8 @@ trap 'rm -rf "$build_dir"' EXIT HUP INT TERM
 cp -R "$source_dir/tweak/." "$build_dir/"
 cp "$source_dir"/common/alert-state.[mh] "$source_dir"/common/speed-state.[mh] "$source_dir"/common/test-state.[mh] "$source_dir"/common/speed-presentation.[mh] "$build_dir/"
 cp "$source_dir"/common/diagnostics.[mh] "$build_dir/"
+cp "$source_dir"/common/source-output.[mh] "$source_dir"/common/source-transport.[mh] "$build_dir/"
+cp "$source_dir"/provider/vietmap-output.[mh] "$build_dir/"
 cp "$source_dir"/common/placement-state.[mh] "$build_dir/"
 cp "$source_dir/provider/vietmap-source.x" "$build_dir/vietmap-source.x"
 cp "$source_dir/provider/"background-location.[mh] "$build_dir/"

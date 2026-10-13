@@ -4,17 +4,13 @@
 #import "alert-state.h"
 #import "refresh-loop.h"
 #import "background-policy.h"
+#import "source-transport.h"
 #include <notify.h>
 
-static int speedToken=-1,limitToken=-1,firstAlertToken=-1,secondAlertToken=-1,backgroundToken=-1;
+static int backgroundToken=-1;
 static __weak UIView *phoneHost;
 static double lastRequest=-1;
 static double lastHeartbeat=-1;
-static uint64_t NotifyState(int token) {
-    uint64_t state=0;
-    if (token>=0) notify_get_state(token,&state);
-    return state;
-}
 static UIView *ForegroundHost(void) {
     UIApplication *app=UIApplication.sharedApplication;
     if (app.applicationState!=UIApplicationStateActive) return nil;
@@ -42,25 +38,16 @@ void GVMRefreshPhoneOverlay(void) {
     if (backgroundToken>=0 && (lastHeartbeat<0 || now-lastHeartbeat>=3)) {
         notify_set_state(backgroundToken,(uint64_t)(now*1000)); lastHeartbeat=now;
     }
-    NSNumber *speed=GVMDecodeSample(NotifyState(speedToken),now,YES);
-    NSNumber *limit=GVMDecodeSample(NotifyState(limitToken),now,NO);
-    NSMutableArray *alerts=[NSMutableArray new];
-    for (NSNumber *token in @[@(firstAlertToken),@(secondAlertToken)]) {
-        NSDictionary *alert=GVMDecodeAlert(NotifyState(token.intValue),now);
-        if (alert) [alerts addObject:alert];
-    }
+    NSDictionary *output=GVMReadSourceOutput(now);
+    NSNumber *speed=output[@"speed"][@"value"], *limit=output[@"speedLimit"][@"value"];
     if (GVMShouldRequestSource(now,lastRequest,YES,NO,!speed || !limit)) {
-        lastRequest=now; notify_post(GVMSourceRequestName);
+        lastRequest=now; GVMRequestSelectedSource();
     }
-    GVMUpdatePhoneSpeedCard(host,speed,limit,alerts,host.traitCollection.userInterfaceStyle==UIUserInterfaceStyleDark);
+    GVMUpdatePhoneSpeedCard(host,output,host.traitCollection.userInterfaceStyle==UIUserInterfaceStyleDark);
 }
 __attribute__((constructor)) static void StartPhone(void) {
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.google.Maps"]) return;
     dispatch_async(dispatch_get_main_queue(), ^{
-        notify_register_check(GVMSpeedStateName,&speedToken);
-        notify_register_check(GVMLimitStateName,&limitToken);
-        notify_register_check(GVMFirstAlertStateName,&firstAlertToken);
-        notify_register_check(GVMSecondAlertStateName,&secondAlertToken);
         notify_register_check(GVM_BACKGROUND_PHONE_SIGNAL,&backgroundToken);
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(__unused NSNotification *note) {
             GVMRemovePhoneSpeedCard(phoneHost); phoneHost=nil;

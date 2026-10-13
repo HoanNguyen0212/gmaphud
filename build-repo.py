@@ -104,6 +104,7 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.1.20", "Cải thiện tính ổn định", "Improved stability"),
         ("0.1.19", "Tối ưu cập nhật bong bóng và giảm dung lượng gói cài. Tự đánh thức VietMap Live hỗ trợ cả Google Maps trên CarPlay và iPhone, với quyền định vị Khi dùng ứng dụng hoặc Luôn luôn. Cải thiện tự nhận lại dữ liệu khi VietMap chưa chạy; làm gọn mô tả trong Cài đặt.",
          "Optimizes bubble updates and reduces package size. Automatic VietMap Live wake now supports Google Maps on both CarPlay and iPhone with When In Use or Always location access. Improves data recovery when VietMap is not running and simplifies Settings descriptions."),
         ("0.1.18", "Thêm bong bóng trong Google Maps trên iPhone, chọn bốn góc và tinh chỉnh vị trí tự do; hỗ trợ bố cục Tự động, Ngang hoặc Dọc. Chỉnh kích cỡ riêng cho bản đồ CarPlay đầy đủ, Dashboard và iPhone. Làm gọn giao diện Cài đặt; sửa lỗi bong bóng bị bóp hẹp khi dẫn đường và giữ kích thước đồng nhất giữa các góc.",

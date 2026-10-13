@@ -46,9 +46,9 @@ Published 0.1.13 does not port road alerts. Release 0.1.14 recognizes 46 known a
 | Device / OS | iPhone 11, iOS 18.6.2, rootless jailbreak |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Package | `com.chou.googlemaps.vietmap` 0.1.18, arm64/arm64e |
+| Package | `com.chou.googlemaps.vietmap` 0.1.20, arm64/arm64e |
 
-From 0.1.13, Google Maps is not restricted by version or executable UUID. Required private classes and method signatures are still checked; passing these checks does not guarantee compatibility with every release. Package and notification identifiers retain their original namespace for compatibility with existing installations.
+From 0.1.13, Google Maps is not restricted by version or executable UUID. Required private classes and method signatures are still checked; passing these checks does not guarantee compatibility with every release. The package identifier remains unchanged. Release 0.1.20 introduces a versioned production notification namespace; bounded display-test channels retain their original names.
 
 From 0.1.13, the VietMap source also has no version restriction. Flutter channel structure and incoming data validation remain enabled. New app versions still require on-device verification.
 
@@ -61,7 +61,7 @@ UI states were checked using a real phone connected to Apple's CarPlay Simulator
 3. Install through your jailbreak's package manager. Review removal prompts for old bridge/probe packages listed in [tweak/control](tweak/control). This package does not uninstall vendor TrueDash. The source includes rootless (`iphoneos-arm64`) and rootful (`iphoneos-arm`) packages. Rootful still requires device testing on iOS 14; older app builds may need additional integration changes.
 4. Close and reopen VietMap and Google Maps, then open Google Maps in CarPlay. Keep VietMap's background alerts running. A Live Activity alone does not prove fresh speed samples.
 
-No default SSH password is provided or required. After updating to 0.1.19, respring once to load the background component, then reopen Google Maps and Settings. Optional automatic wake supports When In Use or Always location access; enable VietMap alerts first.
+No default SSH password is provided or required. After updating to 0.1.20, respring once to load the background component, then reopen Google Maps and Settings. Optional automatic wake supports When In Use or Always location access; enable VietMap alerts first.
 
 To remove: uninstall `com.chou.googlemaps.vietmap` through the package manager, then close and reopen both apps. Removing files does not unload an injected library from an already-running process.
 
@@ -116,7 +116,7 @@ The report includes hardware model (no serial number), OS, app versions observed
 
 ## Architecture and privacy
 
-`provider/vietmap-source.x` observes the existing VietMap Flutter overlay channel and forwards its original handler/reply unchanged. Validated speed and limit, each with their own monotonic receive time, travel through local Darwin notification state. Road alerts are decoded from JSON-string items in `vml_main_channel/updateUpcommingAlerts` and `updateStickyAlerts`, matched against exact 3.4.3 asset digests, and relayed as up to two provider-coded kind/distance states. Empty lists clear their source; original timestamps expire after five seconds. Release 0.1.14 bundles the 46 VietMap sign images for display; notifications remain numeric only. Those third-party images are excluded from the project MIT license. CarPlay hooks apply them to external map windows. A separate foreground-only overlay displays the same fresh data in the Google Maps iPhone window without intercepting touches.
+`provider/vietmap-source.x` observes the existing VietMap Flutter overlay channel and forwards its original handler/reply unchanged. Validated speed and limit, each with their own monotonic receive time, travel through local Darwin notification state. Road alerts are decoded from JSON-string items in `vml_main_channel/updateUpcommingAlerts` and `updateStickyAlerts`, matched against exact 3.4.3 asset digests, and converted by a VietMap adapter into up to two semantic road alerts. Release 0.1.20 uses a [versioned common source output](docs/source-output-contract.md) for speed, limit and alerts on both Google Maps surfaces. Each frame belongs to one selected source; partial frames and old source selections are refused. VietMap is the only enabled source. Empty lists clear their source; original timestamps expire after five seconds. Release 0.1.14 bundles the 46 VietMap sign images for display; notifications remain numeric only. Those third-party images are excluded from the project MIT license. CarPlay hooks apply them to external map windows. A separate foreground-only overlay displays the same fresh data in the Google Maps iPhone window without intercepting touches.
 
 The tweak creates no network listener, telemetry upload, publisher daemon or saved credentials. App-sandbox `tmp/googlemaps-vietmap-source.log` and `tmp/googlemaps-vietmap.log` record numeric speed/limit availability and hook status, not coordinates or routes. Local notification state is not cryptographically authenticated and can be affected by other privileged/injected software. Review device logs before sharing.
 

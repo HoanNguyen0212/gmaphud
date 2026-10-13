@@ -4,6 +4,7 @@
 #import <objc/runtime.h>
 #import <dlfcn.h>
 #import "background-policy.h"
+#import "source-transport.h"
 #include <notify.h>
 #include <string.h>
 
@@ -159,7 +160,7 @@ static void Tick(void) {
     }
     if (heartbeatToken>=0) notify_get_state(heartbeatToken,&heartbeat);
     if (phoneToken>=0) notify_get_state(phoneToken,&phoneHeartbeat);
-    BOOL active=GVMBackgroundAnyHostActive(now,heartbeat,phoneHeartbeat);
+    BOOL active=GVMSelectedSourceID()==GVMSourceVietMap && GVMBackgroundAnyHostActive(now,heartbeat,phoneHeartbeat);
     if (locationSessionToken>=0) notify_set_state(locationSessionToken,GVMBackgroundPermissionState(now,active));
     if (!active) {
         ReleaseLocationUsage();
@@ -205,7 +206,7 @@ __attribute__((constructor)) static void Start(void) {
         notify_register_check(GVM_BACKGROUND_PERMISSION,&permissionToken);
         notify_register_check(GVM_BACKGROUND_LOCATION_SESSION,&locationSessionToken);
         Tick();
-        Record(@"supervisor 0.1.19 loaded; awaiting visible Google Maps on CarPlay or iPhone");
+        Record(@"supervisor 0.1.20 loaded; awaiting visible Google Maps on CarPlay or iPhone");
         [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(__unused NSTimer *timer) {
             @try { Tick(); }
             @catch (__unused NSException *exception) {
