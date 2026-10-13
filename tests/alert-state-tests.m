@@ -26,6 +26,9 @@ int main(int argc, const char **argv) { @autoreleasepool {
         NSUInteger cameraKind=GVMVietMapKindForAssetName(@"traffic_camera.png");
         NSUInteger speedKind=GVMVietMapKindForAssetName(@"speed_limit_60.png");
         assert(cameraKind && speedKind && cameraKind!=speedKind);
+        assert(GVMVietMapKindForImageDigest(@"4d8213184ad18e2846098454a19f8aa928be279f37a2d2a38a0b2c8c6dc0622d")==cameraKind);
+        assert(GVMVietMapKindForImageDigest(@"f2274ca1457d7bd91ca3af373b160d09edfdde143a313b305856112684a57c36")==speedKind);
+        assert(!GVMVietMapKindForImageDigest(@"invalid"));
         assert([GVMVietMapAssetName(cameraKind) isEqual:@"traffic_camera.png"]);
         assert([GVMVietMapAssetName(speedKind) isEqual:@"speed_limit_60.png"]);
         NSArray *alerts=GVMVietMapAlertsFromPayload(@[
@@ -46,7 +49,9 @@ int main(int argc, const char **argv) { @autoreleasepool {
             assert(bytes.length>8);
             const unsigned char *png=bytes.bytes;
             assert(png[0]==0x89 && png[1]=='P' && png[2]=='N' && png[3]=='G');
-            assert(GVMVietMapKindForImage(bytes)==GVMVietMapKindForAssetName(name));
+            assert(GVMVietMapKindForAssetName(name)>0);
+            // Redesigned PNGs are display-only; they must not replace source digests.
+            assert(GVMVietMapKindForImage(bytes)==0);
         }
     }
     puts("alert state and VietMap assets passed");

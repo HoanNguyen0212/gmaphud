@@ -12,6 +12,7 @@
 @property(nonatomic, copy) NSArray<NSDictionary *> *alerts;
 @property(nonatomic) BOOL night, compact;
 @property(nonatomic) NSUInteger sourceID;
+@property(nonatomic,copy) NSArray<NSString *> *moduleOrder;
 @end
 
 static UIColor *RGB(unsigned value, CGFloat alpha) {
@@ -19,10 +20,30 @@ static UIColor *RGB(unsigned value, CGFloat alpha) {
         blue:(value & 255)/255.0 alpha:alpha];
 }
 static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight, UIColor *color) {
+    if (!text.length) return;
     NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
     paragraph.alignment = NSTextAlignmentCenter;
-    [text drawInRect:rect withAttributes:@{NSFontAttributeName:[UIFont monospacedDigitSystemFontOfSize:size weight:weight],
+    UIFont *font=[UIFont monospacedDigitSystemFontOfSize:size weight:weight];
+    CGSize measured=[text sizeWithAttributes:@{NSFontAttributeName:font}];
+    CGFloat fit=MIN(1,MIN(rect.size.width/MAX(1,measured.width),rect.size.height/MAX(1,measured.height)));
+    if (fit<1) font=[UIFont monospacedDigitSystemFontOfSize:size*fit weight:weight];
+    measured=[text sizeWithAttributes:@{NSFontAttributeName:font}];
+    rect.origin.y+=(rect.size.height-measured.height)/2;
+    rect.size.height=measured.height;
+    [text drawInRect:rect withAttributes:@{NSFontAttributeName:font,
         NSForegroundColorAttributeName:color, NSParagraphStyleAttributeName:paragraph}];
+}
+static CGRect ModuleRect(NSArray *order,NSString *module,BOOL vertical,NSUInteger count,NSUInteger index) {
+    GVMModuleRect frame=GVMModuleFrame(order,module,vertical,count,index);
+    return CGRectMake(frame.x,frame.y,frame.width,frame.height);
+}
+static CGRect CenteredRect(CGRect frame,CGFloat width,CGFloat height) {
+    return CGRectMake(CGRectGetMidX(frame)-width/2,CGRectGetMidY(frame)-height/2,width,height);
+}
+static void DrawArtwork(UIImage *image,CGRect frame) {
+    if (!image || image.size.width<=0 || image.size.height<=0) return;
+    CGFloat scale=MIN(frame.size.width/image.size.width,frame.size.height/image.size.height);
+    [image drawInRect:CenteredRect(frame,image.size.width*scale,image.size.height*scale)];
 }
 @implementation GVMSpeedCard
 - (void)drawRect:(CGRect)rect {
@@ -30,30 +51,49 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
     CGContextRef context = UIGraphicsGetCurrentContext();
     CGContextSaveGState(context);
     NSUInteger count=MIN(self.alerts.count,2);
-    CGFloat canvasWidth = self.compact ? 84 : (count==2 ? 296 : count==1 ? 240 : 208);
-    CGFloat canvasHeight = self.compact ? (count==2 ? 350 : count ? 260 : 160) : 106;
-    CGContextScaleCTM(context, self.bounds.size.width/canvasWidth, self.bounds.size.height/canvasHeight);
+    GVMCardSize canvas=GVMCardCanvasSize(count,self.compact);
+    CGContextScaleCTM(context,self.bounds.size.width/canvas.width,self.bounds.size.height/canvas.height);
     GVMWarning warning = GVMWarningFor(self.speed, self.limit);
     UIColor *accent = warning == GVMWarningOver ? RGB(0xff6868,1) :
         warning == GVMWarningNear ? RGB(0xffd15c,1) : UIColor.whiteColor;
     UIColor *muted = RGB(0xe0e3e8,1);
-    CGRect body = self.compact ? CGRectMake(1,1,82,canvasHeight-2) : CGRectMake(1,25,canvasWidth-2,80);
-    if (!self.compact) {
-        CGFloat badgeX = (canvasWidth - 112) / 2;
-        UIBezierPath *badge = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(badgeX,1,112,32) cornerRadius:12];
-        [RGB(0x202631,0.94) setFill]; [badge fill];
-        Text(GVMSourceDisplayName(self.sourceID).uppercaseString,CGRectMake(badgeX+2,5,108,19),13,UIFontWeightBold,UIColor.whiteColor);
+    CGRect speedCell=ModuleRect(self.moduleOrder,@"speed",self.compact,count,0);
+    CGRect limitCell=ModuleRect(self.moduleOrder,@"limit",self.compact,count,0);
+    CGRect body=CGRectUnion(speedCell,limitCell);
+    CGRect alertRegion=CGRectZero;
+    for (NSUInteger i=0;i<count;i++) {
+        CGRect cell=ModuleRect(self.moduleOrder,@"alerts",self.compact,count,i);
+        body=CGRectUnion(body,cell);
+        alertRegion=i ? CGRectUnion(alertRegion,cell) : cell;
     }
-    UIBezierPath *bubble = [UIBezierPath bezierPathWithRoundedRect:body cornerRadius:self.compact ? 41 : 24];
+    body=CGRectInset(body,-3,-3);
+    if (!self.compact) {
+        CGFloat badgeX=(canvas.width-112)/2;
+        UIBezierPath *badge=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(badgeX,1,112,32) cornerRadius:12];
+        [RGB(0x202631,0.94) setFill]; [badge fill];
+        Text(GVMSourceDisplayName(self.sourceID).uppercaseString,CGRectMake(badgeX+2,4,108,20),13,UIFontWeightBold,UIColor.whiteColor);
+    }
+    UIBezierPath *bubble=[UIBezierPath bezierPathWithRoundedRect:body cornerRadius:self.compact ? body.size.width/2 : 24];
     [RGB(self.night ? 0x303642 : 0x59616f,0.60) setFill]; [bubble fill];
     [RGB(0x303947,0.8) setStroke]; bubble.lineWidth=1.5; [bubble stroke];
-    if (count && !self.compact) {
-        UIBezierPath *sourceRegion=[UIBezierPath bezierPathWithRoundedRect:
-            CGRectMake(178,29,canvasWidth-183,72) cornerRadius:18];
+    if (count) {
+        UIBezierPath *sourceRegion=[UIBezierPath bezierPathWithRoundedRect:CGRectInset(alertRegion,2,2) cornerRadius:18];
         [RGB(0x162b35,0.22) setFill]; [sourceRegion fill];
     }
-    CGRect signRect = self.compact ? CGRectMake(12,12,60,60) : CGRectMake(count ? 104 : 131,35,60,60);
-    UIBezierPath *sign = [UIBezierPath bezierPathWithOvalInRect:signRect];
+    // Identical cells stay balanced even when the alert group is first or between values.
+    CGRect firstCell=ModuleRect(@[@"speed",@"limit",@"alerts"],@"speed",self.compact,count,0);
+    UIBezierPath *dividers=[UIBezierPath bezierPath];
+    for (NSUInteger i=1;i<2+count;i++) {
+        CGFloat edge=self.compact ? firstCell.origin.y+i*firstCell.size.height : firstCell.origin.x+i*firstCell.size.width;
+        [dividers moveToPoint:self.compact ? CGPointMake(CGRectGetMinX(firstCell)+12,edge) : CGPointMake(edge,CGRectGetMinY(firstCell)+12)];
+        [dividers addLineToPoint:self.compact ? CGPointMake(CGRectGetMaxX(firstCell)-12,edge) : CGPointMake(edge,CGRectGetMaxY(firstCell)-12)];
+    }
+    [RGB(0x303947,0.35) setStroke]; dividers.lineWidth=1; [dividers stroke];
+
+    // The visible rim and all alert artwork share a 64-point optical envelope.
+    CGFloat signDiameter=64;
+    CGRect signRect=CenteredRect(limitCell,signDiameter,signDiameter);
+    UIBezierPath *sign=[UIBezierPath bezierPathWithOvalInRect:CGRectInset(signRect,3,3)];
     sign.lineWidth=self.limit ? 6 : 2.5;
     if (self.limit) {
         [UIColor.whiteColor setFill]; [sign fill]; [RGB(0xff3b30,1) setStroke];
@@ -61,40 +101,26 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
         CGFloat dash[]={5,3}; [sign setLineDash:dash count:2 phase:0]; [muted setStroke];
     }
     [sign stroke];
-    Text(self.limit ? self.limit.stringValue : @"–",
-        CGRectMake(signRect.origin.x-3,signRect.origin.y+10,66,42),
-        self.limit.doubleValue >= 100 ? 28 : 32,UIFontWeightBold,self.limit ? RGB(0x17191d,1) : muted);
-    CGRect speedRect = self.compact ? CGRectMake(7,91,70,39) : CGRectMake(5,34,count ? 94 : 108,45);
-    Text(self.speed ? self.speed.stringValue : @"--",speedRect,self.compact ? 31 : 37,
-        UIFontWeightBold,self.speed ? accent : muted);
-    Text(@"km/h",self.compact ? CGRectMake(14,130,56,19) : CGRectMake(count ? 17 : 31,78,64,20),
-        14,UIFontWeightMedium,muted);
+    Text(self.limit ? self.limit.stringValue : @"–",CGRectInset(signRect,7,7),
+        self.limit.doubleValue>=100 ? 28 : 32,UIFontWeightBold,self.limit ? RGB(0x17191d,1) : muted);
+    CGRect speedGroup=CenteredRect(speedCell,speedCell.size.width-8,62);
+    Text(self.speed ? self.speed.stringValue : @"--",CGRectMake(speedGroup.origin.x,speedGroup.origin.y,speedGroup.size.width,44),
+        36,UIFontWeightBold,self.speed ? accent : muted);
+    Text(@"km/h",CGRectMake(speedGroup.origin.x,speedGroup.origin.y+44,speedGroup.size.width,18),14,UIFontWeightMedium,muted);
     if (count) {
-        CGFloat y=self.compact ? 195 : 58;
-        UIBezierPath *divider=[UIBezierPath bezierPath];
-        [divider moveToPoint:self.compact ? CGPointMake(10,158) : CGPointMake(174,34)];
-        [divider addLineToPoint:self.compact ? CGPointMake(74,158) : CGPointMake(174,96)];
-        [RGB(0x303947,0.65) setStroke]; divider.lineWidth=1; [divider stroke];
-        if (self.compact && count==2) {
-            UIBezierPath *secondDivider=[UIBezierPath bezierPath];
-            [secondDivider moveToPoint:CGPointMake(10,250)];
-            [secondDivider addLineToPoint:CGPointMake(74,250)];
-            [RGB(0x303947,0.65) setStroke]; secondDivider.lineWidth=1; [secondDivider stroke];
-        }
-        if (!self.compact && count==2) {
-            UIBezierPath *secondDivider=[UIBezierPath bezierPath];
-            [secondDivider moveToPoint:CGPointMake(235,34)];
-            [secondDivider addLineToPoint:CGPointMake(235,96)];
-            [RGB(0x303947,0.65) setStroke]; secondDivider.lineWidth=1; [secondDivider stroke];
-        }
         static NSMutableDictionary<NSNumber *, UIImage *> *artworkCache;
         static dispatch_once_t artworkOnce;
         dispatch_once(&artworkOnce, ^{ artworkCache=[NSMutableDictionary dictionary]; });
-        CGFloat alertDiameter=self.compact ? signRect.size.width+6 : 42;
         for (NSUInteger i=0;i<count;i++) {
-            CGFloat x=self.compact ? 42 : 205+60*i;
-            CGFloat alertY=y+(self.compact ? 90*i : 0);
             NSDictionary *alert=self.alerts[i];
+            id meters=alert[@"distance"];
+            NSString *distance=(!meters || meters==NSNull.null) ? @"" : ([meters integerValue]>=1000 ?
+                [NSString stringWithFormat:@"%.1f km",[meters doubleValue]/1000] :
+                [NSString stringWithFormat:@"%@ m",meters]);
+            CGRect cell=ModuleRect(self.moduleOrder,@"alerts",self.compact,count,i);
+            CGFloat groupHeight=signDiameter+(distance.length ? 20 : 0);
+            CGRect group=CenteredRect(cell,cell.size.width-8,groupHeight);
+            CGRect alertRect=CGRectMake(CGRectGetMidX(cell)-signDiameter/2,group.origin.y,signDiameter,signDiameter);
             NSNumber *kind=alert[@"artworkID"];
             NSNumber *cacheKey=@((self.sourceID<<8)|kind.unsignedIntegerValue);
             UIImage *artwork=artworkCache[cacheKey];
@@ -106,14 +132,13 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
                     if (artwork) artworkCache[cacheKey]=artwork;
                 }
             }
-            CGRect alertRect=CGRectMake(x-alertDiameter/2,alertY-alertDiameter/2,alertDiameter,alertDiameter);
-            if (artwork) [artwork drawInRect:alertRect];
+            if (artwork) DrawArtwork(artwork,alertRect);
             else if ([alert[@"type"] unsignedIntegerValue]==GVMRoadAlertSpeedLimit) {
                 UIBezierPath *nextLimit=[UIBezierPath bezierPathWithOvalInRect:CGRectInset(alertRect,3,3)];
                 [UIColor.whiteColor setFill]; [nextLimit fill]; [RGB(0xff3b30,1) setStroke];
-                nextLimit.lineWidth=5; [nextLimit stroke];
-                Text([alert[@"value"] stringValue],CGRectMake(x-alertDiameter/2,alertY-14,alertDiameter,28),
-                    alertDiameter*0.37,UIFontWeightBold,RGB(0x17191d,1));
+                nextLimit.lineWidth=6; [nextLimit stroke];
+                Text([alert[@"value"] stringValue],CGRectInset(alertRect,7,7),
+                    [alert[@"value"] doubleValue]>=100 ? 28 : 32,UIFontWeightBold,RGB(0x17191d,1));
             } else {
                 BOOL camera=[alert[@"type"] unsignedIntegerValue]==GVMRoadAlertCameraAI ||
                     [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertPenaltyCamera ||
@@ -121,13 +146,9 @@ static void Text(NSString *text, CGRect rect, CGFloat size, UIFontWeight weight,
                     [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertTrafficCamera;
                 UIImage *symbol=[[UIImage systemImageNamed:camera ? @"camera.fill" : @"exclamationmark.triangle.fill"]
                     imageWithTintColor:UIColor.whiteColor renderingMode:UIImageRenderingModeAlwaysOriginal];
-                [symbol drawInRect:CGRectInset(alertRect,5,5)];
+                DrawArtwork(symbol,CGRectInset(alertRect,5,5));
             }
-            id meters=alert[@"distance"];
-            NSString *distance=meters==NSNull.null ? @"" : ([meters integerValue]>=1000 ?
-                [NSString stringWithFormat:@"%.1f km",[meters doubleValue]/1000] :
-                [NSString stringWithFormat:@"%@ m",meters]);
-            Text(distance,CGRectMake(x-29,alertY+alertDiameter/2+2,58,21),self.compact ? 16 : 13,UIFontWeightMedium,UIColor.whiteColor);
+            Text(distance,CGRectMake(group.origin.x,CGRectGetMaxY(alertRect)+2,group.size.width,18),14,UIFontWeightMedium,UIColor.whiteColor);
         }
     }
     CGContextRestoreGState(context);
@@ -159,6 +180,12 @@ static BOOL ExternalMap(UIView *map) {
     return NSThread.isMainThread && [map isKindOfClass:NSClassFromString(@"AZCarPlayView")] &&
         map.window && map.window.screen != UIScreen.mainScreen;
 }
+BOOL GVMBubbleEnabledForHost(UIView *host) {
+    BOOL phone=[objc_getAssociatedObject(host,phoneKey) boolValue];
+    CGFloat screenWidth=HostWindow(host).screen.bounds.size.width;
+    BOOL dashboard=!phone && screenWidth>0 && host.bounds.size.width/screenWidth<0.72;
+    return GVMBubbleEnabled(phone ? 2 : dashboard ? 1 : 0);
+}
 void GVMStyleNativeSpeedView(UIView *view) {
     UIView *owner = view.superview;
     while (owner && ![owner isKindOfClass:NSClassFromString(@"AZCarPlayView")]) owner=owner.superview;
@@ -168,6 +195,8 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     BOOL phone=[objc_getAssociatedObject(map,phoneKey) boolValue];
     if (!ExternalMap(map) && !(phone && NSThread.isMainThread && HostWindow(map).screen==UIScreen.mainScreen)) return CGRectZero;
     GVMSpeedCard *card = objc_getAssociatedObject(map,cardKey);
+    card.hidden=!GVMBubbleEnabledForHost(map);
+    if (card.hidden) return card.frame;
     CGRect screen=HostWindow(map).screen.bounds;
     UIEdgeInsets insets=map.safeAreaInsets;
     CGFloat margin=MIN(10,MAX(5,MIN(screen.size.width,screen.size.height)*0.03));
@@ -177,16 +206,14 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     CGFloat right=CGRectGetMaxX(map.bounds)-margin;
     CGFloat top=CGRectGetMinY(map.bounds)+margin;
     CGFloat bottom=CGRectGetMaxY(map.bounds)-margin;
-    GVMCardSize size=GVMCarPlayCardSizeForView(MAX(0,right-left),MAX(0,bottom-top),
-        map.bounds.size.width,screen.size.width,screen.size.height,card.alerts.count);
     if (phone) {
-        size=GVMPhoneCardSizeFor(map.bounds.size.width,map.bounds.size.height,card.alerts.count);
         // Phone placement spans the whole app window, including system safe areas.
         left=CGRectGetMinX(map.bounds); right=CGRectGetMaxX(map.bounds);
         top=CGRectGetMinY(map.bounds); bottom=CGRectGetMaxY(map.bounds);
     }
     NSUInteger phoneLayout=0;
     NSUInteger phoneCorner=1; NSInteger offsetX=0,offsetY=0;
+    GVMCardSize size={0,0,NO};
     if (phone) {
         static int token=-1; uint64_t state=0;
         if (token<0) notify_register_check(GVMPhonePlacementStateName,&token);
@@ -194,11 +221,23 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
         GVMDecodePhonePlacement(state,&phoneCorner,&offsetX,&offsetY,&phoneLayout);
         size=GVMPhoneCardSizeForLayout(map.bounds.size.width,map.bounds.size.height,card.alerts.count,phoneLayout);
     }
+    BOOL dashboard=!phone && map.bounds.size.width/screen.size.width<0.72;
+    NSUInteger surface=phone ? 2 : dashboard ? 1 : 0;
+    static int configurationToken=-1; uint64_t configuration=0;
+    if (configurationToken<0) notify_register_check(GVMBubbleConfigurationStateName,&configurationToken);
+    if (configurationToken>=0) notify_get_state(configurationToken,&configuration);
+    if (!phone) {
+        NSUInteger layout=GVMDecodeBubbleLayout(configuration,surface);
+        size=GVMCarPlayCardSizeForLayout(MAX(0,right-left),MAX(0,bottom-top),screen.size.width,
+            screen.size.height,card.alerts.count,dashboard,layout,SizePercent(surface));
+    }
+    NSArray *moduleOrder=GVMDecodeModuleOrder(configuration,surface,size.compact);
+    if (![card.moduleOrder isEqual:moduleOrder]) { card.moduleOrder=moduleOrder; [card setNeedsDisplay]; }
     BOOL compact=size.compact;
-    GVMCardPlacement placement=phone ? (GVMCardPlacement)phoneCorner : compact ? (dashboardLeft ? GVMCardTopLeft : GVMCardTopRight) : fullPlacement;
+    GVMCardPlacement placement=phone ? (GVMCardPlacement)phoneCorner : dashboard ? (dashboardLeft ? GVMCardTopLeft : GVMCardTopRight) : fullPlacement;
     // Size belongs to the viewport and user preference, never to the chosen
     // corner or the space left by Google's navigation controls.
-    size=GVMScaleCardSize(size,SizePercent(phone ? 2 : compact ? 1 : 0),MAX(0,right-left),MAX(0,bottom-top));
+    if (phone) size=GVMScaleCardSize(size,SizePercent(surface),MAX(0,right-left),MAX(0,bottom-top));
     CGFloat viewportLeft=left, viewportRight=right, viewportTop=top, viewportBottom=bottom;
     if (!phone) {
         top+=insets.top;
@@ -231,6 +270,7 @@ void GVMUpdateSpeedCard(UIView *map, NSDictionary *output, BOOL night) {
     NSUInteger sourceID=output ? [output[@"sourceID"] unsignedIntegerValue] : GVMSelectedSourceID();
     if (!ExternalMap(map) && !([objc_getAssociatedObject(map,phoneKey) boolValue] && NSThread.isMainThread && HostWindow(map).screen==UIScreen.mainScreen)) return;
     GVMSpeedCard *card = objc_getAssociatedObject(map,cardKey);
+    if (!GVMBubbleEnabledForHost(map)) { card.hidden=YES; return; }
     if (!card) {
         card = [[GVMSpeedCard alloc] initWithFrame:CGRectZero];
         card.backgroundColor=UIColor.clearColor; card.opaque=NO; card.userInteractionEnabled=NO;

@@ -166,7 +166,7 @@ static void Apply(UIView *view, BOOL forceNative) {
         label.userInteractionEnabled = NO;
         [view addSubview:label]; objc_setAssociatedObject(view, testLabelKey, label, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    label.hidden = !test || PhotoSample();
+    label.hidden = !test || PhotoSample() || !GVMBubbleEnabledForHost(view);
     CGRect cardFrame = GVMLayoutSpeedCard(view);
     label.frame = CGRectMake(CGRectGetMaxX(cardFrame)-36, CGRectGetMaxY(cardFrame)+3, 36, 13);
     if (!label.hidden) [view bringSubviewToFront:label];

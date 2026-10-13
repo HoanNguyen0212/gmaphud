@@ -206,7 +206,7 @@ __attribute__((constructor)) static void Start(void) {
         notify_register_check(GVM_BACKGROUND_PERMISSION,&permissionToken);
         notify_register_check(GVM_BACKGROUND_LOCATION_SESSION,&locationSessionToken);
         Tick();
-        Record(@"supervisor 0.1.20 loaded; awaiting visible Google Maps on CarPlay or iPhone");
+        Record(@"supervisor 0.1.21 loaded; awaiting visible Google Maps on CarPlay or iPhone");
         [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(__unused NSTimer *timer) {
             @try { Tick(); }
             @catch (__unused NSException *exception) {

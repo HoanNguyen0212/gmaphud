@@ -5,6 +5,119 @@
 #include <math.h>
 int main(void) {
     @autoreleasepool {
+        for (NSUInteger mask=0;mask<16;mask++) {
+            BOOL master=(mask&1)!=0;
+            uint64_t state=GVMEncodeBubbleVisibility(@(master),@((mask&2)!=0),@((mask&4)!=0),@((mask&8)!=0));
+            for (NSUInteger surface=0;surface<3;surface++)
+                assert(GVMDecodeBubbleVisibility(state,surface)==(master && (mask&(1UL<<(surface+1)))));
+            // Turning the master back on preserves the individual screen choices.
+            uint64_t resumed=GVMEncodeBubbleVisibility(@YES,@((mask&2)!=0),@((mask&4)!=0),@((mask&8)!=0));
+            for (NSUInteger surface=0;surface<3;surface++)
+                assert(GVMDecodeBubbleVisibility(resumed,surface)==((mask&(1UL<<(surface+1)))!=0));
+        }
+        for (NSUInteger surface=0;surface<3;surface++) {
+            assert(GVMDecodeBubbleVisibility(0,surface));
+            assert(GVMDecodeBubbleVisibility(UINT64_MAX,surface));
+            assert(GVMDecodeBubbleVisibility(GVMEncodeBubbleVisibility(nil,nil,nil,nil),surface));
+            assert(GVMDecodeBubbleVisibility(GVMEncodeBubbleVisibility(@"invalid",NSNull.null,@[],@{}),surface));
+            assert(GVMDecodeBubbleVisibility((1ULL<<8)|0x10,surface));
+        }
+        assert(!GVMDecodeBubbleVisibility(GVMEncodeBubbleVisibility(nil,nil,nil,nil),3));
+        NSArray *permutations=@[@[@"speed",@"limit",@"alerts"],@[@"speed",@"alerts",@"limit"],@[@"limit",@"speed",@"alerts"],@[@"limit",@"alerts",@"speed"],@[@"alerts",@"speed",@"limit"],@[@"alerts",@"limit",@"speed"]];
+        for (NSArray *order in permutations) for (NSUInteger vertical=0;vertical<2;vertical++) for (NSUInteger alerts=0;alerts<3;alerts++) {
+            GVMCardSize canvas=GVMCardCanvasSize(alerts,vertical);
+            GVMModuleRect cells[4]={GVMModuleFrame(order,@"speed",vertical,alerts,0),
+                GVMModuleFrame(order,@"limit",vertical,alerts,0)};
+            for (NSUInteger i=0;i<alerts;i++) cells[2+i]=GVMModuleFrame(order,@"alerts",vertical,alerts,i);
+            double area=0,minEdge=INFINITY,maxEdge=0;
+            for (NSUInteger i=0;i<2+alerts;i++) {
+                GVMModuleRect cell=cells[i];
+                assert(cell.width==cells[0].width && cell.height==cells[0].height);
+                assert(cell.width==88 && cell.height==88);
+                assert(cell.x>=0 && cell.y>=0 && cell.x+cell.width<=canvas.width && cell.y+cell.height<=canvas.height);
+                assert(vertical ? cell.x+cell.width/2==canvas.width/2 : cell.y+cell.height/2==72);
+                area+=cell.width*cell.height;
+                double start=vertical ? cell.y : cell.x;
+                minEdge=MIN(minEdge,start); maxEdge=MAX(maxEdge,start+88);
+                for (NSUInteger j=0;j<i;j++) {
+                    GVMModuleRect other=cells[j];
+                    assert(cell.x+cell.width<=other.x || other.x+other.width<=cell.x ||
+                        cell.y+cell.height<=other.y || other.y+other.height<=cell.y);
+                }
+            }
+            assert(minEdge==4 && maxEdge-minEdge==(2+alerts)*88);
+            assert(area==(2+alerts)*88*88); // Every cell is accounted for; no gaps or reserved empty alert slot.
+            if (alerts==2) assert(vertical ? cells[3].y-cells[2].y==88 : cells[3].x-cells[2].x==88);
+            assert(GVMModuleFrame(order,@"alerts",vertical,alerts,alerts).width==0);
+            assert(GVMModuleFrame(order,@"unknown",vertical,alerts,0).width==0);
+        }
+        for (NSUInteger vertical=0;vertical<2;vertical++) {
+            GVMCardSize capped=GVMCardCanvasSize(99,vertical),two=GVMCardCanvasSize(2,vertical);
+            assert(capped.width==two.width && capped.height==two.height);
+            GVMModuleRect fallback=GVMModuleFrame(@[@"invalid"],@"speed",vertical,0,0);
+            GVMModuleRect standard=GVMModuleFrame(nil,@"speed",vertical,0,0);
+            assert(fallback.x==standard.x && fallback.y==standard.y);
+        }
+        for (NSArray *order in permutations) for (NSString *mode in @[@"auto",@"horizontal",@"vertical"]) {
+            uint64_t state=GVMEncodeBubbleConfiguration(@[mode,mode,mode],@[order,order,order]);
+            for (NSUInteger surface=0;surface<3;surface++) {
+                assert([GVMDecodeModuleOrder(state,surface,YES) isEqual:order]);
+                assert(GVMDecodeBubbleLayout(state,surface)==([mode isEqual:@"horizontal"] ? 1 : [mode isEqual:@"vertical"] ? 2 : 0));
+            }
+        }
+        uint64_t invalid=GVMEncodeBubbleConfiguration(@[],@[@[@"speed",@"speed",@"alerts"]]);
+        assert([GVMDecodeModuleOrder(invalid,0,NO) isEqual:permutations[0]]);
+        assert([GVMDecodeModuleOrder(0,1,YES) isEqual:permutations[2]]);
+        assert(GVMDecodeBubbleLayout(UINT64_MAX,0)==0);
+        for (NSUInteger dashboard=0;dashboard<2;dashboard++) for (NSUInteger mode=0;mode<3;mode++) for (NSUInteger alerts=0;alerts<3;alerts++) {
+            double width=dashboard ? 165 : 355;
+            GVMCardSize size=GVMCarPlayCardSizeForLayout(width,226,400,240,alerts,dashboard,mode,100);
+            assert(size.compact==(mode==2 || (mode==0 && dashboard)));
+            assert(size.width>0 && size.height>0 && size.width<=width && size.height<=226);
+            GVMCardSize scaled=GVMCarPlayCardSizeForLayout(width,226,400,240,alerts,dashboard,mode,150);
+            for (NSUInteger corner=0;corner<4;corner++) {
+                GVMCardOrigin origin=GVMCardOriginFor(0,width,0,226,scaled,(GVMCardPlacement)corner);
+                assert(origin.x>=0 && origin.y>=0 && origin.x+scaled.width<=width+.001 && origin.y+scaled.height<=226+.001);
+            }
+        }
+        // Same Dashboard modules retain their scale when rearranged, even on narrow tiles.
+        const double tiles[][4]={{165,226,400,240},{105,120,240,160},{278,200,640,240},{120,90,400,240}};
+        for (NSUInteger t=0;t<sizeof(tiles)/sizeof(tiles[0]);t++) for (NSUInteger alerts=0;alerts<3;alerts++) {
+            double width=tiles[t][0],height=tiles[t][1];
+            GVMCardSize hc=GVMCardCanvasSize(alerts,NO),vc=GVMCardCanvasSize(alerts,YES);
+            for (NSUInteger percent=50;percent<=150;percent+=25) {
+                GVMCardSize h=GVMCarPlayCardSizeForLayout(width,height,tiles[t][2],tiles[t][3],alerts,YES,1,percent);
+                GVMCardSize v=GVMCarPlayCardSizeForLayout(width,height,tiles[t][2],tiles[t][3],alerts,YES,2,percent);
+                GVMCardSize emptyCanvas=GVMCardCanvasSize(0,NO);
+                GVMCardSize empty=GVMCarPlayCardSizeForLayout(width,height,tiles[t][2],tiles[t][3],0,YES,1,percent);
+                // Incoming alerts may extend the group, but cannot resize existing modules.
+                assert(fabs(h.width/hc.width-empty.width/emptyCanvas.width)<0.00001);
+                assert(fabs(h.width/hc.width-v.width/vc.width)<0.00001);
+                assert(fabs(h.width/hc.width-h.height/hc.height)<0.00001);
+                assert(fabs(v.width/vc.width-v.height/vc.height)<0.00001);
+                assert(h.width<=width+.00001 && h.height<=height+.00001);
+                assert(v.width<=width+.00001 && v.height<=height+.00001);
+                GVMCardSize automatic=GVMCarPlayCardSizeForLayout(width,height,tiles[t][2],tiles[t][3],alerts,YES,0,percent);
+                assert(automatic.compact && automatic.width==v.width && automatic.height==v.height);
+                for (NSUInteger corner=0;corner<2;corner++) for (NSUInteger direction=0;direction<2;direction++) {
+                    GVMCardSize size=direction ? v : h;
+                    GVMCardOrigin origin=GVMCardOriginFor(0,width,0,height,size,corner);
+                    assert(origin.x>=0 && origin.y>=0 && origin.x+size.width<=width+.00001 && origin.y+size.height<=height+.00001);
+                }
+            }
+        }
+        // No viewport-fraction shrink as alerts arrive while the full group still fits.
+        for (NSUInteger alerts=0;alerts<3;alerts++) for (NSUInteger mode=1;mode<=2;mode++) {
+            GVMCardSize canvas=GVMCardCanvasSize(alerts,mode==2);
+            GVMCardSize size=GVMCarPlayCardSizeForLayout(180,226,400,240,alerts,YES,mode,100);
+            GVMCardSize larger=GVMCarPlayCardSizeForLayout(180,226,400,240,alerts,YES,mode,150);
+            assert(fabs(size.width/canvas.width-30.0/96)<0.00001);
+            assert(fabs(larger.width/size.width-1.5)<0.00001);
+        }
+        assert(!GVMCarPlayCardSizeForLayout(0,226,400,240,0,YES,1,100).width);
+        assert(!GVMCarPlayCardSizeForLayout(NAN,226,400,240,0,YES,2,100).width);
+        GVMCardSize defaultPercent=GVMCarPlayCardSizeForLayout(180,226,400,240,2,YES,1,NAN);
+        assert(defaultPercent.width==GVMCarPlayCardSizeForLayout(180,226,400,240,2,YES,1,100).width);
         assert(GVMWarningFor(@44,@50)==GVMWarningNormal);
         assert(GVMWarningFor(@45,@50)==GVMWarningNear);
         assert(GVMWarningFor(@50,@50)==GVMWarningNear);
@@ -31,8 +144,8 @@ int main(void) {
                     assert(size.compact == dashboard);
                     assert(size.width > 0 && size.height > 0);
                     assert(size.width < availableWidth && size.height < availableHeight);
-                    double canvasWidth = dashboard ? 84 : (camera==2 ? 296 : camera ? 240 : 208);
-                    double canvasHeight = dashboard ? (camera==2 ? 350 : camera ? 260 : 160) : 106;
+                    double canvasWidth = dashboard ? 96 : 184+88*camera;
+                    double canvasHeight = dashboard ? 184+88*camera : 120;
                     assert(fabs(size.width / size.height - canvasWidth / canvasHeight) < 0.00001);
                 }
             }
@@ -41,8 +154,8 @@ int main(void) {
         for (NSUInteger alerts=0;alerts<3;alerts++) {
             GVMCardSize guided=GVMCarPlayCardSizeForView(190,189,355,400,240,alerts);
             assert(!guided.compact);
-            double canvasWidth=alerts==2 ? 296 : alerts ? 240 : 208;
-            assert(fabs(guided.width/guided.height-canvasWidth/106)<0.00001);
+            double canvasWidth=184+88*alerts;
+            assert(fabs(guided.width/guided.height-canvasWidth/120)<0.00001);
             GVMCardSize dash=GVMCarPlayCardSizeForView(130,189,165.5,400,240,alerts);
             assert(dash.compact && dash.height>dash.width);
         }

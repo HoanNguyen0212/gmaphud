@@ -31,3 +31,11 @@ GVMCardOrigin GVMPhoneCardOriginFor(double left,double right,double top,double b
 
 GVMCardSize GVMCarPlayCardSizeForView(double availableWidth,double availableHeight,
     double viewWidth,double screenWidth,double screenHeight,NSUInteger alerts);
+
+GVMCardSize GVMCarPlayCardSizeForLayout(double width,double height,double screenWidth,double screenHeight,NSUInteger alerts,BOOL dashboard,NSUInteger layout,double percent);
+
+// Each visible value or warning occupies one equal cell. Alerts move as a group.
+typedef struct { double x, y, width, height; } GVMModuleRect;
+GVMCardSize GVMCardCanvasSize(NSUInteger alerts,BOOL vertical);
+GVMModuleRect GVMModuleFrame(NSArray<NSString *> *order,NSString *module,
+    BOOL vertical,NSUInteger alerts,NSUInteger alertIndex);

@@ -4,9 +4,36 @@
 #import <UIKit/UIKit.h>
 #import "placement-state.h"
 #import "diagnostics-controller.h"
+#import "modules-controller.h"
 #include <notify.h>
 #include <math.h>
 #import "background-policy.h"
+
+static UIButton *GVMResetButton(id target, SEL action) {
+    UIButton *button=[UIButton buttonWithType:UIButtonTypeSystem];
+    [button setTitle:@"Đặt lại" forState:UIControlStateNormal];
+    button.titleLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+    button.contentHorizontalAlignment=UIControlContentHorizontalAlignmentLeft;
+    button.contentEdgeInsets=UIEdgeInsetsMake(0,16,0,16);
+    if (action) [button addTarget:target action:action forControlEvents:UIControlEventTouchUpInside];
+    return button;
+}
+static void GVMResetRow(UIView *container, UIButton *button) {
+    UIView *separator=[UIView new];
+    separator.backgroundColor=UIColor.separatorColor;
+    separator.translatesAutoresizingMaskIntoConstraints=NO;
+    [container addSubview:separator];
+    [NSLayoutConstraint activateConstraints:@[
+        [button.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [button.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [button.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+        [button.heightAnchor constraintEqualToConstant:44],
+        [separator.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:16],
+        [separator.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [separator.topAnchor constraintEqualToAnchor:button.topAnchor],
+        [separator.heightAnchor constraintEqualToConstant:0.5]
+    ]];
+}
 
 @interface GVMReferenceSlider : UISlider
 @property(nonatomic, strong) UIView *referenceMark;
@@ -57,8 +84,10 @@
     self.sizeLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody];
     self.sizeLabel.numberOfLines=2;
     self.sizeLabel.text=self.sizeTitle;
+    [self.sizeLabel setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisVertical];
     self.valueLabel=[UILabel new];
-    self.valueLabel.font=[UIFont monospacedDigitSystemFontOfSize:16 weight:UIFontWeightMedium];
+    self.valueLabel.font=[UIFont monospacedDigitSystemFontOfSize:13 weight:UIFontWeightRegular];
+    self.valueLabel.textColor=UIColor.secondaryLabelColor;
     self.valueLabel.textAlignment=NSTextAlignmentRight;
     [self.valueLabel setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     self.sizeSlider=[[GVMReferenceSlider alloc] initWithFrame:CGRectZero];
@@ -72,23 +101,33 @@
     self.sizeSlider.accessibilityLabel=self.sizeTitle;
     self.sizeSlider.accessibilityHint=self.offset ? @"Mốc giữa là 0 phần trăm" : @"Mốc giữa là 100 phần trăm";
     [self.sizeSlider addTarget:self action:@selector(sizeChanged:) forControlEvents:UIControlEventValueChanged];
-    for (UIView *view in @[self.sizeLabel,self.sizeSlider,self.valueLabel]) {
+    UIButton *reset=GVMResetButton(self,@selector(resetSize));
+    reset.accessibilityLabel=[@"Đặt lại " stringByAppendingString:self.sizeTitle];
+    [reset setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    for (UIView *view in @[self.sizeLabel,self.sizeSlider,self.valueLabel,reset]) {
         view.translatesAutoresizingMaskIntoConstraints=NO; [self.contentView addSubview:view];
     }
+    GVMResetRow(self.contentView,reset);
     if (self.offset) {
         self.sizeLabel.hidden=YES;
         UILabel *low=[UILabel new], *high=[UILabel new];
         BOOL horizontal=[self.sizeKey isEqualToString:@"phoneXPercent"];
         low.text=horizontal ? @"Trái" : @"Lên";
         high.text=horizontal ? @"Phải" : @"Xuống";
+        UIFont *directionFont=[UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+        CGFloat directionWidth=0;
+        for (NSString *title in @[@"Trái",@"Phải",@"Lên",@"Xuống"])
+            directionWidth=MAX(directionWidth,ceil([title sizeWithAttributes:@{NSFontAttributeName:directionFont}].width));
         for (UILabel *label in @[low,high]) {
-            label.font=[UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+            label.font=directionFont;
             label.textColor=UIColor.secondaryLabelColor;
             label.translatesAutoresizingMaskIntoConstraints=NO;
             [label setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
-            [label setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
             [self.contentView addSubview:label];
+            [label.widthAnchor constraintEqualToConstant:directionWidth].active=YES;
         }
+        low.textAlignment=NSTextAlignmentLeft;
+        high.textAlignment=NSTextAlignmentRight;
         self.valueLabel.textAlignment=NSTextAlignmentCenter;
         [NSLayoutConstraint activateConstraints:@[
             [low.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16],
@@ -99,23 +138,23 @@
             [high.centerYAnchor constraintEqualToAnchor:self.sizeSlider.centerYAnchor],
             [self.sizeSlider.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:8],
             [self.sizeSlider.heightAnchor constraintEqualToConstant:44],
-            [self.valueLabel.topAnchor constraintEqualToAnchor:self.sizeSlider.bottomAnchor],
+            [self.valueLabel.topAnchor constraintEqualToAnchor:self.sizeSlider.bottomAnchor constant:-4],
             [self.valueLabel.centerXAnchor constraintEqualToAnchor:self.sizeSlider.centerXAnchor],
-            [self.valueLabel.bottomAnchor constraintLessThanOrEqualToAnchor:self.contentView.bottomAnchor constant:-8]
+            [self.valueLabel.bottomAnchor constraintLessThanOrEqualToAnchor:reset.topAnchor constant:-4]
         ]];
     } else {
         self.valueLabel.textAlignment=NSTextAlignmentCenter;
         [NSLayoutConstraint activateConstraints:@[
-            [self.sizeLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:10],
+            [self.sizeLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:8],
             [self.sizeLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16],
             [self.sizeLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16],
-            [self.sizeSlider.topAnchor constraintEqualToAnchor:self.sizeLabel.bottomAnchor constant:4],
+            [self.sizeSlider.topAnchor constraintEqualToAnchor:self.sizeLabel.bottomAnchor constant:-6],
             [self.sizeSlider.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16],
             [self.sizeSlider.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16],
             [self.sizeSlider.heightAnchor constraintEqualToConstant:44],
-            [self.valueLabel.topAnchor constraintEqualToAnchor:self.sizeSlider.bottomAnchor],
+            [self.valueLabel.topAnchor constraintEqualToAnchor:self.sizeSlider.bottomAnchor constant:-4],
             [self.valueLabel.centerXAnchor constraintEqualToAnchor:self.sizeSlider.centerXAnchor],
-            [self.valueLabel.bottomAnchor constraintLessThanOrEqualToAnchor:self.contentView.bottomAnchor constant:-8]
+            [self.valueLabel.bottomAnchor constraintLessThanOrEqualToAnchor:reset.topAnchor constant:-4]
         ]];
     }
     [self updateSizeLabel];
@@ -147,10 +186,15 @@
     }
     [self updateSizeLabel];
 }
+- (void)resetSize {
+    [self.sizeSlider setValue:self.offset ? 0 : 100 animated:YES];
+    [self sizeChanged:self.sizeSlider];
+}
 @end
 
 @interface GVMOptionPicker : UIView
 @property(nonatomic, strong) UISegmentedControl *control;
+@property(nonatomic, strong) UIButton *resetButton;
 - (instancetype)initWithTitle:(NSString *)title items:(NSArray<NSString *> *)items;
 @end
 @implementation GVMOptionPicker
@@ -166,6 +210,13 @@
     label.adjustsFontForContentSizeCategory=YES;
     label.translatesAutoresizingMaskIntoConstraints=NO;
     [self addSubview:label];
+    self.resetButton=GVMResetButton(nil,NULL);
+    self.resetButton.translatesAutoresizingMaskIntoConstraints=NO;
+    [self.resetButton setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    [self.resetButton setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    self.resetButton.accessibilityLabel=[@"Đặt lại " stringByAppendingString:title];
+    [self addSubview:self.resetButton];
+    GVMResetRow(self,self.resetButton);
     self.control=[[UISegmentedControl alloc] initWithItems:items];
     self.control.translatesAutoresizingMaskIntoConstraints=NO;
     self.control.accessibilityLabel=title;
@@ -178,7 +229,7 @@
         [self.control.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:16],
         [self.control.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-16],
         [self.control.heightAnchor constraintGreaterThanOrEqualToConstant:32],
-        [self.control.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-12]
+        [self.control.bottomAnchor constraintEqualToAnchor:self.resetButton.topAnchor constant:-12]
     ]];
     return self;
 }
@@ -201,7 +252,11 @@ static void GVMDisableWake(void) {
     CFPreferencesSetAppValue(CFSTR("autoWake"),kCFBooleanFalse,domain);
     CFPreferencesAppSynchronize(domain);
 }
-@interface GVMSizeController : GVMPreferencesController
+@interface GVMSurfaceController : GVMPreferencesController
+@end
+@interface GVMSourceController : GVMPreferencesController
+@end
+@interface GVMBackgroundController : GVMPreferencesController
 @end
 @interface GVMPhonePositionController : GVMPreferencesController
 @end
@@ -250,6 +305,7 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     GVMPublishSavedSizes();
     [self refreshWakePermission];
     [self.permissionTimer invalidate];
+    if (!self.wakeSpecifier) return;
     __weak GVMPreferencesController *weakSelf=self;
     self.permissionTimer=[NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(__unused NSTimer *timer) {
         [weakSelf refreshWakePermission];
@@ -261,48 +317,31 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
 }
 - (NSArray *)specifiers {
     if (_specifiers) return _specifiers;
-    NSMutableArray *items = [NSMutableArray new];
-    PSSpecifier *group = [PSSpecifier groupSpecifierWithName:@"Nguồn cảnh báo"];
-    [group setProperty:@"Hiện hỗ trợ nguồn cảnh báo VietMap Live." forKey:@"footerText"];
+    self.title=@"GMapHUD";
+    NSMutableArray *items=[NSMutableArray new];
+    PSSpecifier *group=[PSSpecifier groupSpecifierWithName:@""];
+    [group setProperty:@"Bật hoặc tắt bong bóng trên tất cả màn hình." forKey:@"footerText"];
     [items addObject:group];
-    PSSpecifier *source = [PSSpecifier preferenceSpecifierNamed:@"VietMap Live" target:self
-        set:NULL get:NULL detail:Nil cell:PSTitleValueCell edit:Nil];
-    [source setProperty:@NO forKey:@"enabled"];
-    [items addObject:source];
-    group = [PSSpecifier groupSpecifierWithName:@"Chạy nền"];
-    [group setProperty:@"Tự mở VietMap Live ở nền khi dùng Google Maps trên CarPlay hoặc iPhone. Cần bật cảnh báo trong VietMap và cấp định vị ‘Khi dùng ứng dụng’ hoặc ‘Luôn luôn’. Công tắc tự tắt khi thiếu quyền." forKey:@"footerText"];
-    [items addObject:group];
-    PSSpecifier *autoWake = [PSSpecifier preferenceSpecifierNamed:@"Tự đánh thức VietMap Live" target:self
+    PSSpecifier *master=[PSSpecifier preferenceSpecifierNamed:@"Hiển thị bong bóng" target:self
         set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSSwitchCell edit:Nil];
-    [autoWake setProperty:@"autoWake" forKey:@"key"];
-    [autoWake setProperty:@NO forKey:@"default"];
-    self.wakeAllowed=GVMWakeAllowed();
-    [autoWake setProperty:@(self.wakeAllowed) forKey:@"enabled"];
-    self.wakeSpecifier=autoWake;
-    if (!self.wakeAllowed) GVMDisableWake();
-    [items addObject:autoWake];
-    [items addObject:[PSSpecifier preferenceSpecifierNamed:@"Kích cỡ bong bóng" target:self
-        set:NULL get:NULL detail:GVMSizeController.class cell:PSLinkCell edit:Nil]];
-    group = [PSSpecifier groupSpecifierWithName:@"Vị trí bong bóng"];
-    [group setProperty:@"Chọn góc trên bản đồ đầy đủ hoặc cạnh trái/phải trong Dashboard." forKey:@"footerText"];
-    [items addObject:group];
-    PSSpecifier *full = [PSSpecifier preferenceSpecifierNamed:@"Bản đồ đầy đủ" target:self
-        set:NULL get:NULL detail:GVMPositionController.class cell:PSLinkCell edit:Nil];
-    [full setProperty:@"fullPosition" forKey:@"key"];
-    [full setProperty:@"top-right" forKey:@"default"];
-    [items addObject:full];
-    PSSpecifier *dashboard = [PSSpecifier preferenceSpecifierNamed:@"Dashboard" target:self
-        set:NULL get:NULL detail:GVMPositionController.class cell:PSLinkCell edit:Nil];
-    [dashboard setProperty:@"dashboardPosition" forKey:@"key"];
-    [dashboard setProperty:@"right" forKey:@"default"];
-    [items addObject:dashboard];
-    [items addObject:[PSSpecifier groupSpecifierWithName:@"iPhone"]];
-    [items addObject:[PSSpecifier preferenceSpecifierNamed:@"Google Maps trên iPhone" target:self
-        set:NULL get:NULL detail:GVMPhonePositionController.class cell:PSLinkCell edit:Nil]];
+    [master setProperty:@"bubbleEnabled" forKey:@"key"];
+    [master setProperty:@YES forKey:@"default"];
+    [items addObject:master];
+    [items addObject:[PSSpecifier groupSpecifierWithName:@""]];
+    [items addObject:[PSSpecifier preferenceSpecifierNamed:@"Nguồn cảnh báo" target:self set:NULL get:NULL detail:GVMSourceController.class cell:PSLinkCell edit:Nil]];
+    [items addObject:[PSSpecifier preferenceSpecifierNamed:@"Chạy nền" target:self set:NULL get:NULL detail:GVMBackgroundController.class cell:PSLinkCell edit:Nil]];
+    [items addObject:[PSSpecifier groupSpecifierWithName:@"Thiết lập bong bóng cảnh báo"]];
+    NSArray *titles=@[@"Bản đồ đầy đủ",@"Dashboard",@"Trên iPhone"];
+    NSArray *surfaces=@[@"full",@"dashboard",@"phone"];
+    for (NSUInteger i=0;i<surfaces.count;i++) {
+        PSSpecifier *surface=[PSSpecifier preferenceSpecifierNamed:titles[i] target:self set:NULL get:NULL detail:GVMSurfaceController.class cell:PSLinkCell edit:Nil];
+        [surface setProperty:surfaces[i] forKey:@"surface"];
+        [surface setProperty:surfaces[i] forKey:@"id"];
+        [items addObject:surface];
+    }
     [items addObject:[PSSpecifier groupSpecifierWithName:@"Hỗ trợ"]];
-    [items addObject:[PSSpecifier preferenceSpecifierNamed:@"Chẩn đoán / Xuất log" target:self
-        set:NULL get:NULL detail:GVMDiagnosticsController.class cell:PSLinkCell edit:Nil]];
-    _specifiers = items;
+    [items addObject:[PSSpecifier preferenceSpecifierNamed:@"Chẩn đoán / Xuất log" target:self set:NULL get:NULL detail:GVMDiagnosticsController.class cell:PSLinkCell edit:Nil]];
+    _specifiers=items;
     return _specifiers;
 }
 - (id)readPreferenceValue:(PSSpecifier *)specifier {
@@ -316,6 +355,14 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
 }
 - (void)setPreferenceValue:(id)value specifier:(PSSpecifier *)specifier {
     NSString *key=[specifier propertyForKey:@"key"];
+    if ([@[@"bubbleEnabled",@"fullEnabled",@"dashboardEnabled",@"phoneEnabled"] containsObject:key]) {
+        if (![value isKindOfClass:NSNumber.class]) return;
+        CFPreferencesSetAppValue((__bridge CFStringRef)key,[value boolValue] ? kCFBooleanTrue : kCFBooleanFalse,CFSTR("com.chou.gmaphud"));
+        if (CFPreferencesAppSynchronize(CFSTR("com.chou.gmaphud"))) {
+            GVMPublishSavedSizes(); notify_post(GVMSizeChangedName);
+        }
+        return;
+    }
     BOOL offsetPreference=[@[@"phoneXPercent",@"phoneYPercent"] containsObject:key];
     BOOL sizePreference=offsetPreference || [@[@"fullScale",@"dashboardScale",@"phoneScale"] containsObject:key];
     if (sizePreference) {
@@ -419,6 +466,7 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     NSArray *titles=dashboard ? @[@"Bên trái",@"Bên phải"] : @[@"Trên trái",@"Trên phải",@"Dưới trái",@"Dưới phải"];
     self.positionPicker=[[GVMOptionPicker alloc] initWithTitle:@"Vị trí" items:titles];
     [self.positionPicker.control addTarget:self action:@selector(positionChanged:) forControlEvents:UIControlEventValueChanged];
+    [self.positionPicker.resetButton addTarget:self action:@selector(resetPosition) forControlEvents:UIControlEventTouchUpInside];
     [content addArrangedSubview:self.positionPicker];
     [self refreshPositionSelection];
 }
@@ -429,6 +477,10 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     GVMPositionOption option=dashboard ? (index==0 ? GVMPositionLeft : GVMPositionRight) : (GVMPositionOption)index;
     [self setPreferenceValue:GVMPositionValue(option) specifier:self.specifier];
     [self refreshPositionSelection];
+}
+- (void)resetPosition {
+    self.positionPicker.control.selectedSegmentIndex=1;
+    [self positionChanged:self.positionPicker.control];
 }
 - (void)refreshPositionSelection {
     BOOL dashboard=[[self.specifier propertyForKey:@"key"] isEqualToString:@"dashboardPosition"];
@@ -442,45 +494,49 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
 
 @end
 
-@implementation GVMSizeController
+@implementation GVMSourceController
 - (NSArray *)specifiers {
     if (_specifiers) return _specifiers;
-    self.title=@"Kích cỡ bong bóng";
-    NSMutableArray *items=[NSMutableArray new];
+    self.title=@"Nguồn cảnh báo";
     PSSpecifier *group=[PSSpecifier groupSpecifierWithName:@""];
-    [group setProperty:@"Chỉnh kích cỡ riêng cho từng chế độ. 100% là mặc định." forKey:@"footerText"];
-    [items addObject:group];
-    NSArray *sizeKeys=@[@"fullScale",@"dashboardScale"];
-    NSArray *sizeTitles=@[@"Bản đồ đầy đủ",@"Dashboard"];
-    for (NSUInteger i=0;i<sizeKeys.count;i++) {
-        PSSpecifier *slider=[PSSpecifier preferenceSpecifierNamed:sizeTitles[i] target:self
-            set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSStaticTextCell edit:Nil];
-        [slider setProperty:GVMSizeSliderCell.class forKey:@"cellClass"];
-        [slider setProperty:@112 forKey:@"height"];
-        [slider setProperty:sizeKeys[i] forKey:@"key"];
-        [slider setProperty:@100 forKey:@"default"];
-        [slider setProperty:@50 forKey:@"min"];
-        [slider setProperty:@150 forKey:@"max"];
-        [slider setProperty:@YES forKey:@"showValue"];
-        [items addObject:slider];
-    }
-    _specifiers=items; return _specifiers;
+    [group setProperty:@"Hiện hỗ trợ VietMap Live. Mỗi lần dùng một nguồn cảnh báo." forKey:@"footerText"];
+    PSSpecifier *source=[PSSpecifier preferenceSpecifierNamed:@"VietMap Live" target:self set:NULL get:NULL detail:Nil cell:PSTitleValueCell edit:Nil];
+    [source setProperty:@NO forKey:@"enabled"];
+    _specifiers=[@[group,source] mutableCopy]; return _specifiers;
 }
 @end
 
-@interface GVMPhoneOptionCell : PSTableCell
+@implementation GVMBackgroundController
+- (NSArray *)specifiers {
+    if (_specifiers) return _specifiers;
+    self.title=@"Chạy nền";
+    PSSpecifier *group=[PSSpecifier groupSpecifierWithName:@""];
+    [group setProperty:@"Tự mở VietMap Live khi dùng Google Maps. Cần bật cảnh báo và cấp quyền định vị trong VietMap Live." forKey:@"footerText"];
+    PSSpecifier *wake=[PSSpecifier preferenceSpecifierNamed:@"Tự đánh thức VietMap Live" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSSwitchCell edit:Nil];
+    [wake setProperty:@"autoWake" forKey:@"key"];
+    [wake setProperty:@NO forKey:@"default"];
+    self.wakeAllowed=GVMWakeAllowed();
+    [wake setProperty:@(self.wakeAllowed) forKey:@"enabled"];
+    self.wakeSpecifier=wake;
+    if (!self.wakeAllowed) GVMDisableWake();
+    _specifiers=[@[group,wake] mutableCopy]; return _specifiers;
+}
+@end
+
+@interface GVMOptionCell : PSTableCell
 @property(nonatomic, copy) NSString *preferenceKey;
 @property(nonatomic, copy) NSArray<NSString *> *values;
 @property(nonatomic, strong) GVMOptionPicker *picker;
 @end
-@implementation GVMPhoneOptionCell
+@implementation GVMOptionCell
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)identifier specifier:(PSSpecifier *)specifier {
     self=[super initWithStyle:style reuseIdentifier:identifier specifier:specifier];
     if (!self) return nil;
     self.selectionStyle=UITableViewCellSelectionStyleNone;
     self.contentView.userInteractionEnabled=YES;
     self.preferenceKey=[specifier propertyForKey:@"key"];
-    BOOL layout=[self.preferenceKey isEqualToString:@"phoneLayout"];
+    if (![@[@"phonePosition",@"phoneLayout",@"fullLayout",@"dashboardLayout"] containsObject:self.preferenceKey]) return nil;
+    BOOL layout=[self.preferenceKey hasSuffix:@"Layout"];
     self.values=layout ? @[@"auto",@"horizontal",@"vertical"] : @[@"top-left",@"top-right",@"bottom-left",@"bottom-right"];
     NSArray *titles=layout ? @[@"Tự động",@"Ngang",@"Dọc"] : @[@"Trên trái",@"Trên phải",@"Dưới trái",@"Dưới phải"];
     self.picker=[[GVMOptionPicker alloc] initWithTitle:specifier.name items:titles];
@@ -497,6 +553,7 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
     NSUInteger selected=[self.values indexOfObject:saved ?: @""];
     self.picker.control.selectedSegmentIndex=selected==NSNotFound ? (layout ? 0 : 1) : selected;
     [self.picker.control addTarget:self action:@selector(selectionChanged:) forControlEvents:UIControlEventValueChanged];
+    [self.picker.resetButton addTarget:self action:@selector(resetSelection) forControlEvents:UIControlEventTouchUpInside];
     return self;
 }
 - (void)layoutSubviews {
@@ -512,42 +569,75 @@ static GVMPositionOption GVMPositionFromValue(NSString *value, BOOL compact) {
         GVMPublishSavedSizes(); notify_post(GVMSizeChangedName);
     }
 }
+- (void)resetSelection {
+    self.picker.control.selectedSegmentIndex=[self.preferenceKey hasSuffix:@"Layout"] ? 0 : 1;
+    [self selectionChanged:self.picker.control];
+}
+@end
+
+@implementation GVMSurfaceController
+- (NSArray *)specifiers {
+    if (_specifiers) return _specifiers;
+    self.title=self.specifier.name;
+    NSString *surface=[self.specifier propertyForKey:@"surface"];
+    if (![@[@"full",@"dashboard",@"phone"] containsObject:surface]) surface=@"full";
+    BOOL phone=[surface isEqual:@"phone"], dashboard=[surface isEqual:@"dashboard"];
+    NSMutableArray *items=[NSMutableArray new];
+    PSSpecifier *group=[PSSpecifier groupSpecifierWithName:@""];
+    [group setProperty:@"Bong bóng chỉ hiện khi công tắc tổng cũng đang bật." forKey:@"footerText"];
+    [items addObject:group];
+    PSSpecifier *enabled=[PSSpecifier preferenceSpecifierNamed:@"Hiển thị bong bóng" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSSwitchCell edit:Nil];
+    [enabled setProperty:[surface stringByAppendingString:@"Enabled"] forKey:@"key"];
+    [enabled setProperty:@YES forKey:@"default"];
+    [items addObject:enabled];
+    [items addObject:[PSSpecifier groupSpecifierWithName:@""]];
+    PSSpecifier *position=[PSSpecifier preferenceSpecifierNamed:@"Vị trí" target:self set:NULL get:NULL detail:phone ? GVMPhonePositionController.class : GVMPositionController.class cell:PSLinkCell edit:Nil];
+    [position setProperty:[surface stringByAppendingString:@"Position"] forKey:@"key"];
+    [position setProperty:dashboard ? @"right" : @"top-right" forKey:@"default"];
+    [items addObject:position];
+    PSSpecifier *layout=[PSSpecifier preferenceSpecifierNamed:@"Bố cục" target:self set:NULL get:NULL detail:Nil cell:PSStaticTextCell edit:Nil];
+    [layout setProperty:[surface stringByAppendingString:@"Layout"] forKey:@"key"];
+    [layout setProperty:GVMOptionCell.class forKey:@"cellClass"];
+    [layout setProperty:@YES forKey:@"enabled"];
+    [layout setProperty:@132 forKey:@"height"];
+    [items addObject:layout];
+    PSSpecifier *order=[PSSpecifier preferenceSpecifierNamed:@"Thứ tự các phần" target:self set:NULL get:NULL detail:GVMModuleOrderController.class cell:PSLinkCell edit:Nil];
+    [order setProperty:[surface stringByAppendingString:@"Modules"] forKey:@"key"];
+    [items addObject:order];
+    PSSpecifier *sizeGroup=[PSSpecifier groupSpecifierWithName:@""];
+    [sizeGroup setProperty:@"100% là kích cỡ mặc định." forKey:@"footerText"];
+    [items addObject:sizeGroup];
+    PSSpecifier *size=[PSSpecifier preferenceSpecifierNamed:@"Kích cỡ" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSStaticTextCell edit:Nil];
+    [size setProperty:[surface stringByAppendingString:@"Scale"] forKey:@"key"];
+    [size setProperty:@100 forKey:@"default"];
+    [size setProperty:GVMSizeSliderCell.class forKey:@"cellClass"];
+    [size setProperty:@YES forKey:@"enabled"];
+    [size setProperty:@132 forKey:@"height"];
+    [items addObject:size];
+    _specifiers=items; return _specifiers;
+}
 @end
 
 @implementation GVMPhonePositionController
 - (NSArray *)specifiers {
     if (_specifiers) return _specifiers;
-    self.title=@"Google Maps trên iPhone";
+    self.title=@"Vị trí trên iPhone";
     NSMutableArray *items=[NSMutableArray new];
-    PSSpecifier *group=[PSSpecifier groupSpecifierWithName:@"Hiển thị"];
-    [group setProperty:@"Chọn góc và bố cục bong bóng. Dùng thanh trượt bên dưới để dịch trái/phải, lên/xuống; 0% giữ vị trí theo góc đã chọn." forKey:@"footerText"];
+    PSSpecifier *group=[PSSpecifier groupSpecifierWithName:@""];
+    [group setProperty:@"Chọn góc rồi tinh chỉnh trái/phải, lên/xuống. 0% giữ nguyên góc đã chọn." forKey:@"footerText"];
     [items addObject:group];
-    for (NSString *key in @[@"phonePosition",@"phoneLayout"]) {
-        PSSpecifier *position=[PSSpecifier preferenceSpecifierNamed:[key isEqual:@"phoneLayout"] ? @"Bố cục" : @"Vị trí" target:self set:NULL get:NULL detail:Nil cell:PSStaticTextCell edit:Nil];
-        [position setProperty:key forKey:@"key"];
-        [position setProperty:GVMPhoneOptionCell.class forKey:@"cellClass"];
-        [position setProperty:@YES forKey:@"enabled"];
-        [position setProperty:@100 forKey:@"height"];
-        [items addObject:position];
-    }
-    PSSpecifier *sizeGroup=[PSSpecifier groupSpecifierWithName:@"Kích cỡ"];
-    [sizeGroup setProperty:@"100% là kích cỡ mặc định. Bố cục Tự động đổi theo chiều xoay máy." forKey:@"footerText"];
-    [items addObject:sizeGroup];
-    PSSpecifier *size=[PSSpecifier preferenceSpecifierNamed:@"Kích cỡ bong bóng" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSStaticTextCell edit:Nil];
-    [size setProperty:@"phoneScale" forKey:@"key"];
-    [size setProperty:@100 forKey:@"default"];
-    [size setProperty:@YES forKey:@"enabled"];
-    [size setProperty:GVMSizeSliderCell.class forKey:@"cellClass"];
-    [size setProperty:@112 forKey:@"height"];
-    [items addObject:size];
-    [items addObject:[PSSpecifier groupSpecifierWithName:@"Tinh chỉnh vị trí"]];
+    PSSpecifier *position=[PSSpecifier preferenceSpecifierNamed:@"Vị trí" target:self set:NULL get:NULL detail:Nil cell:PSStaticTextCell edit:Nil];
+    [position setProperty:@"phonePosition" forKey:@"key"];
+    [position setProperty:GVMOptionCell.class forKey:@"cellClass"];
+    [position setProperty:@132 forKey:@"height"];
+    [items addObject:position];
     for (NSString *key in @[@"phoneXPercent",@"phoneYPercent"]) {
-        PSSpecifier *item=[PSSpecifier preferenceSpecifierNamed:[key isEqual:@"phoneXPercent"] ? @"Trục X (trái / phải)" : @"Trục Y (lên / xuống)" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSStaticTextCell edit:Nil];
+        PSSpecifier *item=[PSSpecifier preferenceSpecifierNamed:[key isEqual:@"phoneXPercent"] ? @"Trái / phải" : @"Lên / xuống" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSStaticTextCell edit:Nil];
         [item setProperty:@YES forKey:@"enabled"];
         [item setProperty:@0 forKey:@"default"];
         [item setProperty:key forKey:@"key"];
         [item setProperty:GVMSizeSliderCell.class forKey:@"cellClass"];
-        [item setProperty:@84 forKey:@"height"];
+        [item setProperty:@112 forKey:@"height"];
         [items addObject:item];
     }
     _specifiers=items; return _specifiers;

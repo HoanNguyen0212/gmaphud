@@ -21,7 +21,7 @@ GMapHUDPlacementRelay_FRAMEWORKS = Foundation CoreLocation
 include $(THEOS)/makefiles/tweak.mk
 
 BUNDLE_NAME = GMapHUDPrefs
-GMapHUDPrefs_FILES = diagnostics.m prefs/diagnostics-controller.m prefs/preferences-controller.m placement-state.m
+GMapHUDPrefs_FILES = diagnostics.m prefs/diagnostics-controller.m prefs/modules-controller.m prefs/preferences-controller.m placement-state.m
 GMapHUDPrefs_CFLAGS = -fobjc-arc -Wall -Wextra
 GMapHUDPrefs_FRAMEWORKS = Foundation UIKit
 GMapHUDPrefs_PRIVATE_FRAMEWORKS = Preferences

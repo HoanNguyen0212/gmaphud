@@ -66,7 +66,7 @@ def build_sileo_depiction():
                 "Dữ liệu có thể sai, trễ hoặc thiếu. Chỉ dùng để nghiên cứu/kiểm thử khi xe đã đỗ an toàn; "
                 "tuân thủ biển báo thực tế. Không phải thiết bị hỗ trợ lái xe được chứng nhận.\n\n"
                 "Hiển thị tốc độ, giới hạn và tối đa hai cảnh báo đường đã nhận diện; không có cảnh báo âm thanh, giả lập GPS "
-                "hay vượt thuê bao/DRM. Mã do dự án viết theo giấy phép MIT; ảnh VietMap Live vẫn thuộc quyền của chủ sở hữu. Dự án độc lập, không được "
+                "hay vượt thuê bao/DRM. Mã do dự án viết theo giấy phép MIT; quyền với ứng dụng, dữ liệu và hình ảnh bên thứ ba vẫn thuộc chủ sở hữu. Dự án độc lập, không được "
                 "VietMap, Google hay Apple bảo trợ."
             ),
             "links": "Liên kết",
@@ -94,7 +94,7 @@ def build_sileo_depiction():
                 "Readings may be wrong, delayed, or missing. For research and stationary testing only; "
                 "follow actual signs. This is not a certified driving aid.\n\n"
                 "Speed, limits, and up to two recognized road alerts; no audible alerts, GPS simulation, or subscription/DRM "
-                "bypass. Project-authored code is MIT-licensed; VietMap Live images remain their owner’s property. Independent project, not endorsed by VietMap, Google, or Apple."
+                "bypass. Project-authored code is MIT-licensed; third-party apps, data and artwork retain their owners’ rights. Independent project, not endorsed by VietMap, Google, or Apple."
             ),
             "links": "Links",
             "links_text": (
@@ -104,6 +104,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.1.21", "Tùy chỉnh bố cục ngang/dọc và kéo đổi thứ tự các phần trong bong bóng. Làm mới Cài đặt, thêm công tắc từng màn hình và nút đặt lại. Cập nhật bộ icon biển báo, giữ kích cỡ Dashboard ổn định khi đổi bố cục hoặc thêm/bớt cảnh báo. Báo cáo hỗ trợ có thêm phiên bản ứng dụng và tùy chọn đính kèm crash.",
+         "Customize horizontal/vertical layouts and drag to reorder bubble sections. Refreshes Settings with per-screen switches and reset controls. Updates road-sign icons and keeps Dashboard content sizes stable when changing layouts or adding/removing alerts. Support reports now include app versions and optional crash attachments."),
         ("0.1.20", "Cải thiện tính ổn định", "Improved stability"),
         ("0.1.19", "Tối ưu cập nhật bong bóng và giảm dung lượng gói cài. Tự đánh thức VietMap Live hỗ trợ cả Google Maps trên CarPlay và iPhone, với quyền định vị Khi dùng ứng dụng hoặc Luôn luôn. Cải thiện tự nhận lại dữ liệu khi VietMap chưa chạy; làm gọn mô tả trong Cài đặt.",
          "Optimizes bubble updates and reduces package size. Automatic VietMap Live wake now supports Google Maps on both CarPlay and iPhone with When In Use or Always location access. Improves data recovery when VietMap is not running and simplifies Settings descriptions."),

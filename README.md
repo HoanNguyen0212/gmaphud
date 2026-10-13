@@ -26,7 +26,7 @@ These are the same CarPlay preview images shown in Settings. They illustrate all
 
 ## Features
 
-The horizontal CarPlay bubble places speed on the left, the limit sign on the right, and a VietMap Live label above. Dashboard uses a vertical bubble with the limit above current speed. Recognized VietMap road alerts use the corresponding VietMap Live artwork and source distance in a shaded VietMap region: up to two side by side on full map, two stacked below speed on Dashboard. Input recognition matches observed image digests from VietMap Live 3.4.3. Bubble size adapts uniformly to the viewport and the user’s size setting. Navigation controls affect placement only, so each corner keeps the same dimensions. Full-map and Dashboard layouts are selected relative to screen width. The preview images above illustrate each supported placement.
+The horizontal CarPlay bubble places speed on the left, the limit sign on the right, and a VietMap Live label above. Dashboard uses a vertical bubble with the limit above current speed. Recognized VietMap road alerts use the corresponding bundled artwork and source distance in a shaded VietMap region: up to two side by side on full map, two stacked below speed on Dashboard. Input recognition matches observed image digests from VietMap Live 3.4.3. Bubble size adapts uniformly to the viewport and the user’s size setting. Navigation controls affect placement only, so each corner keeps the same dimensions. Full-map and Dashboard layouts are selected relative to screen width. The preview images above illustrate each supported placement.
 
 In iPhone Settings → GMapHUD, choose any of the four corners for the full map and the left or right edge for Dashboard. The images above show each option. Top-right is the default in both layouts. The alert-source row shows VietMap Live but remains disabled until another source is supported. Placement changes update an open Google Maps CarPlay view; a SpringBoard relay restores saved placement after the phone interface restarts.
 
@@ -38,6 +38,20 @@ In iPhone Settings → GMapHUD, choose any of the four corners for the full map 
 - Optional stationary display test with a TEST badge and automatic expiry.
 
 Published 0.1.13 does not port road alerts. Release 0.1.14 recognizes 46 known alert-image digests from VietMap Live 3.4.3; unknown or changed artwork stays hidden. VietMap's upcoming speed-limit message may omit its image, so supported numeric limits use the matching bundled VietMap Live sign. Camera and upcoming 80 km/h delivery were observed live; other sign categories are mapped from observed app artwork but have not yet been observed in live payloads. Navigation instructions and Live Activities remain unsupported. It includes no GPS spoofing, location replay, DRM bypass or subscription bypass.
+
+## 0.1.21 · modular bubble
+
+Settings → GMapHUD now groups the master **Hiển thị bong bóng** switch, **Nguồn cảnh báo**, **Chạy nền**, three screen settings and **Chẩn đoán / Xuất log**. Under **Thiết lập bong bóng cảnh báo**, choose **Bản đồ đầy đủ**, **Dashboard** or **Trên iPhone**. Each screen has its own visibility switch, position, Auto/Horizontal/Vertical layout, draggable module order and size slider. iPhone position also keeps the X/Y sliders. Existing selections are preserved; missing visibility settings default to on. The master switch hides all GMapHUD bubbles without changing individual screen choices or the separate background-wake option. Visibility changes apply while Google Maps is open.
+
+**Thứ tự các phần** moves Current speed, Current limit and Upcoming alerts. Upcoming alerts remain a group of up to two source-ordered warnings, hidden when absent. Uncustomized ordering preserves the former horizontal and vertical defaults. Orientation does not change the screen's size/position settings. Dashboard uses the same text, sign and cell scale in Horizontal/Vertical at the same percentage. Only the physical map boundary can reduce that scale, with a shared ceiling sized for two alerts in either orientation. Switching direction or adding/removing alerts therefore changes the group shape without resizing its contents. Screenshots illustrate placement, not every customized layout.
+
+The **Đặt lại** row beneath each adjustment resets only that part: size to 100%, an iPhone axis to 0%, position to top-right (right in Dashboard), layout to Auto, or module order to the default for the orientation. Other settings are preserved. Percentages use smaller gray text beneath the slider; both iPhone position sliders have matching track lengths.
+
+Each speed, current-limit and individual warning cell now has equal dimensions in either orientation. Content is centered inside each cell; sign artwork preserves its aspect ratio, and a sign with distance is centered as one unit. Two warnings still move together and occupy two cells. The shared grid has been checked on iPhone, CarPlay Full Map and Dashboard with live data.
+
+Host tests and rootful/rootless arm64/arm64e builds passed. Earlier 0.1.21 trial builds were installed on iPhone 11/iOS 18.6.2; the new menu, Full Map reorder page and drag persistence were verified. Turning off Full Map hid its bubble while Dashboard remained visible. The custom table uses an independent UIKit delegate to avoid Preferences-specific callbacks. App metadata and related crash listing were observed; file sharing and other devices still need validation. The final Dashboard sizing correction passed host tests and builds; its device retest is pending.
+
+Version 0.1.21 replaces all 46 bundled display signs with user-supplied redesigned artwork, optimized to transparent 256 px PNGs. Original VietMap input digests remain unchanged; display images are no longer recognition fixtures. Earlier published packages still contain their original artwork.
 
 ## Compatibility
 
@@ -67,7 +81,7 @@ To remove: uninstall `com.chou.googlemaps.vietmap` through the package manager, 
 
 ## Build and test
 
-Requires macOS with Xcode command-line tools, Theos, a rootless-capable toolchain and an iPhoneOS 16.5 SDK obtained under its applicable license. SDKs and dependencies are not bundled.
+Requires macOS with Python 3.9+, Xcode command-line tools, Theos, a rootless-capable toolchain and an iPhoneOS 16.5 SDK obtained under its applicable license. SDKs and dependencies are not bundled.
 
 ```sh
 git clone https://github.com/bechou0410/gmaphud.git
@@ -77,6 +91,8 @@ THEOS="$HOME/theos" sh build-tweak.sh all
 ```
 
 Packages appear in `packages/`. Both scripts use disposable directories and support spaces in the checkout path. The tested toolchain emits a pre-existing `-multiply_defined is obsolete` linker warning.
+
+Build/test commands now keep full logs locally and return a compact result. Successful runs never call AI; failures can use the configured Jev key to classify filtered diagnostics while preserving the command's exit code. See [build/test triage](docs/build-triage.md) for key setup, local reports and the `GMAPHUD_JEV=off` / `GMAPHUD_CHECK_RAW=1` options.
 
 ## Maintain the Sileo source
 
@@ -106,11 +122,13 @@ Run on the phone in a shell with access to the installed tool while Google Maps 
 
 Arguments: current speed (0–400 km/h), limit (1–400 km/h), duration (1–300 seconds), and optionally two VietMap asset names with distances (0–10000 m each), as `SIGN:METERS`, for trial 0.1.14. Bare distance numbers remain accepted as camera signs. Only the Google CarPlay display model changes; GPS, navigation and real VietMap data remain unchanged. By default, TEST remains visible until `off` or expiry. Missing live values remain missing after testing.
 
-## Diagnostics · 0.1.15
+## Diagnostics
 
 After installing, close and reopen both Google Maps and VietMap Live. Reproduce the issue, then open **Settings → GMapHUD → Chẩn đoán / Xuất log**. Tap **Làm mới** (Refresh), then **Sao chép báo cáo** (Copy report) or **Xuất file…** (Export file) to share a `.txt` report. Review the visible report first; nothing is uploaded automatically.
 
-The report includes hardware model (no serial number), OS, app versions observed by the modules, hook/channel status, sample freshness and CarPlay rendering checkpoints. It retains up to 16 recent checkpoints per app plus the last checkpoint for each stage. It excludes coordinates, routes, accounts and arbitrary app log text. This is bounded diagnostic telemetry, not a full system log. Notification state may disappear when processes or the notification service restart; collect it while reproducing the issue. App versions may be unavailable if a module never loaded. Add the jailbreak version and split-screen tweak name manually when requesting support.
+The summary includes hardware model (no serial number), OS, hook/channel status, sample freshness and CarPlay rendering checkpoints. It retains up to 16 recent checkpoints per app plus the last checkpoint for each stage. The summary excludes coordinates, routes and accounts. Notification state may disappear when processes or the notification service restart; collect it while reproducing the issue. Add the jailbreak version and split-screen tweak name manually when requesting support.
+
+Version 0.1.21 also reads installed Google Maps and VietMap Live version and build metadata independently of module checkpoints. Unsupported metadata access is reported as unavailable. Refresh lists up to three readable related `.ips`/`.crash` files from the last seven days (at most 2 MB each); exporting can include these original files beside the summary. Disable **Đính kèm crash liên quan** to export only the summary. Crash files can contain device/app identifiers or other personal information; inspect attachments before sharing. Inaccessible or missing crash logs are reported explicitly, not treated as proof that no crash occurred.
 
 0.1.15 has passed host tests, built for arm64/arm64e, and installed on iPhone 11. Clipboard/sharing and cross-app diagnostic transport still need device validation; this release adds diagnostics, not a confirmed fix for missing data on iOS 16.
 

@@ -62,6 +62,11 @@ NSUInteger GVMVietMapKindForImage(NSData *image) {
     CC_SHA256(image.bytes,(CC_LONG)image.length,digest);
     NSMutableString *hash=[NSMutableString stringWithCapacity:64];
     for (NSUInteger i=0;i<sizeof(digest);i++) [hash appendFormat:@"%02x",digest[i]];
+    return GVMVietMapKindForImageDigest(hash);
+}
+// Upstream recognition digests stay independent of replaceable display artwork.
+NSUInteger GVMVietMapKindForImageDigest(NSString *hash) {
+    if (![hash isKindOfClass:NSString.class] || hash.length!=64) return 0;
     for (NSUInteger i=0;i<sizeof(assets)/sizeof(assets[0]);i++)
         if ([hash isEqualToString:assets[i].hash]) return i+1;
     return 0;
