@@ -30,7 +30,8 @@ void GVMRefreshPhoneOverlay(void) {
     UIView *host=ForegroundHost();
     if (phoneHost!=host) { GVMRemovePhoneSpeedCard(phoneHost); phoneHost=host; }
     if (!host) {
-        if (backgroundToken>=0 && lastHeartbeat>=0) notify_set_state(backgroundToken,0);
+        // Let the heartbeat expire instead of clearing it, so a brief banner, Control Center
+        // or app switch does not end the source session while the phone map is in use.
         lastHeartbeat=-1;
         return;
     }
@@ -51,7 +52,6 @@ __attribute__((constructor)) static void StartPhone(void) {
         notify_register_check(GVM_BACKGROUND_PHONE_SIGNAL,&backgroundToken);
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(__unused NSNotification *note) {
             GVMRemovePhoneSpeedCard(phoneHost); phoneHost=nil;
-            if (backgroundToken>=0) notify_set_state(backgroundToken,0);
             lastHeartbeat=-1;
         }];
     });

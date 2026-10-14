@@ -21,7 +21,7 @@ static BOOL lastEnabled;
 static NSString *providerID;
 static NSUInteger managedSource;
 static id carplayStatus;
-static BOOL wasConnected, exitCompleted;
+static BOOL wasConnected, exitCompleted, exitDeferred;
 static double disconnectedAt;
 static pid_t managedPID;
 static NSString *BundleForSource(NSUInteger source) {
@@ -178,6 +178,10 @@ static void Tick(void) {
     }
     BOOL connected=carplayStatus && Matches(carplayStatus,@"currentSession","@",@[]) &&
         ((id (*)(id,SEL))objc_msgSend)(carplayStatus,NSSelectorFromString(@"currentSession"))!=nil;
+    uint64_t heartbeat=0,phoneHeartbeat=0;
+    if (heartbeatToken>=0) notify_get_state(heartbeatToken,&heartbeat);
+    if (phoneToken>=0) notify_get_state(phoneToken,&phoneHeartbeat);
+    BOOL phoneVisible=GVMBackgroundActive(now,phoneHeartbeat);
     if (connected) { disconnectedAt=0; exitCompleted=NO; }
     else if (wasConnected) {
         disconnectedAt=now;
@@ -186,6 +190,13 @@ static void Tick(void) {
     wasConnected=connected;
     BOOL autoExit=BooleanPreference(CFSTR("autoExit"));
     if (!autoExit) { disconnectedAt=0; exitCompleted=NO; }
+    // Google Maps visible on the iPhone is still in use: restart the exit countdown from when
+    // it is hidden, and let it wake a source that auto-exit already closed.
+    if (phoneVisible && (disconnectedAt>0 || exitCompleted)) {
+        if (!exitDeferred) Record(@"iPhone Google Maps visible; CarPlay exit deferred");
+        exitDeferred=YES; exitCompleted=NO;
+        if (disconnectedAt>0) disconnectedAt=now;
+    } else exitDeferred=NO;
     if (connected && autoExit && providerID && Matches(service,@"pidForApplication:","i",@[@"@"]))
         managedPID=((pid_t (*)(id,SEL,id))objc_msgSend)(service,NSSelectorFromString(@"pidForApplication:"),providerID);
     if (autoExit && !connected && GVMBackgroundDisconnectDue(now,disconnectedAt)) {
@@ -200,14 +211,10 @@ static void Tick(void) {
         Record([NSString stringWithFormat:@"automatic wake enabled=%d source=%lu permission=%ld",enabled,(unsigned long)selected,(long)permission]);
         lastEnabled=enabled; lastPermission=permission;
     }
-    uint64_t heartbeat=0,phoneHeartbeat=0;
-    if (heartbeatToken>=0) notify_get_state(heartbeatToken,&heartbeat);
-    if (phoneToken>=0) notify_get_state(phoneToken,&phoneHeartbeat);
-    // CarPlay connection is distinct from a visible-map heartbeat. Phone display works when
-    // no disconnect countdown is pending; it cannot re-wake a just-closed CarPlay source.
+    // CarPlay connection is distinct from a visible-map heartbeat.
     BOOL hostActive=GVMBackgroundAnyHostActive(now,connected ? heartbeat : 0,phoneHeartbeat);
     BOOL active=enabled && allowed && providerID && hostActive &&
-        !(autoExit && !connected && (disconnectedAt>0 || exitCompleted));
+        !GVMBackgroundExitHolds(autoExit,connected,phoneVisible,disconnectedAt,exitCompleted);
     if (!active || !Matches(service,@"pidForApplication:","i",@[@"@"])) { ClearLease(); return; }
     pid_t clientPID=((pid_t (*)(id,SEL,id))objc_msgSend)(service,NSSelectorFromString(@"pidForApplication:"),@"com.google.Maps");
     if (clientPID<=0) { ClearLease(); return; }

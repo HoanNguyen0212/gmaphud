@@ -204,7 +204,7 @@ static BOOL GVMStorePlacement(NSString *key,id value) {
     [items addObject:GVMGroup(@"Nguồn cảnh báo",@"Chỉ nhận dữ liệu từ một nguồn.")];
     self.sourceSpecifier=GVMMenu(@"Nguồn",self,@"sourceID",@[@1,@3,@2],@[@"VietMap Live",@"GOFA",@"Waze"],@1);
     [items addObject:self.sourceSpecifier];
-    [items addObject:GVMGroup(@"Tự động hóa",@"Đánh thức nguồn đã chọn khi Google Maps hiển thị. Tự thoát sau 20 giây ngắt CarPlay; kết nối lại sẽ hủy đếm giờ.")];
+    [items addObject:GVMGroup(@"Tự động hóa",@"Đánh thức nguồn đã chọn khi Google Maps hiển thị. Tự thoát sau 20 giây ngắt CarPlay; kết nối lại hoặc mở Google Maps trên iPhone sẽ hủy đếm giờ.")];
     for (NSArray *option in @[@[@"Đánh thức nguồn đã chọn",@"autoWake"],@[@"Thoát nguồn khi ngắt CarPlay",@"autoExit"]]) {
         PSSpecifier *toggle=[PSSpecifier preferenceSpecifierNamed:option[0] target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSSwitchCell edit:Nil];
         [toggle setProperty:option[1] forKey:@"key"]; [toggle setProperty:@NO forKey:@"default"]; [items addObject:toggle];

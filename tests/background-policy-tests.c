@@ -9,6 +9,14 @@ int main(void) {
     assert(!GVMBackgroundDisconnectDue(99,100));
     assert(!GVMBackgroundDisconnectDue(NAN,100));
     assert(!GVMBackgroundDisconnectDue(120,NAN));
+    // Auto-exit holds only while neither CarPlay nor the iPhone map is in use.
+    assert(GVMBackgroundExitHolds(true,false,false,100,false));
+    assert(GVMBackgroundExitHolds(true,false,false,0,true));
+    assert(!GVMBackgroundExitHolds(true,false,true,100,false));
+    assert(!GVMBackgroundExitHolds(true,false,true,0,true));
+    assert(!GVMBackgroundExitHolds(true,true,false,100,true));
+    assert(!GVMBackgroundExitHolds(false,false,false,100,true));
+    assert(!GVMBackgroundExitHolds(true,false,false,0,false));
     assert(GVMBackgroundSourceLocationActive(true,4,true,10,10000,0));
     assert(GVMBackgroundSourceLocationActive(true,3,true,10,0,10000));
     assert(!GVMBackgroundSourceLocationActive(false,4,true,10,10000,0));

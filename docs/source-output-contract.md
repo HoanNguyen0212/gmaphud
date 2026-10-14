@@ -243,8 +243,10 @@ only starts owned by the feature and restores temporary manager flags.
 The main preferences menu exposes the source as a dropdown plus `autoWake` and
 `autoExit` switches. Auto-exit observes real `CARSessionStatus` connection changes,
 waits at least 20 seconds, and terminates only the tracked PID if it still matches.
-Reconnection cancels the countdown; an exited source is not immediately restarted
-by a phone-map heartbeat. Waze cold CarPlay initialization is owned by the guarded
+Reconnection cancels the countdown. Google Maps visible on the iPhone is still in use:
+it defers the countdown until the phone map is hidden and may wake a source that
+auto-exit closed. The phone heartbeat expires after 12 seconds instead of being
+cleared on brief inactivity, so a banner or app switch does not end the session. Waze cold CarPlay initialization is owned by the guarded
 CarPlay relay, not by an output refresh. It preserves native samples and restores
 the previous display after three seconds unless the user changes apps.
 

@@ -51,6 +51,12 @@ static inline bool GVMBackgroundSourceLocationActive(bool selected, int authoriz
 static inline bool GVMBackgroundDisconnectDue(double now,double disconnectedAt) {
     return disconnectedAt>0 && isfinite(now) && isfinite(disconnectedAt) && now-disconnectedAt>=20;
 }
+// Auto-exit after a CarPlay disconnect holds the source closed only while no Google Maps is
+// visible on the iPhone; a visible phone map is still in use and may wake the source again.
+static inline bool GVMBackgroundExitHolds(bool autoExit, bool connected, bool phoneVisible,
+    double disconnectedAt, bool exitCompleted) {
+    return autoExit && !connected && !phoneVisible && (disconnectedAt>0 || exitCompleted);
+}
 
 // Cold GPS recovery is bounded and ends once a genuinely fresh sample arrives.
 static inline bool GVMBackgroundGPSRetryDue(double now, double next, unsigned attempts, bool confirmed) {
