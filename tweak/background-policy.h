@@ -51,3 +51,8 @@ static inline bool GVMBackgroundSourceLocationActive(bool selected, int authoriz
 static inline bool GVMBackgroundDisconnectDue(double now,double disconnectedAt) {
     return disconnectedAt>0 && isfinite(now) && isfinite(disconnectedAt) && now-disconnectedAt>=20;
 }
+
+// Cold GPS recovery is bounded and ends once a genuinely fresh sample arrives.
+static inline bool GVMBackgroundGPSRetryDue(double now, double next, unsigned attempts, bool confirmed) {
+    return !confirmed && isfinite(now) && isfinite(next) && next>0 && now>=next && attempts>0 && attempts<3;
+}

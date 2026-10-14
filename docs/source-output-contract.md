@@ -1,13 +1,10 @@
-> Current internal build **0.2**: only VietMap Live is enabled.
-> Waze and GOFA are disabled and labeled **Sắp hỗ trợ**. Saved selections of either
-> migrate to VietMap; their provider tweaks are omitted. Earlier trial notes below
-> describe historical experimental support, not availability in this build.
+> Release 0.2.1 enables Waze alongside VietMap (one selected source only). Waze 5.25.0 ABI/UUID guards remain; GOFA4.2.1 build3 re-enabled experimentally; cold/locked GPS measured, native current-limit snapshot verified on fresh GPS; red-light/no-right replay observed, long-idle/full alert coverage pending. Designed artwork replaces temporary Waze images. Cold mobile-only initialization supplied fresh native 0/60 to Full Map and Dashboard in device tests. Real-road speed, long-idle reliability and active alert coverage remain unverified. Published as0.2.1.
 
 # Common source output · v1
 
 Implemented in internal **0.1.20**. This is the adapter/bridge contract for both
 CarPlay and foreground Google Maps on iPhone. VietMap is the first migrated source.
-The internal Waze adapter uses the same contract. Settings currently enables only VietMap; Waze and GOFA are upcoming;
+The internal Waze adapter uses the same contract. Settings enables VietMap and experimental Waze; GOFA is experimental;
 Waze 5.25.0 support is experimental and build-sensitive.
 
 The owning definitions are [source-output.h](../common/source-output.h),
@@ -79,7 +76,7 @@ lease and existing location permission permit it.
 `GVMSelectOutputSource` persists the single ID and advances a selection epoch.
 Switching source immediately makes the old frame unreadable. Returning to a
 previous source also needs a new frame, even if its values have not changed.
-`GVMRestoreOutputSelection` restores the saved ID from SpringBoard. Settings enables only VietMap; Waze and GOFA are displayed disabled.
+`GVMRestoreOutputSelection` restores the saved ID from SpringBoard. Settings enables VietMap and Waze. GOFA is enabled experimentally; its saved selection is restored in a distinct source epoch.
 
 `GVMRequestSelectedSource` posts only the selected provider's request name, returned
 by `GVMOutputRequestName`. The running provider checks selection again and replies
@@ -166,8 +163,18 @@ limit support does not disable camera or speed data. Its build-specific semantic
 and nonzero speed still require wider device validation.
 
 The adapter publishes complete source-2 frames and answers only its request name
-without renewing timestamps. Open Waze before switching to Google Maps; auto-wake
-still only supports VietMap. Version/ABI mismatch leaves affected data unavailable.
+without renewing timestamps. Opt-in Waze wake now initializes the measured mobile
+navigation GPS path while the selected-source lease is valid, without activating
+any Waze CarPlay scene or changing authorization. Native start/stop entry points
+are guarded by executable UUID and instruction bytes. Lease-owned GPS is stopped
+through Waze's matching native stop path; genuine Waze foreground use takes ownership.
+Only the navigation manager is forced to run, not the significant-change monitor.
+The activity session precedes cold GPS start. A cached-only cold start can retry
+its lease-owned GPS twice, after30s then60s; a fresh post-start speed sample
+ends retries. The next lease receives a fresh retry budget. No sample timestamp
+is renewed by recovery. A locked-device real-GPS run delivered fresh data for
+more than one minute; long-idle/driving coverage remains experimental.
+Version/ABI mismatch leaves affected data unavailable.
 Foreground and new background red-light activation/pass were measured on Waze
 5.25.0 using a simulated route with Google Maps CarPlay. This does not establish
 long-duration background reliability or real-road accuracy.
@@ -195,12 +202,11 @@ are rejected. Candidate coordinates and identities stay in the GOFA process.
 [The source](../tweak/gofa-source.m) converts GOFA GPS input from m/s to km/h,
 using the original date and rejecting duplicate, reordered, future and stale
 samples. It excludes GOFA's own displayed-speed adjustment. Current limit comes
-from `currentAllowSpeed`. Distances use `CLLocation.distanceFromLocation`, the same
+from the measured live `GOFA.HomeViewModel.currentSpeedBoard` (Swift.Int), with the native notification `currentAllowSpeed` fallback when no owner exists. A weak owner is retained only for lookup; each fresh GPS observation reads the current property. Unknown/zero native state clears the limit, and stale GPS cannot renew it. Distances use `CLLocation.distanceFromLocation`, the same
 operation verified in GOFA's native `DatapointModel.distanceToLocation`.
 Alerts require fresh GPS and fresh candidate membership; polling/movement never
 renew an old candidate list. Native removal, empty lists, very close points and
-five-second expiration clear warnings. Low native event cadence can temporarily
-leave scalars unavailable; no cached-limit fallback is applied.
+five-second expiration clear warnings. GOFA remembers identities reached within the existing5m exclusion while their fresh native membership persists; crossing to a larger distance cannot resurrect the same point. Removal/expiry releases suppression, and another approach can be observed. Native current-state reads prevent unchanged limits disappearing between notifications. No cached-notification timestamp extension is applied. Warning membership keeps its original receive time.
 
 Sixteen existing semantics have enum-backed mappings: camera speed/traffic/red-light/AI,
 residential start/end, toll, no-passing start/end, rest area and six turn restrictions.
@@ -238,12 +244,8 @@ by a phone-map heartbeat. Waze cold CarPlay initialization is owned by the guard
 CarPlay relay, not by an output refresh. It preserves native samples and restores
 the previous display after three seconds unless the user changes apps.
 
-## Upcoming source availability gate
+## Trial source availability gate
 
-`GVMSourceEnabled` permits only source1 in the current product. Wire
-validation and Waze adapter tests keep ID2 stable; availability is separate from
-schema validity. Selection, publication, reader and refresh-request boundaries
-reject Waze and GOFA. Saved source2/source3 migrate to VietMap through a new selection epoch.
-The current package omits WazeGMapHUDSource, GofaGMapHUDSource and the CarPlay bootstrap companion;
-source files remain for future investigation. To re-enable, the availability
-policy, package composition and experimental tests require deliberate review.
+`GVMSourceEnabled` permits VietMap (1) and Waze (2) in trial 0.2.1. GOFA (3) remains unavailable; saved GOFA selection migrates to VietMap through a new selection epoch. Only the selected source may publish or respond to refresh requests.
+
+The package includes WazeGMapHUDSource but omits GOFA and the CarPlay bootstrap companion. Waze uses the SpringBoard suspended mobile launch and selected-source background location session. No provider requests a native Waze CarPlay scene. Cold-start data and Dashboard ownership must be verified on device after this change.

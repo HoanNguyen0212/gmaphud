@@ -2,7 +2,7 @@
 
 **English** · [Tiếng Việt](README.vi.md)
 
-Experimental rootful/rootless iOS tweak that displays fresh **VietMap Live speed and speed-limit data in Google Maps on CarPlay and iPhone**. Inspired by the traffic bubble feature in DuoDash and TrueDash. Google Maps continues to handle navigation.
+Rootful/rootless iOS tweak that displays **speed, limits and road alerts from VietMap Live, Waze or GOFA in Google Maps on CarPlay and iPhone**. Inspired by the traffic bubble feature in DuoDash and TrueDash. Google Maps continues to handle navigation.
 
 **Author: chou · AI-assisted with Codex.** chou leads, tests and publishes this independent community project; Codex provided AI development assistance. This credit does not imply that OpenAI is the publisher, copyright holder, maintainer or support provider. Not affiliated with or endorsed by VietMap, Google, Apple or OpenAI.
 
@@ -10,7 +10,7 @@ Experimental rootful/rootless iOS tweak that displays fresh **VietMap Live speed
 
 ## Warning sources
 
-**VietMap Live** is currently supported. **Waze** and **GOFA** are marked “Coming soon” and cannot be selected. Only one source is used at a time.
+Select **VietMap Live**, **Waze** or **GOFA**. Only one source is used at a time. Waze targets5.25.0; GOFA targets4.2.1 build3.
 
 ## Bubble placement previews
 
@@ -30,7 +30,7 @@ These are the same CarPlay preview images shown in Settings. They illustrate all
 
 ## Features
 
-The horizontal CarPlay bubble places speed on the left, the limit sign on the right, and a VietMap Live label above. Dashboard uses a vertical bubble with the limit above current speed. Recognized VietMap road alerts use the corresponding bundled artwork and source distance in a shaded VietMap region: up to two side by side on full map, two stacked below speed on Dashboard. Input recognition matches observed image digests from VietMap Live 3.4.3. Bubble size adapts uniformly to the viewport and the user’s size setting. Navigation controls affect placement only, so each corner keeps the same dimensions. Full-map and Dashboard layouts are selected relative to screen width. The preview images above illustrate each supported placement.
+The bubble uses shared road-sign artwork, supports horizontal/vertical layouts and lets you reorder modules. Adjust size and placement separately for Full Map, Dashboard and iPhone. Recognized source alerts include distance and use up to two warning modules. Optional overspeed warnings illuminate the map or entire CarPlay screen.
 
 
 - Full-map speed pill and compact vertical Dashboard card; light/dark map colors.
@@ -48,7 +48,7 @@ The horizontal CarPlay bubble places speed on the left, the limit sign on the ri
 | Device / OS | iPhone 11, iOS 18.6.2, rootless jailbreak |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Package | `com.chou.googlemaps.vietmap` 0.1.20, arm64/arm64e |
+| Package | `com.chou.googlemaps.vietmap` 0.2.1, arm64/arm64e |
 
 From 0.1.13, Google Maps is not restricted by version or executable UUID. Required private classes and method signatures are still checked; passing these checks does not guarantee compatibility with every release. The package identifier remains unchanged. Release 0.1.20 introduces a versioned production notification namespace; bounded display-test channels retain their original names.
 
@@ -137,7 +137,7 @@ For unedited Settings screenshots, append `--photo` to hide the badge for that b
 
 After installation, respring once to load the SpringBoard component. In iOS Settings, enable Location Services and grant VietMap Live **When In Use** or **Always** location access, then enable **Settings → GMapHUD → Tự đánh thức VietMap Live**. The switch defaults to off and stays disabled until these conditions are confirmed. It refreshes while the page is visible. Revoking permission or disabling Location Services turns the feature off; restoring permission does not automatically turn it on again.
 
-While Google Maps is visible on CarPlay or iPhone, GMapHUD can launch VietMap in the background and keep it active without bringing it to the foreground. Enable alerts in VietMap first; the tweak cannot sign in, activate a subscription or guarantee fresh data. Relaunch attempts are bounded to avoid a restart loop. Leaving Google Maps on both screens releases the added background session after the heartbeat expires; VietMap retains its real location permission. Private system APIs can vary by iOS version; if unavailable, automatic wake remains disabled. Runtime wake was tested on iPhone 11/iOS 18.6.2; the new switch gating has host/build validation, not complete on-device permission-transition validation on every supported OS. Rootful/iOS 14 behavior remains unverified. Automatic wake currently applies only to VietMap Live.
+While Google Maps is visible on CarPlay or iPhone, GMapHUD can launch VietMap in the background and keep it active without bringing it to the foreground. Enable alerts in VietMap first; the tweak cannot sign in, activate a subscription or guarantee fresh data. Relaunch attempts are bounded to avoid a restart loop. Leaving Google Maps on both screens releases the added background session after the heartbeat expires; VietMap retains its real location permission. Private system APIs can vary by iOS version; if unavailable, automatic wake remains disabled. Runtime wake was tested on iPhone 11/iOS 18.6.2; the new switch gating has host/build validation, not complete on-device permission-transition validation on every supported OS. Rootful/iOS 14 behavior remains unverified. Automatic wake applies to the selected VietMap Live, Waze or GOFA source.
 
 Background state is recorded locally in `/var/mobile/Library/Logs/gmaphud-background.log` (bounded, no coordinates). Google Maps can request a fresh retransmission from the running source; cached values retain their original timestamps and expire normally.
 

@@ -57,5 +57,14 @@ int main(void) {
     assert(!GVMBackgroundPermissionAllowed(100,0));
     assert(!GVMBackgroundPermissionAllowed(NAN,201));
     assert(GVMBackgroundPermissionState(NAN,true)==0);
+    assert(!GVMBackgroundGPSRetryDue(29,30,1,false));
+    assert(GVMBackgroundGPSRetryDue(30,30,1,false));
+    assert(GVMBackgroundGPSRetryDue(90,90,2,false));
+    assert(!GVMBackgroundGPSRetryDue(200,90,3,false));
+    assert(!GVMBackgroundGPSRetryDue(30,30,1,true));
+    assert(!GVMBackgroundGPSRetryDue(NAN,30,1,false));
+    assert(!GVMBackgroundGPSRetryDue(30,NAN,1,false));
+    assert(!GVMBackgroundGPSRetryDue(30,0,1,false));
+    assert(!GVMBackgroundGPSRetryDue(30,30,0,false));
     puts("background policy tests passed");
 }

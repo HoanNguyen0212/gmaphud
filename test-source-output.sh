@@ -27,3 +27,5 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   "$source_dir/common/alert-state.m" "$source_dir/provider/waze-output.m" \
   "$source_dir/tests/waze-output-tests.m" -o "$test_dir/waze-output"
 "$test_dir/waze-output"
+xcrun clang -Wall -Wextra -Werror "$source_dir/tests/gofa-alert-policy-tests.c" -o "$test_dir/gofa-alert-policy"
+"$test_dir/gofa-alert-policy"

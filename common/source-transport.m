@@ -44,7 +44,7 @@ static BOOL Selection(uint64_t *state) {
     return Read(selectionToken,state);
 }
 BOOL GVMSourceEnabled(NSUInteger sourceID) {
-    return sourceID==GVMSourceVietMap;
+    return sourceID==GVMSourceVietMap || sourceID==GVMSourceWaze || sourceID==GVMSourceGofa;
 }
 static GVMOutputEndpoint *Endpoint(NSUInteger sourceID) {
     if (!GVMSourceIDValid(sourceID)) return nil;
@@ -79,7 +79,7 @@ void GVMRestoreOutputSelection(void) {
         NSUInteger sourceID=GVMSourceVietMap;
         if ([saved isKindOfClass:NSNumber.class] && CFGetTypeID((__bridge CFTypeRef)saved)!=CFBooleanGetTypeID() &&
             [saved doubleValue]==[saved unsignedIntegerValue] && GVMSourceIDValid([saved unsignedIntegerValue])) sourceID=[saved unsignedIntegerValue];
-        BOOL unavailable=sourceID==GVMSourceWaze || sourceID==GVMSourceGofa;
+        BOOL unavailable=!GVMSourceEnabled(sourceID);
         if (unavailable) sourceID=GVMSourceVietMap;
         uint64_t selected=0;
         if (Selection(&selected) && (unavailable || !selected || GVMSourceIDForSelection(selected)!=sourceID)) GVMSelectOutputSource(sourceID);

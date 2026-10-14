@@ -2,7 +2,7 @@
 
 **Tiếng Việt** · [English](README.md)
 
-Tweak thử nghiệm cho iOS jailbreak rootful/rootless, hiển thị **tốc độ hiện tại và giới hạn tốc độ từ VietMap Live trong Google Maps trên CarPlay và iPhone**. Ý tưởng từ tính năng bong bóng giao thông của DuoDash và TrueDash. Google Maps tiếp tục đảm nhiệm việc dẫn đường.
+Tweak cho iOS jailbreak rootful/rootless, hiển thị **tốc độ hiện tại và giới hạn tốc độ từ VietMap Live, Waze hoặc GOFA trong Google Maps trên CarPlay và iPhone**. Ý tưởng từ tính năng bong bóng giao thông của DuoDash và TrueDash. Google Maps tiếp tục đảm nhiệm việc dẫn đường.
 
 **Tác giả: chou · có AI hỗ trợ bằng Codex.** chou định hướng, kiểm thử và xuất bản dự án cộng đồng độc lập này; Codex hỗ trợ phát triển bằng AI. Ghi nhận này không có nghĩa OpenAI là đơn vị xuất bản, chủ sở hữu bản quyền, bên bảo trì hay cung cấp hỗ trợ. Dự án không liên kết hoặc được VietMap, Google, Apple hay OpenAI bảo trợ.
 
@@ -10,7 +10,7 @@ Tweak thử nghiệm cho iOS jailbreak rootful/rootless, hiển thị **tốc đ
 
 ## Nguồn cảnh báo
 
-Hiện hỗ trợ **VietMap Live**. **Waze** và **GOFA** hiển thị “Sắp hỗ trợ” và chưa chọn được. Chỉ dùng một nguồn tại một thời điểm.
+Chọn **VietMap Live**, **Waze** hoặc **GOFA**; mỗi lần chỉ dùng một nguồn. Waze5.25.0; GOFA4.2.1 build3.
 
 ## Ảnh xem trước vị trí bong bóng
 
@@ -30,9 +30,9 @@ Hiện hỗ trợ **VietMap Live**. **Waze** và **GOFA** hiển thị “Sắp 
 
 ## Tính năng
 
-Bubble CarPlay ngang có tốc độ bên trái, biển giới hạn bên phải và nhãn VietMap Live phía trên; Dashboard dùng bubble dọc với giới hạn trên, tốc độ dưới. Cảnh báo đường dùng ảnh tương ứng trong gói và khoảng cách nguồn trong vùng VietMap riêng: tối đa hai biểu tượng cạnh nhau trên bản đồ đầy đủ, hai biểu tượng xếp dọc dưới tốc độ trong Dashboard. Nhận diện đầu vào đối chiếu mã băm ảnh đã quan sát từ VietMap Live 3.4.3. Bubble co giãn đồng đều theo khung bản đồ và mức kích cỡ đã chọn. Bảng dẫn đường chỉ ảnh hưởng vị trí, không làm kích thước khác nhau giữa các góc. Bố cục full map/Dashboard được chọn theo tỉ lệ chiều rộng màn hình. Ảnh phía trên minh họa đủ các vị trí được hỗ trợ.
+Bong bóng dùng chung bộ icon biển báo, cho chọn bố cục ngang/dọc và kéo đổi thứ tự các module. Chỉnh kích cỡ và vị trí riêng cho Bản đồ đầy đủ, Dashboard và iPhone. Tối đa hai cảnh báo đường kèm khoảng cách; cảnh báo vượt tốc có thể hiển thị quanh bản đồ hoặc toàn màn hình CarPlay.
 
-Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đồ đầy đủ và cạnh trái hoặc phải cho Dashboard. Ảnh phía trên minh họa từng lựa chọn. Mặc định cả hai ở phía trên bên phải. Nguồn hiện tại là VietMap Live; Waze và GOFA chưa khả dụng. Vị trí mới áp dụng khi Google Maps CarPlay đang mở; phần relay trong SpringBoard khôi phục lựa chọn đã lưu sau khi giao diện máy nạp lại.
+Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đồ đầy đủ và cạnh trái hoặc phải cho Dashboard. Ảnh phía trên minh họa từng lựa chọn. Mặc định cả hai ở phía trên bên phải. Chọn một nguồn VietMap Live, Waze hoặc GOFA. Vị trí mới áp dụng khi Google Maps CarPlay đang mở; phần relay trong SpringBoard khôi phục lựa chọn đã lưu sau khi giao diện máy nạp lại.
 
 - Bảng tốc độ trên bản đồ đầy đủ và thẻ dọc nhỏ gọn trong Dashboard; hỗ trợ màu bản đồ sáng/tối.
 - Tốc độ hiện tại luôn có vị trí hiển thị, hiện `--` khi không có dữ liệu. Giới hạn chưa có dữ liệu được biểu diễn bằng biển nét đứt.
@@ -49,7 +49,7 @@ Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đ
 | Thiết bị / hệ điều hành | iPhone 11, iOS 18.6.2, jailbreak rootless |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Gói | `com.chou.googlemaps.vietmap` 0.1.20, arm64/arm64e |
+| Gói | `com.chou.googlemaps.vietmap` 0.2.1, arm64/arm64e |
 
 Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói giữ nguyên. Từ 0.1.20, tweak dùng kênh thông báo dữ liệu thật có phiên bản mới; kênh thử hiển thị có thời hạn vẫn giữ tên cũ.
 

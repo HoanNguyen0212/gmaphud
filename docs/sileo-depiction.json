@@ -13,7 +13,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps trên CarPlay và iPhone. Google Maps tiếp tục đảm nhiệm việc dẫn đường."
+          "markdown": "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live, Waze hoặc GOFA trong Google Maps trên CarPlay và iPhone. Google Maps tiếp tục đảm nhiệm việc dẫn đường."
         },
         {
           "class": "DepictionSubheaderView",
@@ -156,6 +156,14 @@
         {
           "class": "DepictionHeaderView",
           "title": "Nhật ký thay đổi / Change log"
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.2.1"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Thêm nguồn cảnh báo Waze và GOFA, bổ sung bộ icon cảnh báo. Cải thiện chạy nền và độ ổn định tốc độ, giới hạn và cảnh báo đường.\n\n**English:** Adds Waze and GOFA warning sources and new warning icons. Improves background operation and stability of speed, limits and road alerts."
         },
         {
           "class": "DepictionSubheaderView",

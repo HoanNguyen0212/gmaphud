@@ -52,7 +52,7 @@ def build_sileo_depiction():
             "tab": "Tiếng Việt",
             "title": "GMapHUD trên CarPlay và iPhone",
             "intro": (
-                "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps trên CarPlay và iPhone. "
+                "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live, Waze hoặc GOFA trong Google Maps trên CarPlay và iPhone. "
                 "Google Maps tiếp tục đảm nhiệm việc dẫn đường."
             ),
             "screenshots": "Vị trí bong bóng · ảnh xem trước trong Cài đặt",
@@ -105,6 +105,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.2.1", "Thêm nguồn cảnh báo Waze và GOFA, bổ sung bộ icon cảnh báo. Cải thiện chạy nền và độ ổn định tốc độ, giới hạn và cảnh báo đường.",
+         "Adds Waze and GOFA warning sources and new warning icons. Improves background operation and stability of speed, limits and road alerts."),
         ("0.2", "Làm gọn Cài đặt, thêm kéo thả và xem trước bố cục. Bổ sung tùy chọn thoát nguồn khi ngắt CarPlay; sửa cảnh báo vượt tốc chặn thao tác. Hiện hỗ trợ VietMap Live.",
          "Simplifies Settings with drag ordering and layout previews. Adds optional source exit after CarPlay disconnect and fixes overspeed warnings blocking controls. VietMap Live is currently supported."),
         ("0.1.22", "Cập nhật bộ icon biển báo; đồng bộ font số trên biển giới hạn tốc độ chính.",
@@ -230,7 +232,7 @@ def main():
         encoding="utf-8",
     )
     release = (
-        "Origin: GMapHUD\nLabel: GMapHUD\nSuite: experimental\nCodename: gmaphud\n"
+        "Origin: GMapHUD\nLabel: GMapHUD\nSuite: stable\nCodename: gmaphud\n"
         "Version: 1\nArchitectures: iphoneos-arm iphoneos-arm64\nComponents: main\n"
         "Description: Experimental VietMap speed integration for Google Maps CarPlay\n"
         f"Date: {format_datetime(datetime.now(timezone.utc), usegmt=True)}\n"

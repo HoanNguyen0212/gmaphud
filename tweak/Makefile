@@ -7,7 +7,7 @@ endif
 TARGET = iphone:clang:16.5:14.0
 ARCHS = arm64 arm64e
 include $(THEOS)/makefiles/common.mk
-TWEAK_NAME = VietMapGoogleMapsSource GoogleMapsVietMap GMapHUDPlacementRelay GMapHUDOverspeedScreen
+TWEAK_NAME = VietMapGoogleMapsSource GoogleMapsVietMap GMapHUDPlacementRelay GMapHUDOverspeedScreen WazeGMapHUDSource GofaGMapHUDSource
 VietMapGoogleMapsSource_FILES = source-output.m source-transport.m vietmap-output.m diagnostics.m background-location.m vietmap-source.x nav-source.m nav-payload.m speed-state.m alert-state.m vietmap-alert-assets.m
 VietMapGoogleMapsSource_CFLAGS = -fobjc-arc -DVM_GOOGLE_MAPS_RELAY=1
 VietMapGoogleMapsSource_FRAMEWORKS = UIKit Foundation CoreLocation
@@ -22,7 +22,7 @@ GMapHUDPlacementRelay_LIBRARIES = substrate
 GMapHUDOverspeedScreen_FILES = overspeed-screen.m overspeed-frame.m placement-state.m
 GMapHUDOverspeedScreen_CFLAGS = -fobjc-arc -Wall -Wextra
 GMapHUDOverspeedScreen_FRAMEWORKS = UIKit Foundation QuartzCore
-WazeGMapHUDSource_FILES = background-location.m waze-source.m waze-output.m source-output.m source-transport.m speed-state.m alert-state.m
+WazeGMapHUDSource_FILES = background-location.m waze-source.m waze-startup.m waze-output.m source-output.m source-transport.m speed-state.m alert-state.m
 WazeGMapHUDSource_CFLAGS = -DGVM_WAZE_SOURCE=1 -fobjc-arc -Wall -Wextra
 WazeGMapHUDSource_FRAMEWORKS = Foundation UIKit CoreLocation
 WazeGMapHUDSource_LIBRARIES = substrate

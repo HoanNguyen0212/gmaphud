@@ -12,6 +12,10 @@
 @property(nonatomic, weak) CLLocationManager *manager;
 @property(nonatomic) BOOL requestedBackground, requestedPause, requestedIndicator;
 @property(nonatomic) BOOL running, forcedRunning, sourceGPS;
+#if GVM_GOFA_SOURCE
+@property(nonatomic) CLLocationDistance requestedDistance;
+@property(nonatomic) BOOL distanceApplied;
+#endif
 @property(atomic) BOOL applied;
 @property(nonatomic) NSUInteger callbacks;
 @property(nonatomic) double lastLog;
@@ -19,6 +23,18 @@
 @implementation GVMLocationSession
 @end
 
+#if GVM_WAZE_SOURCE
+extern BOOL GVMInitializeWazeNavigation(CLLocationManager *authorizedManager);
+extern BOOL GVMWazeNavigationInitializing(void);
+extern BOOL GVMWazeOwnsNavigation(CLLocationManager *manager);
+extern BOOL GVMStopWazeNavigation(CLLocationManager *manager);
+extern void GVMWazeTransferNavigation(void);
+static void (*originalHeadingStart)(id,SEL);
+static void HeadingStart(id manager,SEL selector) {
+    // The lease only needs navigation GPS; do not acquire an untracked compass stream.
+    if (!GVMWazeNavigationInitializing()) originalHeadingStart(manager,selector);
+}
+#endif
 static NSHashTable<CLLocationManager *> *managers;
 static NSMutableSet<NSString *> *delegateClasses;
 static int sessionToken=-1;
@@ -30,6 +46,9 @@ static const void *sessionKey=&sessionKey;
 static void (*originalStart)(id,SEL), (*originalStop)(id,SEL);
 static void (*originalBackground)(id,SEL,BOOL), (*originalPause)(id,SEL,BOOL), (*originalIndicator)(id,SEL,BOOL);
 static void (*originalDelegate)(id,SEL,id);
+#if GVM_GOFA_SOURCE
+static void (*originalDistance)(id,SEL,CLLocationDistance);
+#endif
 
 static void Record(NSString *message) {
     NSString *path=[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-location-session.log"];
@@ -108,6 +127,9 @@ static GVMLocationSession *Session(CLLocationManager *manager) {
         session.requestedBackground=manager.allowsBackgroundLocationUpdates;
         session.requestedPause=manager.pausesLocationUpdatesAutomatically;
         session.requestedIndicator=manager.showsBackgroundLocationIndicator;
+#if GVM_GOFA_SOURCE
+        session.requestedDistance=manager.distanceFilter;
+#endif
         objc_setAssociatedObject(manager,sessionKey,session,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [managers addObject:manager];
     }
@@ -135,60 +157,63 @@ static BOOL Active(CLLocationManager *manager) {
 static void Apply(GVMLocationSession *session,BOOL active) {
     CLLocationManager *manager=session.manager;
     active=active && (session.running || session.forcedRunning);
-    if (!manager || session.applied==active) return;
+    if (!manager) return;
+#if GVM_GOFA_SOURCE
+    BOOL continuous=active && session.sourceGPS;
+    if (session.distanceApplied!=continuous) {
+        // GOFA may synchronously publish when this property changes; commit before callbacks.
+        session.distanceApplied=continuous;
+        originalDistance(manager,@selector(setDistanceFilter:),continuous ? kCLDistanceFilterNone : session.requestedDistance);
+        Record([NSString stringWithFormat:@"GOFA distance filter lease=%d requested=%.1f",continuous,session.requestedDistance]);
+    }
+#endif
+    if (session.applied==active) return;
     originalBackground(manager,@selector(setAllowsBackgroundLocationUpdates:),active ? YES : session.requestedBackground);
     originalPause(manager,@selector(setPausesLocationUpdatesAutomatically:),active ? NO : session.requestedPause);
     originalIndicator(manager,@selector(setShowsBackgroundLocationIndicator:),active ? YES : session.requestedIndicator);
     session.applied=active;
-    Record([NSString stringWithFormat:@"location configuration active=%d running=%d app=%ld permission=%d",active,session.running,(long)UIApplication.sharedApplication.applicationState,manager.authorizationStatus]);
+    Record([NSString stringWithFormat:@"location configuration active=%d running=%d app=%ld permission=%d distanceFilter=%.1f desiredAccuracy=%.1f background=%d paused=%d",active,session.running,(long)UIApplication.sharedApplication.applicationState,manager.authorizationStatus,manager.distanceFilter,manager.desiredAccuracy,manager.allowsBackgroundLocationUpdates,manager.pausesLocationUpdatesAutomatically]);
 }
-#if GVM_WAZE_SOURCE
-static BOOL carplayBootstrapAttempted, carplayBootstrapScheduled;
-static double sourceProcessStarted;
-static void BootstrapCarPlay(CLLocationManager *manager) {
-    if (carplayBootstrapAttempted || carplayBootstrapScheduled || !Active(manager)) return;
-    uint64_t carplay=0; int token=-1;
-    if (notify_register_check(GVM_BACKGROUND_SIGNAL,&token)==NOTIFY_STATUS_OK) {
-        notify_get_state(token,&carplay); notify_cancel(token);
-    }
-    if (!GVMBackgroundActive(NSProcessInfo.processInfo.systemUptime,carplay)) return;
-    carplayBootstrapScheduled=YES;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,2*NSEC_PER_SEC),dispatch_get_main_queue(), ^{
-        carplayBootstrapScheduled=NO;
-        if (!Active(manager)) return;
-        NSDictionary *output=GVMReadSourceOutput(NSProcessInfo.processInfo.systemUptime);
-        BOOL warm=[output[@"speed"][@"receivedAt"] doubleValue]>=sourceProcessStarted ||
-            [output[@"speedLimit"][@"receivedAt"] doubleValue]>=sourceProcessStarted;
-        carplayBootstrapAttempted=YES;
-        if (warm) { Record(@"native source GPS already fresh; scene initialization skipped"); return; }
-        int request=-1;
-        if (notify_register_check(GVM_BACKGROUND_BOOTSTRAP_CARPLAY,&request)==NOTIFY_STATUS_OK) {
-            uint64_t state=((uint64_t)(NSProcessInfo.processInfo.systemUptime*1000)<<3)|GVMSourceWaze;
-            notify_set_state(request,state); notify_post(GVM_BACKGROUND_BOOTSTRAP_CARPLAY); notify_cancel(request);
-            Record(@"native CarPlay source initialization requested");
-        }
-    });
-}
-#endif
 void GVMRefreshLocationSession(void) {
     if (!NSThread.isMainThread) return;
+#if GVM_WAZE_SOURCE
+    if (GVMWazeNavigationInitializing()) return;
+    for (CLLocationManager *candidate in managers.allObjects) {
+        if (UIApplication.sharedApplication.applicationState==UIApplicationStateActive && GVMWazeOwnsNavigation(candidate)) {
+            Session(candidate).running=YES; Session(candidate).forcedRunning=NO;
+            GVMWazeTransferNavigation();
+        }
+    }
+    for (CLLocationManager *candidate in managers.allObjects) {
+        if (Active(candidate)) {
+            if (GVMInitializeWazeNavigation(candidate)) Record(@"navigation GPS initialized by selected-source lease");
+            break;
+        }
+    }
+#endif
     BOOL desired=NO;
     for (CLLocationManager *manager in managers.allObjects) {
         GVMLocationSession *session=Session(manager);
         BOOL active=Active(manager);
-#if GVM_WAZE_SOURCE
-        if (active && session.sourceGPS) BootstrapCarPlay(manager);
-#endif
         // A native cold background launch may construct its GPS delegate without starting
         // updates. The explicit wake lease owns only this measured source GPS manager.
         if (active && session.sourceGPS && !session.running && !session.forcedRunning) {
             session.forcedRunning=YES;
             Apply(session,YES);
+#if GVM_GOFA_SOURCE
+            // As with Waze, establish the authorized activity before cold background GPS.
+            RefreshBackgroundActivity(YES);
+#endif
             originalStart(manager,@selector(startUpdatingLocation));
             Record(@"selected source GPS started by wake lease");
         } else if (!active && session.forcedRunning) {
             session.forcedRunning=NO;
-            if (!session.running) originalStop(manager,@selector(stopUpdatingLocation));
+            if (!session.running) {
+#if GVM_WAZE_SOURCE
+                if (!GVMStopWazeNavigation(manager))
+#endif
+                originalStop(manager,@selector(stopUpdatingLocation));
+            }
             Record(@"wake-owned source GPS released");
         }
         active=active && (session.running || session.forcedRunning);
@@ -248,7 +273,12 @@ static void SetDelegate(CLLocationManager *manager,SEL selector,id delegate) {
 #if GVM_GOFA_SOURCE
         BOOL primary=[name isEqual:@"GOFA.GofaLocationManager"];
 #elif GVM_WAZE_SOURCE
-        BOOL primary=[name isEqual:@"WazeLocationManager"];
+        // Waze also creates a significant-change manager; it is not navigation GPS.
+        Ivar original=class_getInstanceVariable(object_getClass(current),"_originalDelegate");
+        id receiver=original && ivar_getTypeEncoding(original)[0]=='@' ? object_getIvar(current,original) : nil;
+        NSString *receiverName=receiver ? NSStringFromClass(object_getClass(receiver)) : @"";
+        BOOL primary=[name isEqual:@"WazeLocationManager"] &&
+            ([receiverName isEqual:@"LocationManagerRecorder"] || [receiverName isEqual:@"LocationController"]);
 #else
         BOOL primary=NO;
 #endif
@@ -259,10 +289,19 @@ static void SetDelegate(CLLocationManager *manager,SEL selector,id delegate) {
 static void Start(CLLocationManager *manager,SEL selector) {
     if (NSThread.isMainThread) {
         GVMLocationSession *session=Session(manager);
-        BOOL newlyRunning=!session.running; session.running=YES; session.forcedRunning=NO;
+        BOOL newlyRunning=!session.running;
+#if GVM_WAZE_SOURCE
+        if (GVMWazeNavigationInitializing()) { session.forcedRunning=YES; session.sourceGPS=YES; }
+        else
+#endif
+        { session.running=YES; session.forcedRunning=NO; }
         ObserveDelegate(manager.delegate); Apply(session,Active(manager));
         if (newlyRunning) Record(@"app requested standard GPS start");
     }
+#if GVM_WAZE_SOURCE
+    // Establish the activity session before asking Core Location for cold background GPS.
+    if (GVMWazeNavigationInitializing() && Active(manager)) RefreshBackgroundActivity(YES);
+#endif
     originalStart(manager,selector);
     // Resume promptly during launch; foreground transitions also refresh via Publish.
     GVMRefreshLocationSession();
@@ -274,6 +313,13 @@ static void Stop(CLLocationManager *manager,SEL selector) {
     }
     originalStop(manager,selector);
 }
+#if GVM_GOFA_SOURCE
+static void Distance(CLLocationManager *manager,SEL selector,CLLocationDistance value) {
+    GVMLocationSession *session=NSThread.isMainThread ? Session(manager) : nil;
+    session.requestedDistance=value;
+    originalDistance(manager,selector,session.distanceApplied ? kCLDistanceFilterNone : value);
+}
+#endif
 static void Background(CLLocationManager *manager,SEL selector,BOOL value) {
     GVMLocationSession *session=NSThread.isMainThread ? Session(manager) : nil;
     session.requestedBackground=value;
@@ -301,15 +347,18 @@ __attribute__((constructor)) static void InitializeLocationSession(void) {
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"vn.vietmap.live"]) return;
 #endif
     if (![[NSBundle.mainBundle objectForInfoDictionaryKey:@"UIBackgroundModes"] containsObject:@"location"]) return;
-#if GVM_WAZE_SOURCE
-    sourceProcessStarted=NSProcessInfo.processInfo.systemUptime;
-#endif
     managers=[NSHashTable weakObjectsHashTable]; delegateClasses=[NSMutableSet new];
     if (notify_register_check(GVM_BACKGROUND_LOCATION_SESSION,&sessionToken)!=NOTIFY_STATUS_OK ||
         notify_register_check(GVM_BACKGROUND_LOCATION_SOURCE,&sourceSessionToken)!=NOTIFY_STATUS_OK) return;
     [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(__unused NSTimer *timer) {
         GVMRefreshLocationSession();
     }];
+    #if GVM_WAZE_SOURCE
+    MSHookMessageEx(CLLocationManager.class,@selector(startUpdatingHeading),(IMP)HeadingStart,(IMP *)&originalHeadingStart);
+#endif
+#if GVM_GOFA_SOURCE
+    MSHookMessageEx(CLLocationManager.class,@selector(setDistanceFilter:),(IMP)Distance,(IMP *)&originalDistance);
+#endif
     MSHookMessageEx(CLLocationManager.class,@selector(startUpdatingLocation),(IMP)Start,(IMP *)&originalStart);
     MSHookMessageEx(CLLocationManager.class,@selector(stopUpdatingLocation),(IMP)Stop,(IMP *)&originalStop);
     MSHookMessageEx(CLLocationManager.class,@selector(setDelegate:),(IMP)SetDelegate,(IMP *)&originalDelegate);

@@ -77,7 +77,7 @@ __attribute__((constructor)) static void StartCarPlayBootstrap(void) {
                 !Matches(request,@"activateApplication:withSettings:","v",@[@"@",@"@"])) {
                 Record(@"native suspended CarPlay activation ABI unavailable"); return;
             }
-            ((void (*)(id,SEL,BOOL))objc_msgSend)(settings,NSSelectorFromString(@"setSuspended:"),NO);
+            ((void (*)(id,SEL,BOOL))objc_msgSend)(settings,NSSelectorFromString(@"setSuspended:"),YES);
             id app=((id (*)(id,SEL,id))objc_msgSend)(applications,NSSelectorFromString(@"applicationWithBundleIdentifier:"),@"com.waze.iphone");
             if (!app) return;
             id before=Matches(workspace,@"state","@",@[]) ? ((id (*)(id,SEL))objc_msgSend)(workspace,NSSelectorFromString(@"state")) : nil;
@@ -85,7 +85,7 @@ __attribute__((constructor)) static void StartCarPlayBootstrap(void) {
             @try {
                 ((void (*)(id,SEL,id,id))objc_msgSend)(request,NSSelectorFromString(@"activateApplication:withSettings:"),app,settings);
                 ((void (*)(id,SEL,id))objc_msgSend)(workspace,NSSelectorFromString(@"requestStateChange:"),request);
-                Record(@"selected Waze native CarPlay activation requested");
+                Record(@"selected Waze suspended CarPlay initialization requested");
                 if ([previous isEqual:@"com.waze.iphone"]) return;
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW,3*NSEC_PER_SEC),dispatch_get_main_queue(), ^{
                     if (GVMSelectedSourceID()!=GVMSourceWaze || dashboardWorkspace!=workspace) return;

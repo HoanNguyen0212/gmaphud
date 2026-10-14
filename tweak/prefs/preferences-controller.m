@@ -201,7 +201,7 @@ static BOOL GVMStorePlacement(NSString *key,id value) {
     PSSpecifier *master=[PSSpecifier preferenceSpecifierNamed:@"Hiển thị bong bóng" target:self
         set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSSwitchCell edit:Nil];
     [master setProperty:@"bubbleEnabled" forKey:@"key"]; [master setProperty:@YES forKey:@"default"]; [items addObject:master];
-    [items addObject:GVMGroup(@"Nguồn cảnh báo",@"Chỉ nhận dữ liệu từ một nguồn. Waze và GOFA sắp hỗ trợ.")];
+    [items addObject:GVMGroup(@"Nguồn cảnh báo",@"Chỉ nhận dữ liệu từ một nguồn.")];
     self.sourceSpecifier=GVMMenu(@"Nguồn",self,@"sourceID",@[@1,@3,@2],@[@"VietMap Live",@"GOFA",@"Waze"],@1);
     [items addObject:self.sourceSpecifier];
     [items addObject:GVMGroup(@"Tự động hóa",@"Đánh thức nguồn đã chọn khi Google Maps hiển thị. Tự thoát sau 20 giây ngắt CarPlay; kết nối lại sẽ hủy đếm giờ.")];

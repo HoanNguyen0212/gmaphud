@@ -46,3 +46,21 @@ public func gofaPayload(_ pointer: UnsafeRawPointer) -> UnsafeMutableRawPointer?
     } else { return nil }
     return Unmanaged.passRetained(result as NSDictionary).toOpaque()
 }
+
+// Observe only the current board property on measured native view models.
+@_cdecl("GVMGofaBoardState")
+public func gofaBoardState(_ pointer: UnsafeRawPointer) -> UnsafeMutableRawPointer? {
+    let model = Unmanaged<AnyObject>.fromOpaque(pointer).takeUnretainedValue()
+    let name = String(reflecting: type(of: model))
+    guard ["GOFA.HomeViewModel", "GOFA.MapViewModel", "GOFA.MapCarplayViewModel", "GOFA.NavigationMapViewModel"].contains(name) else { return nil }
+    let mirror = Mirror(reflecting: model)
+    guard let child = mirror.children.first(where: { $0.label == "currentSpeedBoard" }) else { return nil }
+    var result: [String: Any] = ["model": name, "fieldType": String(reflecting: type(of: child.value))]
+    if let value = unwrap(child.value) {
+        if let numeric = value as? Int { result["value"] = numeric }
+        else if String(reflecting: type(of: value)) == "GOFA.SpeedBoardModel" {
+            result["value"] = integer(field(value, "currentAllowSpeed")) ?? NSNull() as Any
+        }
+    }
+    return Unmanaged.passRetained(result as NSDictionary).toOpaque()
+}

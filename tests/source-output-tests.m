@@ -97,7 +97,7 @@ int main(int argc,const char **argv) { @autoreleasepool {
         Require(GVMEncodeSourceOutput(trial,100,&words),@"trial semantic encoded");
         Require([GVMDecodeSourceOutput(GVMSourceWaze,words,100)[@"alerts"][0][@"type"] unsignedIntegerValue]==type,@"trial semantic survives wire roundtrip");
         Require(GVMRoadAlertName(type).length && GVMRoadAlertIconName(type,nil).length,@"trial semantic has name and artwork");
-        // Experimental source IDs retain semantics, but their artwork is not shipped.
+        if (argc>1) Require([[NSFileManager defaultManager] fileExistsAtPath:[[NSString stringWithUTF8String:argv[1]] stringByAppendingPathComponent:GVMRoadAlertIconName(type,nil)]],@"designed Waze artwork exists for every mapped type");
     }
     NSUInteger camera=GVMVietMapKindForAssetName(@"speed_limit_camera.png"), next=GVMVietMapKindForAssetName(@"speed_limit_80.png");
     Require([GVMVietMapOutputAlert(@{@"provider":@1,@"kind":@(camera)},100)[@"type"] isEqual:@(GVMRoadAlertSpeedCamera)],@"speed camera distinct from speed limit");

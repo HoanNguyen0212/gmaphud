@@ -7,15 +7,22 @@
 #import "source-transport.h"
 #import "source-output.h"
 #import "background-location.h"
+#include "gofa-alert-policy.h"
 #include <math.h>
 extern void *GVMGofaPayload(const void *);
+extern void *GVMGofaBoardState(const void *);
 static NSMutableDictionary *samples;
+static __weak id boardOwner;
 static NSMutableDictionary *candidateGroups, *candidateTimes;
+static NSMutableSet *passedPoints;
 static CLLocation *position;
 static double positionTime=-1, lastGPSUnixTime=-1;
 static int requestToken=-1;
 static NSInteger authorization=-1;
 static BOOL backgroundLocation;
+static NSArray *PointKey(NSDictionary *point) {
+    return @[point[@"identity"],point[@"sign"],point[@"latitude"],point[@"longitude"]];
+}
 static void (*originalLocations)(id,SEL,CLLocationManager *,NSArray *);
 static NSUInteger Semantic(NSInteger sign) {
     // GOFA 4.2.1 enum reflection records and rawValue getter tables, measured in this build.
@@ -43,6 +50,14 @@ static void Publish(BOOL force) {
     GVMRefreshLocationSession();
     double now=NSProcessInfo.processInfo.systemUptime;
     NSMutableArray *alerts=NSMutableArray.array;
+    NSMutableSet *membership=NSMutableSet.set;
+    for (NSString *group in candidateGroups) {
+        double age=now-[candidateTimes[group] doubleValue];
+        if (age>=0 && age<5) for (NSDictionary *point in candidateGroups[group])
+            [membership addObject:PointKey(point)];
+    }
+    // Keep suppression across groups/notifications, release after native removal or expiry.
+    [passedPoints intersectSet:membership];
     if (position && now-positionTime>=0 && now-positionTime<5) {
       for (NSString *group in candidateGroups) {
         double candidateTime=[candidateTimes[group] doubleValue];
@@ -51,7 +66,11 @@ static void Publish(BOOL force) {
             NSUInteger type=Semantic([point[@"sign"] integerValue]); if (!type) continue;
             CLLocation *target=[[CLLocation alloc] initWithLatitude:[point[@"latitude"] doubleValue] longitude:[point[@"longitude"] doubleValue]];
             double distance=[position distanceFromLocation:target];
-            if (!isfinite(distance) || distance<=5 || distance>10000) continue;
+            NSArray *key=PointKey(point);
+            if (GVMGofaPointPassed([passedPoints containsObject:key],distance)) {
+                [passedPoints addObject:key]; continue;
+            }
+            if (!isfinite(distance) || distance>10000) continue;
             [alerts addObject:@{@"type":@(type),@"value":NSNull.null,@"distance":@(llround(distance)),@"receivedAt":@(MIN(positionTime,candidateTime))}];
         }
       }
@@ -88,15 +107,44 @@ static void Locations(id self,SEL cmd,CLLocationManager *manager,NSArray *locati
         double speed=location.speed;
         if (isfinite(speed) && speed>=0 && speed*3.6<=400) samples[@"speed"]=@{@"value":@(llround(speed*3.6)),@"receivedAt":@(timestamp)};
         else [samples removeObjectForKey:@"speed"];
+        id owner=boardOwner;
+        if (owner) {
+            // Read GOFA's live current-board property for this fresh GPS observation.
+            // A repeated read is not a replay of the notification payload.
+            NSDictionary *state=CFBridgingRelease(GVMGofaBoardState((__bridge const void *)owner));
+            id limit=state[@"value"];
+            if ([limit isKindOfClass:NSNumber.class] && [limit integerValue]>0 && [limit integerValue]<=400)
+                samples[@"speedLimit"]=@{@"value":limit,@"receivedAt":@(timestamp)};
+            else [samples removeObjectForKey:@"speedLimit"];
+        }
         Publish(NO);
     });
+}
+static void ObserveBoardState(void) {
+    for (NSString *name in @[@"GOFA.HomeViewModel",@"GOFA.MapViewModel",@"GOFA.MapCarplayViewModel",@"GOFA.NavigationMapViewModel"]) {
+        Class cls=NSClassFromString(name); SEL selector=NSSelectorFromString(@"bindSpeedBoardWithNotification:");
+        Method method=class_getInstanceMethod(cls,selector);
+        if (!method || strcmp(method_getTypeEncoding(method),"v24@0:8@16")) continue;
+        __block void (*original)(id,SEL,id);
+        IMP replacement=imp_implementationWithBlock(^(id self,id notification) {
+            original(self,selector,notification);
+            NSDictionary *state=CFBridgingRelease(GVMGofaBoardState((__bridge const void *)self));
+            if (!state) return;
+            if (!boardOwner || [name isEqual:@"GOFA.HomeViewModel"]) boardOwner=self;
+            NSData *data=[NSJSONSerialization dataWithJSONObject:state options:0 error:nil];
+            [data writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-gofa-native-state.json"] atomically:YES];
+        });
+        MSHookMessageEx(cls,selector,replacement,(IMP *)&original);
+    }
 }
 __attribute__((constructor)) static void Initialize(void) {
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.lumi.GOFA"]) return;
     if (![[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] isEqual:@"4.2.1"] ||
         ![[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] isEqual:@"3"]) return;
     dispatch_async(dispatch_get_main_queue(), ^{
+        ObserveBoardState();
         samples=NSMutableDictionary.dictionary; candidateGroups=NSMutableDictionary.dictionary; candidateTimes=NSMutableDictionary.dictionary;
+        passedPoints=NSMutableSet.set;
         Class cls=NSClassFromString(@"GOFA.GofaLocationManager");
         SEL selector=@selector(locationManager:didUpdateLocations:);
         Method method=class_getInstanceMethod(cls,selector);
