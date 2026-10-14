@@ -105,6 +105,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.2.3", "Đánh thức và duy trì nguồn cảnh báo khi chỉ dùng Google Maps trên iPhone, kể cả sau khi vừa ngắt CarPlay. Banner hay Trung tâm điều khiển không còn làm ngắt nguồn.",
+         "Wakes and keeps the warning source when using Google Maps on iPhone only, including right after CarPlay disconnects. Banners or Control Center no longer end the source session."),
         ("0.2.2", "Giữ giới hạn tốc độ của Waze và GOFA ổn định khi điện thoại đứng yên; GOFA không còn mất giới hạn khi chạy nền. Cải thiện độ ổn định định vị nền.",
          "Keeps Waze and GOFA speed limits steady while the phone is stationary; GOFA no longer loses the limit in the background. Improves background location stability."),
         ("0.2.1", "Thêm nguồn cảnh báo Waze và GOFA, bổ sung bộ icon cảnh báo. Cải thiện chạy nền và độ ổn định tốc độ, giới hạn và cảnh báo đường.",

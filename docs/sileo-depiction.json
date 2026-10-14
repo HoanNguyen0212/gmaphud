@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.2.3"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Đánh thức và duy trì nguồn cảnh báo khi chỉ dùng Google Maps trên iPhone, kể cả sau khi vừa ngắt CarPlay. Banner hay Trung tâm điều khiển không còn làm ngắt nguồn.\n\n**English:** Wakes and keeps the warning source when using Google Maps on iPhone only, including right after CarPlay disconnects. Banners or Control Center no longer end the source session."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.2.2"
         },
         {
