@@ -38,3 +38,16 @@ static inline bool GVMBackgroundPermissionAllowed(double now, uint64_t state) {
     double age=now-(double)(state>>1);
     return (state&1) && isfinite(now) && age>=0 && age<6;
 }
+
+// A selected source may continue its own running GPS only while a real host is visible.
+static inline bool GVMBackgroundSourceLocationActive(bool selected, int authorization, bool services,
+    double now, uint64_t carplay, uint64_t phone) {
+    return selected && services && GVMBackgroundLocationAuthorized(authorization) &&
+        GVMBackgroundAnyHostActive(now,carplay,phone);
+}
+
+#define GVM_BACKGROUND_LOCATION_SOURCE "com.chou.gmaphud.background.location-source"
+#define GVM_BACKGROUND_BOOTSTRAP_CARPLAY "com.chou.gmaphud.background.bootstrap-carplay"
+static inline bool GVMBackgroundDisconnectDue(double now,double disconnectedAt) {
+    return disconnectedAt>0 && isfinite(now) && isfinite(disconnectedAt) && now-disconnectedAt>=20;
+}

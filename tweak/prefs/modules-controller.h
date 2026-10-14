@@ -1,3 +1,3 @@
-#import <Preferences/PSListController.h>
-@interface GVMModuleOrderController : PSListController
+#import <Preferences/PSTableCell.h>
+@interface GVMModuleOrderCell : PSTableCell
 @end

@@ -27,9 +27,9 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   "$source_dir/common/alert-state.m" "$source_dir/provider/vietmap-alert-assets.m" \
   "$source_dir/tests/alert-state-tests.m" -o "$test_dir/alert-state"
 "$test_dir/alert-state" \
-  "$source_dir/tweak/layout/usr/share/gmaphud/vietmap/traffic_camera.png" \
-  "$source_dir/tweak/layout/usr/share/gmaphud/vietmap/speed_limit_60.png" \
-  "$source_dir/tweak/layout/usr/share/gmaphud/vietmap"
+  "$source_dir/tweak/layout/usr/share/gmaphud/gmaphud/traffic_camera.png" \
+  "$source_dir/tweak/layout/usr/share/gmaphud/gmaphud/speed_limit_60.png" \
+  "$source_dir/tweak/layout/usr/share/gmaphud/gmaphud"
 
 xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   -I"$source_dir/common" "$source_dir/common/diagnostics.m" \

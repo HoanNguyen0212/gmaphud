@@ -19,7 +19,7 @@ static BOOL Fresh(id received, double now) {
 }
 BOOL GVMSourceIDValid(NSUInteger sourceID) { return sourceID>=1 && sourceID<=GVMMaximumSourceID; }
 NSString *GVMSourceDisplayName(NSUInteger sourceID) {
-    return sourceID==GVMSourceVietMap ? @"VietMap Live" : @"GMapHUD";
+    return sourceID==GVMSourceVietMap ? @"VietMap Live" : sourceID==GVMSourceWaze ? @"Waze" : sourceID==GVMSourceGofa ? @"GOFA" : @"GMapHUD";
 }
 NSString *GVMRoadAlertName(NSUInteger type) {
     static NSArray<NSString *> *names;
@@ -30,8 +30,26 @@ NSString *GVMRoadAlertName(NSUInteger type) {
         @"no-passing-end",@"penalty-camera",@"railway",@"residential-end",@"restriction",
         @"mandatory-right",@"slow-down",@"speed-camera",@"stop-lane",@"mandatory-straight",
         @"mandatory-straight-left",@"mandatory-straight-right",@"toll",@"toll-etc",@"traffic-camera",
-        @"tunnel",@"mandatory-left-right",@"mandatory-left"]; });
+        @"tunnel",@"mandatory-left-right",@"mandatory-left",@"red-light-camera",@"accident",@"accident-minor",@"animal",@"assistance",@"bad-weather",@"blocked-lane",@"both-shoulders-ending",@"bus-lane-cam",@"closed-lane-construction",@"closed-lane-crash",@"closure",@"cyclist",@"dangerous-curves",@"dangerous-intersection",@"distance-between-vehicles-camera",@"dummy-camera",@"emergency-vehicle",@"fork",@"hazard",@"hazard-animals",@"hazard-broken-light",@"hazard-construction",@"hazard-object-on-road",@"hazard-pothole",@"hazard-roadkill",@"hazard-stopped",@"hazard-weather-flood",@"hazard-weather-fog",@"hazard-weather-hail",@"hazard-weather-ice",@"hazard-weather-snow",@"hazardonroad",@"highway-crosswalk",@"hov-camera",@"intersection",@"lanes-merging",@"left-lane-ending",@"left-shoulder-ending",@"merge",@"narrow-bridge",@"noise-camera",@"phone-camera",@"police",@"police-mobile-camera",@"raised-crosswalk",@"red-light-and-speed-camera",@"right-lane-ending",@"right-shoulder-ending",@"school-zone",@"seatbelt-camera",@"slippery-road",@"speed-bumps",@"stop-sign-camera",@"topes"]; });
     return type>=1 && type<=names.count ? names[type-1] : nil;
+}
+NSString *GVMRoadAlertIconName(NSUInteger type, NSNumber *value) {
+    if (type==GVMRoadAlertSpeedLimit) {
+        if (![value isKindOfClass:NSNumber.class] || !Integer(value,1,400)) return nil;
+        NSUInteger limit=value.unsignedIntegerValue;
+        return ((limit>=10 && limit<=120 && limit%10==0) || limit==5 || limit==15 || limit==25 || limit==35 || limit==45) ?
+            [NSString stringWithFormat:@"speed_limit_%lu.png",(unsigned long)limit] : nil;
+    }
+    static NSArray<NSString *> *icons;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ icons=@[@"camera_ai.png",@"highway_rest_area.png",@"residential_area_in.png",@"",
+        @"noEntry.png",@"noEntryNoLeftTurn.png",@"noEntryNoRightTurn.png",@"noLeftTurn.png",@"noLeftTurnNoRightTurn.png",
+        @"noLeftTurnUTurn.png",@"noRightTurn.png",@"noRightTurnUTurn.png",@"noUTurnLeft.png",@"noUTurnRight.png",
+        @"no_passing_in.png",@"no_passing_out.png",@"penalty_camera.png",@"railway.png",@"residential_area_out.png",
+        @"retrict_unknown.png",@"rightTurnOnly.png",@"slow_down.png",@"speed_limit_camera.png",@"stop_lane.png",
+        @"straightAheadOnly.png",@"straightAndLeftTurnOnly.png",@"straightAndRightTurnOnly.png",@"toll.png",@"toll_etc.png",
+        @"traffic_camera.png",@"tunnel.png",@"leftAndRightTurnOnly.png",@"leftTurnOnly.png",@"traffic_camera.png",@"accident.png",@"accident-minor.png",@"animal.png",@"assistance.png",@"bad-weather.png",@"blocked-lane.png",@"both-shoulders-ending.png",@"bus-lane-cam.png",@"closed-lane-construction.png",@"closed-lane-crash.png",@"closure.png",@"cyclist.png",@"dangerous-curves.png",@"dangerous-intersection.png",@"distance-between-vehicles-camera.png",@"dummy-camera.png",@"emergency-vehicle.png",@"fork.png",@"hazard.png",@"hazard-animals.png",@"hazard-broken-light.png",@"hazard-construction.png",@"hazard-object-on-road.png",@"hazard-pothole.png",@"hazard-roadkill.png",@"hazard-stopped.png",@"hazard-weather-flood.png",@"hazard-weather-fog.png",@"hazard-weather-hail.png",@"hazard-weather-ice.png",@"hazard-weather-snow.png",@"hazardonroad.png",@"highway-crosswalk.png",@"hov-camera.png",@"intersection.png",@"lanes-merging.png",@"left-lane-ending.png",@"left-shoulder-ending.png",@"merge.png",@"narrow-bridge.png",@"noise-camera.png",@"phone-camera.png",@"police.png",@"police-mobile-camera.png",@"raised-crosswalk.png",@"red-light-and-speed-camera.png",@"right-lane-ending.png",@"right-shoulder-ending.png",@"school-zone.png",@"seatbelt-camera.png",@"slippery-road.png",@"speed-bumps.png",@"stop-sign-camera.png",@"topes.png"]; });
+    return type>=1 && type<=icons.count ? icons[type-1] : nil;
 }
 static NSDictionary *Sample(id sample, BOOL allowZero, double now) {
     if (![sample isKindOfClass:NSDictionary.class] || !Fresh(sample[@"receivedAt"],now) ||
@@ -41,7 +59,7 @@ static NSDictionary *Sample(id sample, BOOL allowZero, double now) {
 }
 static NSDictionary *Alert(id alert, NSUInteger sourceID, double now) {
     if (![alert isKindOfClass:NSDictionary.class] ||
-        !Integer(alert[@"type"],1,GVMRoadAlertMandatoryLeft) || !Fresh(alert[@"receivedAt"],now)) return nil;
+        !Integer(alert[@"type"],1,GVMRoadAlertTopes) || !Fresh(alert[@"receivedAt"],now)) return nil;
     NSUInteger type=[alert[@"type"] unsignedIntegerValue];
     id value=alert[@"value"] ?: NSNull.null, distance=alert[@"distance"] ?: NSNull.null;
     id artwork=alert[@"artworkID"] ?: @0;

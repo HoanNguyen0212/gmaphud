@@ -2,6 +2,22 @@
 #include <assert.h>
 #include <stdio.h>
 int main(void) {
+    assert(!GVMBackgroundDisconnectDue(100,0));
+    assert(!GVMBackgroundDisconnectDue(119.999,100));
+    assert(GVMBackgroundDisconnectDue(120,100));
+    assert(GVMBackgroundDisconnectDue(125,100));
+    assert(!GVMBackgroundDisconnectDue(99,100));
+    assert(!GVMBackgroundDisconnectDue(NAN,100));
+    assert(!GVMBackgroundDisconnectDue(120,NAN));
+    assert(GVMBackgroundSourceLocationActive(true,4,true,10,10000,0));
+    assert(GVMBackgroundSourceLocationActive(true,3,true,10,0,10000));
+    assert(!GVMBackgroundSourceLocationActive(false,4,true,10,10000,0));
+    assert(!GVMBackgroundSourceLocationActive(true,2,true,10,10000,0));
+    assert(!GVMBackgroundSourceLocationActive(true,4,false,10,10000,0));
+    assert(!GVMBackgroundSourceLocationActive(true,4,true,22,10000,0));
+    assert(!GVMBackgroundSourceLocationActive(true,4,true,9,10000,0));
+    assert(!GVMBackgroundSourceLocationActive(true,4,true,10,0,0));
+
     assert(GVMBackgroundLocationAuthorized(3));
     assert(GVMBackgroundLocationAuthorized(4));
     for (int status=-1;status<=2;status++) assert(!GVMBackgroundLocationAuthorized(status));

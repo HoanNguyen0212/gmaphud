@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.2"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Làm gọn Cài đặt, thêm kéo thả và xem trước bố cục. Bổ sung tùy chọn thoát nguồn khi ngắt CarPlay; sửa cảnh báo vượt tốc chặn thao tác. Hiện hỗ trợ VietMap Live.\n\n**English:** Simplifies Settings with drag ordering and layout previews. Adds optional source exit after CarPlay disconnect and fixes overspeed warnings blocking controls. VietMap Live is currently supported."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.1.22"
         },
         {

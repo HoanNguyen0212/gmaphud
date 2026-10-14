@@ -27,10 +27,11 @@ int main(int argc,char **argv) { @autoreleasepool {
     Require(GVMPublishSourceOutput(Output(1,now),now,NO),@"selected source publishes");
     Require([GVMReadSourceOutput(now)[@"speedLimit"][@"value"] isEqual:@50],@"Darwin frame read");
     Require(!GVMSelectOutputSource(0) && !GVMSelectOutputSource(8),@"invalid selection refused");
-    Require(!GVMPublishSourceOutput(Output(2,now),now,NO),@"unselected source cannot publish");
-    Require(GVMSelectOutputSource(2) && !GVMReadSourceOutput(now),@"selection does not fall back to VietMap");
-    Require(!GVMPublishSourceOutput(Output(1,now),now,NO),@"previous source cannot overwrite selected data");
-    Require(GVMPublishSourceOutput(Output(2,now),now,NO) && [GVMReadSourceOutput(now)[@"sourceID"] isEqual:@2],@"isolated second source frame");
+    for (NSNumber *source in @[@2,@3]) {
+        NSUInteger sourceID=source.unsignedIntegerValue;
+        Require(!GVMSourceEnabled(sourceID) && !GVMSelectOutputSource(sourceID) && !GVMOutputRequestName(sourceID) && !GVMPublishSourceOutput(Output(sourceID,now),now,YES),@"upcoming source rejected by all write/request boundaries");
+        Require(GVMSelectedSourceID()==1 && [GVMReadSourceOutput(now)[@"sourceID"] isEqual:@1],@"refusal preserves current VietMap frame");
+    }
     Require(GVMSelectOutputSource(1) && !GVMReadSourceOutput(now),@"return requires a new frame, cannot replay old source");
     Require(GVMPublishSourceOutput(Output(1,now),now,NO),@"same values publish in new epoch");
     Require(!GVMReadSourceOutput(now+5)[@"speed"],@"expiry checked by reader without publisher");
@@ -43,6 +44,14 @@ int main(int argc,char **argv) { @autoreleasepool {
     Require(notify_get_state(token,&header)==NOTIFY_STATUS_OK && notify_set_state(token,((((header>>8)+1)|1)<<8)|1)==NOTIFY_STATUS_OK,@"interrupt write");
     Require(!GVMReadSourceOutput(now),@"real incomplete frame unavailable");
     Require(GVMPublishSourceOutput(Output(1,now),now,NO) && GVMReadSourceOutput(now)[@"speed"],@"publisher recovers odd frame");
+    for (NSNumber *saved in @[@2,@3]) {
+        CFPreferencesSetAppValue(CFSTR("sourceID"),(__bridge CFNumberRef)saved,CFSTR(GVM_OUTPUT_NAMESPACE));
+        CFPreferencesAppSynchronize(CFSTR(GVM_OUTPUT_NAMESPACE));
+        GVMRestoreOutputSelection();
+        Require(GVMSelectedSourceID()==1 && !GVMReadSourceOutput(now),@"saved upcoming source migrates to VietMap in a new epoch");
+        Require([CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("sourceID"),CFSTR(GVM_OUTPUT_NAMESPACE))) isEqual:@1],@"migration persists VietMap");
+        Require(GVMPublishSourceOutput(Output(1,now),now,YES),@"publish after migration");
+    }
     // Independent executable has separate globals/tokens, exercising actual IPC.
     pid_t child=0;
     char *arguments[]={argv[0],"--read",NULL};
@@ -54,8 +63,8 @@ int main(int argc,char **argv) { @autoreleasepool {
     int requestToken=-1;
     Require(notify_register_dispatch(GVMOutputRequestName(1).UTF8String,&requestToken,dispatch_get_global_queue(QOS_CLASS_DEFAULT,0),^(__unused int t) { calls++; dispatch_semaphore_signal(semaphore); })==NOTIFY_STATUS_OK,@"source request receiver");
     Require(GVMRequestSelectedSource() && dispatch_semaphore_wait(semaphore,dispatch_time(DISPATCH_TIME_NOW,NSEC_PER_SEC))==0 && calls==1,@"selected source receives refresh request");
-    Require(GVMSelectOutputSource(2) && GVMRequestSelectedSource(),@"request switches source");
-    Require(dispatch_semaphore_wait(semaphore,dispatch_time(DISPATCH_TIME_NOW,100*NSEC_PER_MSEC))!=0,@"unselected source receives no request");
+    Require(!GVMSelectOutputSource(2) && !GVMSelectOutputSource(3),@"upcoming source selection refused");
+    Require(dispatch_semaphore_wait(semaphore,dispatch_time(DISPATCH_TIME_NOW,100*NSEC_PER_MSEC))!=0,@"refused selection sends no extra request");
     notify_cancel(requestToken); notify_cancel(token);
     CFPreferencesSetAppValue(CFSTR("sourceID"),NULL,CFSTR(GVM_OUTPUT_NAMESPACE));
     CFPreferencesAppSynchronize(CFSTR(GVM_OUTPUT_NAMESPACE));

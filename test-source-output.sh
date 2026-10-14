@@ -13,7 +13,7 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   "$source_dir/provider/vietmap-alert-assets.m" "$source_dir/provider/nav-source.m" \
   "$source_dir/provider/nav-payload.m" "$source_dir/tests/source-output-tests.m" \
   -o "$test_dir/source-output"
-"$test_dir/source-output"
+"$test_dir/source-output" "$source_dir/tweak/layout/usr/share/gmaphud/gmaphud"
 xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   "-DGVM_OUTPUT_NAMESPACE=\"com.chou.gmaphud.tests.output.$$\"" \
   -I"$source_dir/common" "$source_dir/common/source-output.m" \
@@ -21,3 +21,9 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   "$source_dir/common/alert-state.m" "$source_dir/tests/source-transport-tests.m" \
   -o "$test_dir/source-transport"
 "$test_dir/source-transport"
+xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
+  -I"$source_dir/common" -I"$source_dir/provider" \
+  "$source_dir/common/source-output.m" "$source_dir/common/speed-state.m" \
+  "$source_dir/common/alert-state.m" "$source_dir/provider/waze-output.m" \
+  "$source_dir/tests/waze-output-tests.m" -o "$test_dir/waze-output"
+"$test_dir/waze-output"

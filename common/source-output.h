@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 // IDs and enum values are wire contracts; append new values rather than reorder.
-enum { GVMOutputSchemaVersion=1, GVMSourceVietMap=1, GVMMaximumSourceID=7 };
+enum { GVMOutputSchemaVersion=1, GVMSourceVietMap=1, GVMSourceWaze=2, GVMSourceGofa=3, GVMMaximumSourceID=7 };
 typedef NS_ENUM(NSUInteger, GVMRoadAlertType) {
     GVMRoadAlertCameraAI=1, GVMRoadAlertRestArea=2,
     GVMRoadAlertResidentialStart=3, GVMRoadAlertSpeedLimit=4,
@@ -20,19 +20,74 @@ typedef NS_ENUM(NSUInteger, GVMRoadAlertType) {
     GVMRoadAlertMandatoryStraightRight=27, GVMRoadAlertToll=28,
     GVMRoadAlertTollETC=29, GVMRoadAlertTrafficCamera=30,
     GVMRoadAlertTunnel=31, GVMRoadAlertMandatoryLeftRight=32,
-    GVMRoadAlertMandatoryLeft=33
+    GVMRoadAlertMandatoryLeft=33, GVMRoadAlertRedLightCamera=34,
+    GVMRoadAlertAccident=35,
+    GVMRoadAlertAccidentMinor=36,
+    GVMRoadAlertAnimal=37,
+    GVMRoadAlertAssistance=38,
+    GVMRoadAlertBadWeather=39,
+    GVMRoadAlertBlockedLane=40,
+    GVMRoadAlertBothShouldersEnding=41,
+    GVMRoadAlertBusLaneCam=42,
+    GVMRoadAlertClosedLaneConstruction=43,
+    GVMRoadAlertClosedLaneCrash=44,
+    GVMRoadAlertClosure=45,
+    GVMRoadAlertCyclist=46,
+    GVMRoadAlertDangerousCurves=47,
+    GVMRoadAlertDangerousIntersection=48,
+    GVMRoadAlertDistanceBetweenVehiclesCamera=49,
+    GVMRoadAlertDummyCamera=50,
+    GVMRoadAlertEmergencyVehicle=51,
+    GVMRoadAlertFork=52,
+    GVMRoadAlertHazard=53,
+    GVMRoadAlertHazardAnimals=54,
+    GVMRoadAlertHazardBrokenLight=55,
+    GVMRoadAlertHazardConstruction=56,
+    GVMRoadAlertHazardObjectOnRoad=57,
+    GVMRoadAlertHazardPothole=58,
+    GVMRoadAlertHazardRoadkill=59,
+    GVMRoadAlertHazardStopped=60,
+    GVMRoadAlertHazardWeatherFlood=61,
+    GVMRoadAlertHazardWeatherFog=62,
+    GVMRoadAlertHazardWeatherHail=63,
+    GVMRoadAlertHazardWeatherIce=64,
+    GVMRoadAlertHazardWeatherSnow=65,
+    GVMRoadAlertHazardonroad=66,
+    GVMRoadAlertHighwayCrosswalk=67,
+    GVMRoadAlertHovCamera=68,
+    GVMRoadAlertIntersection=69,
+    GVMRoadAlertLanesMerging=70,
+    GVMRoadAlertLeftLaneEnding=71,
+    GVMRoadAlertLeftShoulderEnding=72,
+    GVMRoadAlertMerge=73,
+    GVMRoadAlertNarrowBridge=74,
+    GVMRoadAlertNoiseCamera=75,
+    GVMRoadAlertPhoneCamera=76,
+    GVMRoadAlertPolice=77,
+    GVMRoadAlertPoliceMobileCamera=78,
+    GVMRoadAlertRaisedCrosswalk=79,
+    GVMRoadAlertRedLightAndSpeedCamera=80,
+    GVMRoadAlertRightLaneEnding=81,
+    GVMRoadAlertRightShoulderEnding=82,
+    GVMRoadAlertSchoolZone=83,
+    GVMRoadAlertSeatbeltCamera=84,
+    GVMRoadAlertSlipperyRoad=85,
+    GVMRoadAlertSpeedBumps=86,
+    GVMRoadAlertStopSignCamera=87,
+    GVMRoadAlertTopes=88
 };
 
 // Only these documented fields leave an adapter. No coordinates or raw payloads.
 // speed/speedLimit: {value: integer km/h, receivedAt: monotonic seconds}.
 // alerts: {type, value: limit or null, distance: metres or null,
-//          artworkID: optional source-local decoration, receivedAt}.
+//          artworkID: legacy optional decoration (renderers use type/value), receivedAt}.
 NSDictionary *GVMNormalizeSourceOutput(id output, NSTimeInterval now);
 NSDictionary *GVMSourceOutput(NSUInteger sourceID, NSDictionary *samples,
     NSArray<NSDictionary *> *alerts, NSTimeInterval now);
 BOOL GVMSourceIDValid(NSUInteger sourceID);
 NSString *GVMSourceDisplayName(NSUInteger sourceID);
 NSString *GVMRoadAlertName(NSUInteger type);
+NSString *GVMRoadAlertIconName(NSUInteger type, NSNumber *value);
 
 enum { GVMOutputWordCount=6 };
 typedef struct { uint64_t words[GVMOutputWordCount]; } GVMOutputWords;

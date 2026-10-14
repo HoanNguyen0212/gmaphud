@@ -28,6 +28,16 @@ static NSDictionary *DisplayAlert(const char *text) {
 }
 int main(int argc, char **argv) {
     @autoreleasepool {
+        if (argc==3 && strcmp(argv[1],"overspeed")==0) {
+            NSString *scope=[NSString stringWithUTF8String:argv[2]];
+            NSUInteger mode=[scope isEqual:@"map"] ? 1 : [scope isEqual:@"screen"] ? 2 : 0;
+            if (!mode && ![scope isEqual:@"off"]) return 2;
+            int token=-1;
+            if (notify_register_check(GVMOverspeedModeName,&token)!=NOTIFY_STATUS_OK) return 3;
+            uint32_t result=notify_set_state(token,mode);
+            if (result==NOTIFY_STATUS_OK) notify_post(GVMOverspeedModeName);
+            notify_cancel(token); return result==NOTIFY_STATUS_OK ? 0 : 3;
+        }
         if (argc==4 && strcmp(argv[1],"position")==0) {
             NSString *full=[NSString stringWithUTF8String:argv[2]], *dashboard=[NSString stringWithUTF8String:argv[3]];
             if (![@[@"top-left",@"top-right",@"bottom-left",@"bottom-right"] containsObject:full] ||
@@ -47,7 +57,7 @@ int main(int argc, char **argv) {
             NSInteger speed, limit, duration;
             if ((argc != 4 && argc != 6) || !Number(argv[1], &speed) || !Number(argv[2], &limit) || !Number(argv[3], &duration) ||
                 !(state = GVMEncodeTest(speed, limit, NSProcessInfo.processInfo.systemUptime, duration))) {
-                fprintf(stderr, "Usage: gvm-test-speed SPEED_KMH LIMIT_KMH SECONDS [SIGN1:METERS SIGN2:METERS], [--photo], or off; position FULL DASHBOARD\n"); return 2;
+                fprintf(stderr, "Usage: gvm-test-speed SPEED_KMH LIMIT_KMH SECONDS [SIGN1:METERS SIGN2:METERS], [--photo], or off; position FULL DASHBOARD; overspeed off|map|screen\n"); return 2;
             }
             if (argc == 6) {
                 NSDictionary *first=DisplayAlert(argv[4]), *second=DisplayAlert(argv[5]);

@@ -105,6 +105,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.2", "Làm gọn Cài đặt, thêm kéo thả và xem trước bố cục. Bổ sung tùy chọn thoát nguồn khi ngắt CarPlay; sửa cảnh báo vượt tốc chặn thao tác. Hiện hỗ trợ VietMap Live.",
+         "Simplifies Settings with drag ordering and layout previews. Adds optional source exit after CarPlay disconnect and fixes overspeed warnings blocking controls. VietMap Live is currently supported."),
         ("0.1.22", "Cập nhật bộ icon biển báo; đồng bộ font số trên biển giới hạn tốc độ chính.",
          "Updates road-sign icons and aligns the main speed-limit digits with the new artwork."),
         ("0.1.21", "Tùy chỉnh bố cục ngang/dọc và kéo đổi thứ tự các phần trong bong bóng. Làm mới Cài đặt, thêm công tắc từng màn hình và nút đặt lại. Cập nhật bộ icon biển báo, giữ kích cỡ Dashboard ổn định khi đổi bố cục hoặc thêm/bớt cảnh báo. Báo cáo hỗ trợ có thêm phiên bản ứng dụng và tùy chọn đính kèm crash.",

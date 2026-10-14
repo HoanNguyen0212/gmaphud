@@ -50,7 +50,7 @@ NSDictionary *GVMVietMapOutputAlert(NSDictionary *alert,NSTimeInterval receivedA
     }
     if (!type) return nil;
     return @{@"type":type,@"value":value ?: NSNull.null,@"distance":alert[@"distance"] ?: NSNull.null,
-        @"artworkID":kind,@"receivedAt":@(receivedAt)};
+        @"receivedAt":@(receivedAt)};
 }
 NSDictionary *GVMVietMapOutput(NSDictionary *samples,NSArray<NSDictionary *> *alertEntries,NSTimeInterval now) {
     if (alertEntries && (![alertEntries isKindOfClass:NSArray.class] || alertEntries.count>64)) return nil;

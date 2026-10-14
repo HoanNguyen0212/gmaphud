@@ -12,7 +12,14 @@ static NSDictionary *Sample(id value,double time) { return @{@"value":value,@"re
 static NSDictionary *Alert(NSUInteger type,id value,id distance,double time) {
     return @{@"type":@(type),@"value":value ?: NSNull.null,@"distance":distance ?: NSNull.null,@"receivedAt":@(time)};
 }
-int main(void) { @autoreleasepool {
+int main(int argc,const char **argv) { @autoreleasepool {
+    NSDictionary *gofa=GVMSourceOutput(GVMSourceGofa,@{@"speedLimit":Sample(@70,100)},@[Alert(GVMRoadAlertRedLightCamera,nil,@390,100)],100);
+    GVMOutputWords gofaWords;
+    Require([GVMSourceDisplayName(GVMSourceGofa) isEqual:@"GOFA"],@"GOFA source identity");
+    Require(GVMEncodeSourceOutput(gofa,100,&gofaWords),@"GOFA envelope encodes");
+    Require([GVMDecodeSourceOutput(GVMSourceGofa,gofaWords,100) isEqual:gofa],@"GOFA canonical fields round trip");
+    Require([GVMDecodeSourceOutput(GVMSourceWaze,gofaWords,100)[@"alerts"] count]==0,@"GOFA warnings do not decode under Waze");
+    Require([GVMDecodeSourceOutput(GVMSourceGofa,gofaWords,105)[@"alerts"] count]==0,@"GOFA warnings expire at five seconds");
     NSDictionary *samples=@{@"speed":Sample(@0,100),@"speedLimit":Sample(@50,102)};
     NSDictionary *output=GVMSourceOutput(1,samples,@[Alert(GVMRoadAlertSpeedLimit,@80,@200,101),Alert(GVMRoadAlertTrafficCamera,nil,@400,102)],103);
     GVMOutputWords words;
@@ -71,7 +78,26 @@ int main(void) { @autoreleasepool {
         NSDictionary *mapped=GVMVietMapOutputAlert(legacy,100);
         Require(mapped && GVMRoadAlertName([mapped[@"type"] unsignedIntegerValue]),@"every VietMap asset maps to a semantic type");
         NSDictionary *canonical=GVMVietMapOutput(nil,@[@{@"sample":legacy,@"receivedAt":@100}],100);
-        Require([canonical[@"alerts"] count]==1 && [canonical[@"alerts"][0][@"artworkID"] isEqual:@(kind)],@"VietMap decoration survives adapter");
+        Require([canonical[@"alerts"] count]==1 && [canonical[@"alerts"][0][@"artworkID"] isEqual:@0],@"adapter uses common semantic artwork");
+    }
+    Require([GVMRoadAlertIconName(GVMRoadAlertSpeedLimit,@60) isEqual:@"speed_limit_60.png"],@"current and upcoming limits share an icon");
+    Require(!GVMRoadAlertIconName(GVMRoadAlertSpeedLimit,@65),@"unavailable numeric icon uses fallback");
+    Require(!GVMRoadAlertIconName(GVMRoadAlertSpeedLimit,@YES),@"boolean limit is not artwork");
+    if (argc>1) {
+        NSString *directory=[NSString stringWithUTF8String:argv[1]];
+        for (NSUInteger type=1;type<=GVMRoadAlertMandatoryLeft;type++) {
+            NSString *name=GVMRoadAlertIconName(type,type==GVMRoadAlertSpeedLimit ? @60 : nil);
+            Require(name.length && [[NSFileManager defaultManager] fileExistsAtPath:[directory stringByAppendingPathComponent:name]],@"every semantic type has shared artwork");
+        }
+        for (NSUInteger limit=10;limit<=120;limit+=10)
+            Require([[NSFileManager defaultManager] fileExistsAtPath:[directory stringByAppendingPathComponent:GVMRoadAlertIconName(GVMRoadAlertSpeedLimit,@(limit))]],@"all supported speed icon files exist");
+    }
+    for (NSUInteger type=GVMRoadAlertRedLightCamera;type<=88;type++) {
+        NSDictionary *trial=GVMSourceOutput(GVMSourceWaze,nil,@[Alert(type,nil,@250,100)],100);
+        Require(GVMEncodeSourceOutput(trial,100,&words),@"trial semantic encoded");
+        Require([GVMDecodeSourceOutput(GVMSourceWaze,words,100)[@"alerts"][0][@"type"] unsignedIntegerValue]==type,@"trial semantic survives wire roundtrip");
+        Require(GVMRoadAlertName(type).length && GVMRoadAlertIconName(type,nil).length,@"trial semantic has name and artwork");
+        // Experimental source IDs retain semantics, but their artwork is not shipped.
     }
     NSUInteger camera=GVMVietMapKindForAssetName(@"speed_limit_camera.png"), next=GVMVietMapKindForAssetName(@"speed_limit_80.png");
     Require([GVMVietMapOutputAlert(@{@"provider":@1,@"kind":@(camera)},100)[@"type"] isEqual:@(GVMRoadAlertSpeedCamera)],@"speed camera distinct from speed limit");

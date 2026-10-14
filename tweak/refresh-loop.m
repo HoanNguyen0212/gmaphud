@@ -5,9 +5,10 @@ __attribute__((constructor)) static void StartRefreshLoop(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         // Share the original cadence; expiry and reconnect checks still run
         // even when the source has not posted a new notification.
-        [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(__unused NSTimer *timer) {
+        NSTimer *timer=[NSTimer timerWithTimeInterval:0.5 repeats:YES block:^(__unused NSTimer *timer) {
             GVMRefreshCarPlayViews();
             GVMRefreshPhoneOverlay();
         }];
+        [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
     });
 }

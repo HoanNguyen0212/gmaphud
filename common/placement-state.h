@@ -28,3 +28,9 @@ NSArray<NSString *> *GVMNormalizeModuleOrder(id value,BOOL vertical);
 uint64_t GVMEncodeBubbleConfiguration(NSArray *layouts,NSArray *orders);
 NSUInteger GVMDecodeBubbleLayout(uint64_t state,NSUInteger surface);
 NSArray<NSString *> *GVMDecodeModuleOrder(uint64_t state,NSUInteger surface,BOOL vertical);
+
+extern const char *GVMOverspeedModeName, *GVMOverspeedLeaseName;
+NSUInteger GVMOverspeedMode(void);
+uint64_t GVMEncodeOverspeedLease(NSDictionary *output,double now);
+BOOL GVMOverspeedLeaseActive(uint64_t state,double now);
+void GVMPublishOverspeedLease(uint64_t state);

@@ -5,6 +5,24 @@
 #include <math.h>
 int main(void) {
     @autoreleasepool {
+    NSDictionary *overspeed=@{@"speed":@{@"value":@61,@"receivedAt":@100},@"speedLimit":@{@"value":@60,@"receivedAt":@100}};
+    uint64_t lease=GVMEncodeOverspeedLease(overspeed,100);
+    assert((lease&3)==1);
+    for (NSNumber *excess in @[@4,@5,@9,@10,@30]) {
+        NSDictionary *sample=@{@"speed":@{@"value":@(60+excess.integerValue),@"receivedAt":@100},@"speedLimit":overspeed[@"speedLimit"]};
+        assert((GVMEncodeOverspeedLease(sample,100)&3)==(excess.integerValue<5 ? 1 : excess.integerValue<10 ? 2 : 3));
+    }
+    assert(GVMOverspeedLeaseActive(lease,100.9)); assert(!GVMOverspeedLeaseActive(lease,101));
+    assert(!GVMOverspeedLeaseActive(lease,99));
+    assert(!GVMEncodeOverspeedLease(overspeed,105));
+    assert(!GVMEncodeOverspeedLease(@{@"speed":@{@"value":@60,@"receivedAt":@100},@"speedLimit":overspeed[@"speedLimit"]},100));
+    assert(!GVMEncodeOverspeedLease(@{@"speed":overspeed[@"speed"],@"speedLimit":@{@"value":@0,@"receivedAt":@100}},100));
+    assert(!GVMEncodeOverspeedLease(@{},100));
+    assert(!GVMEncodeOverspeedLease(@{@"speed":@{@"value":@YES,@"receivedAt":@100},@"speedLimit":overspeed[@"speedLimit"]},100));
+    assert(!GVMEncodeOverspeedLease(overspeed,99));
+    assert(!GVMEncodeOverspeedLease(overspeed,NAN));
+    uint64_t almostExpired=GVMEncodeOverspeedLease(overspeed,104.8);
+    assert(GVMOverspeedLeaseActive(almostExpired,104.9) && !GVMOverspeedLeaseActive(almostExpired,105));
         for (NSUInteger mask=0;mask<16;mask++) {
             BOOL master=(mask&1)!=0;
             uint64_t state=GVMEncodeBubbleVisibility(@(master),@((mask&2)!=0),@((mask&4)!=0),@((mask&8)!=0));
@@ -35,7 +53,7 @@ int main(void) {
                 assert(cell.width==cells[0].width && cell.height==cells[0].height);
                 assert(cell.width==88 && cell.height==88);
                 assert(cell.x>=0 && cell.y>=0 && cell.x+cell.width<=canvas.width && cell.y+cell.height<=canvas.height);
-                assert(vertical ? cell.x+cell.width/2==canvas.width/2 : cell.y+cell.height/2==72);
+                assert(vertical ? cell.x+cell.width/2==canvas.width/2 : cell.y+cell.height/2==canvas.height/2);
                 area+=cell.width*cell.height;
                 double start=vertical ? cell.y : cell.x;
                 minEdge=MIN(minEdge,start); maxEdge=MAX(maxEdge,start+88);
@@ -145,7 +163,7 @@ int main(void) {
                     assert(size.width > 0 && size.height > 0);
                     assert(size.width < availableWidth && size.height < availableHeight);
                     double canvasWidth = dashboard ? 96 : 184+88*camera;
-                    double canvasHeight = dashboard ? 184+88*camera : 120;
+                    double canvasHeight = dashboard ? 184+88*camera : 96;
                     assert(fabs(size.width / size.height - canvasWidth / canvasHeight) < 0.00001);
                 }
             }
@@ -155,7 +173,7 @@ int main(void) {
             GVMCardSize guided=GVMCarPlayCardSizeForView(190,189,355,400,240,alerts);
             assert(!guided.compact);
             double canvasWidth=184+88*alerts;
-            assert(fabs(guided.width/guided.height-canvasWidth/120)<0.00001);
+            assert(fabs(guided.width/guided.height-canvasWidth/96)<0.00001);
             GVMCardSize dash=GVMCarPlayCardSizeForView(130,189,165.5,400,240,alerts);
             assert(dash.compact && dash.height>dash.width);
         }

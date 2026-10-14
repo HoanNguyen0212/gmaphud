@@ -20,7 +20,7 @@
         [panel.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
         [panel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [panel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]]];
-    UIStackView *stack=[UIStackView new]; stack.axis=UILayoutConstraintAxisVertical; stack.spacing=10;
+    UIStackView *stack=[UIStackView new]; stack.axis=UILayoutConstraintAxisVertical; stack.spacing=8;
     stack.translatesAutoresizingMaskIntoConstraints=NO; [panel addSubview:stack];
     [NSLayoutConstraint activateConstraints:@[
         [stack.topAnchor constraintEqualToAnchor:panel.topAnchor constant:12],
@@ -30,11 +30,13 @@
     UILabel *help=[UILabel new]; help.numberOfLines=0;
     help.font=[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
     help.adjustsFontForContentSizeCategory=YES;
-    help.text=@"Mở lại VietMap Live và Google Maps sau khi cài. Khi lỗi xuất hiện, bấm Làm mới rồi sao chép hoặc xuất báo cáo để gửi hỗ trợ. Không tự gửi dữ liệu.";
+    help.text=@"Làm mới báo cáo sau khi gặp lỗi. Sao chép hoặc xuất để gửi hỗ trợ; không tự gửi dữ liệu.";
     [stack addArrangedSubview:help];
-    UIStackView *crashRow=[UIStackView new]; crashRow.axis=UILayoutConstraintAxisHorizontal; crashRow.spacing=12;
+    UIStackView *crashRow=[UIStackView new]; crashRow.axis=UILayoutConstraintAxisHorizontal; crashRow.spacing=12; crashRow.alignment=UIStackViewAlignmentCenter;
     UILabel *crashLabel=[UILabel new]; crashLabel.numberOfLines=0;
     crashLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+    crashLabel.adjustsFontForContentSizeCategory=YES;
+    [crashLabel setContentCompressionResistancePriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
     crashLabel.text=@"Đính kèm crash liên quan khi xuất. Crash có thể chứa thông tin thiết bị/app; kiểm tra trước khi gửi.";
     self.includeCrashes=[UISwitch new]; self.includeCrashes.on=YES;
     self.includeCrashes.accessibilityLabel=@"Đính kèm crash liên quan";
@@ -46,14 +48,23 @@
     for (NSUInteger i=0;i<titles.count;i++) {
         UIButton *button=[UIButton buttonWithType:UIButtonTypeSystem];
         [button setTitle:titles[i] forState:UIControlStateNormal];
-        button.backgroundColor=UIColor.secondarySystemGroupedBackgroundColor; button.layer.cornerRadius=10;
+        button.titleLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+        button.titleLabel.adjustsFontForContentSizeCategory=YES;
+        if (@available(iOS 15.0,*)) {
+            UIButtonConfiguration *configuration=[UIButtonConfiguration grayButtonConfiguration];
+            configuration.title=titles[i]; configuration.cornerStyle=UIButtonConfigurationCornerStyleMedium;
+            configuration.contentInsets=NSDirectionalEdgeInsetsMake(12,16,12,16);
+            button.configuration=configuration;
+        }
         [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active=YES;
         [button addTarget:self action:actions[i] forControlEvents:UIControlEventTouchUpInside];
         [stack addArrangedSubview:button]; [buttons addObject:button];
     }
     self.reportButtons=buttons;
     self.reportView=[UITextView new]; self.reportView.editable=NO;
-    self.reportView.font=[UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightRegular];
+    self.reportView.font=[[UIFontMetrics metricsForTextStyle:UIFontTextStyleFootnote] scaledFontForFont:[UIFont monospacedSystemFontOfSize:13 weight:UIFontWeightRegular]];
+    self.reportView.adjustsFontForContentSizeCategory=YES;
+    self.reportView.accessibilityLabel=@"Báo cáo chẩn đoán";
     self.reportView.backgroundColor=UIColor.secondarySystemGroupedBackgroundColor;
     self.reportView.layer.cornerRadius=10; [stack addArrangedSubview:self.reportView];
     [self refreshReport];

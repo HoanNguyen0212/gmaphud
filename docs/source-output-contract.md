@@ -1,9 +1,14 @@
+> Current internal build **0.2**: only VietMap Live is enabled.
+> Waze and GOFA are disabled and labeled **Sắp hỗ trợ**. Saved selections of either
+> migrate to VietMap; their provider tweaks are omitted. Earlier trial notes below
+> describe historical experimental support, not availability in this build.
+
 # Common source output · v1
 
 Implemented in internal **0.1.20**. This is the adapter/bridge contract for both
 CarPlay and foreground Google Maps on iPhone. VietMap is the first migrated source.
-The source chooser remains disabled until another adapter is implemented. This
-document does not claim support for Waze or other apps.
+The internal Waze adapter uses the same contract. Settings currently enables only VietMap; Waze and GOFA are upcoming;
+Waze 5.25.0 support is experimental and build-sensitive.
 
 The owning definitions are [source-output.h](../common/source-output.h),
 [source-output.m](../common/source-output.m) and
@@ -22,8 +27,8 @@ Adapters pass an immutable `NSDictionary` to `GVMPublishSourceOutput`. For examp
   "speed": { "value": 42, "receivedAt": 100 },
   "speedLimit": { "value": 50, "receivedAt": 101 },
   "alerts": [
-    { "type": 4, "value": 80, "distance": 200, "artworkID": 36, "receivedAt": 101 },
-    { "type": 30, "value": null, "distance": 400, "artworkID": 44, "receivedAt": 102 }
+    { "type": 4, "value": 80, "distance": 200, "receivedAt": 101 },
+    { "type": 30, "value": null, "distance": 400, "receivedAt": 102 }
   ]
 }
 ```
@@ -34,7 +39,7 @@ documents the shape; IPC carries numeric states, not JSON or images.
 | Field | Rule |
 | --- | --- |
 | `schemaVersion` | Integer `1`; unsupported schemas reject the envelope. |
-| `sourceID` | Integer 1–7. `1` is VietMap; 2–7 are unassigned, not enabled providers. |
+| `sourceID` | Integer 1–7. `1` is VietMap, `2` is Waze, `3` is GOFA; 4–7 are unassigned. |
 | `speed` | Optional sample, integer 0–400 **km/h**. Stationary zero is valid. |
 | `speedLimit` | Optional sample, integer 1–400 **km/h**. Zero means unavailable. |
 | sample `receivedAt` | Original `NSProcessInfo.systemUptime` in seconds on the same device/boot. |
@@ -42,7 +47,7 @@ documents the shape; IPC carries numeric states, not JSON or images.
 | alert `type` | Stable semantic `GVMRoadAlertType`, independent of an app's image index. |
 | alert `value` | Integer 1–400 km/h for `GVMRoadAlertSpeedLimit`; otherwise null. |
 | alert `distance` | Integer 0–10000 **metres**, or null when unknown. Zero means at the point. |
-| alert `artworkID` | Optional source-local decoration ID, integer 0–127; defaults to 0. |
+| alert `artworkID` | Legacy optional decoration ID, integer 0–127; defaults to 0. Ignored by the bubble renderer. |
 | alert `receivedAt` | Original receive time of that alert update; independent of scalar fields. |
 
 Missing, null, invalid or expired scalar samples are omitted. Invalid individual
@@ -68,14 +73,13 @@ IDs and names are defined by the enum and `GVMRoadAlertName` in the owning files
 VietMap is the default. Consumers call `GVMReadSourceOutput(now)` and use its entire
 envelope; they do not independently combine speed, limit or alerts from adapters.
 Only the selected adapter can publish. Missing data stays missing; there is no
-merge or automatic fallback to another source. Auto-wake also runs only when
-VietMap is selected.
+merge or automatic fallback to another source. Auto-wake runs only for the selected source when enabled and the visible-host
+lease and existing location permission permit it.
 
 `GVMSelectOutputSource` persists the single ID and advances a selection epoch.
 Switching source immediately makes the old frame unreadable. Returning to a
 previous source also needs a new frame, even if its values have not changed.
-`GVMRestoreOutputSelection` restores the saved ID from SpringBoard. Selection is
-currently an internal API, not a newly enabled Settings option.
+`GVMRestoreOutputSelection` restores the saved ID from SpringBoard. Settings enables only VietMap; Waze and GOFA are displayed disabled.
 
 `GVMRequestSelectedSource` posts only the selected provider's request name, returned
 by `GVMOutputRequestName`. The running provider checks selection again and replies
@@ -141,3 +145,105 @@ worked on native CarPlay and Google Maps iPhone; independent expiry and recovery
 were checked. Camera rendering was tested separately with bounded display data.
 This does not establish real-road accuracy, every alert kind or compatibility
 with other devices, OS releases or app versions.
+
+## Shared display icons
+
+All sources provide semantic `type`, numeric `value` when applicable, `distance` and original `receivedAt`. Providers identify their own images internally and never choose display paths. The renderer uses `GVMRoadAlertIconName` in `common/source-output.m` to select the shared set in `tweak/layout/usr/share/gmaphud/gmaphud`. Current and upcoming limits use the same `speed_limit_<value>.png`; values without an icon keep a condensed semibold numeric fallback. Source IDs select data, not artwork. Existing wire schema/enum IDs remain unchanged; legacy artwork IDs are still accepted for compatibility. VietMap now omits that field.
+
+## Waze adapter (internal trial)
+
+`provider/waze-output.m` retains the measured `statsType=10`, subtype `1`,
+trait `0`, `icon_alerter_cam_red_light` tuple to appended semantic type 34
+(`GVMRoadAlertRedLightCamera`). Native valid descriptors are available before
+Waze presents its warning card; trigger distance is not a freshness/validity gate.
+Passed/invalid updates remove only their identity. IDs and raw payloads stay local.
+Shared traffic-camera artwork represents this warning. Unknown tuples are omitted.
+
+`WSVLocationGPSPosition` supplies mm/s converted to rounded km/h, preserving GPS
+sample age and rejecting duplicates/future/stale timestamps. The optional native
+limit getter is guarded by the measured executable UUID and entry bytes. Missing
+limit support does not disable camera or speed data. Its build-specific semantics
+and nonzero speed still require wider device validation.
+
+The adapter publishes complete source-2 frames and answers only its request name
+without renewing timestamps. Open Waze before switching to Google Maps; auto-wake
+still only supports VietMap. Version/ABI mismatch leaves affected data unavailable.
+Foreground and new background red-light activation/pass were measured on Waze
+5.25.0 using a simulated route with Google Maps CarPlay. This does not establish
+long-duration background reliability or real-road accuracy.
+
+### Waze semantic inventory
+
+The adapter writes `tmp/gmaphud-waze-alert-catalog.json` in the Waze sandbox. It retains at most64 observed type/subtype/trait/icon tuples with validity, passed state, bounded distance, app state and monotonic time. Only semantic/lifecycle changes schedule an atomic write, coalesced over one second. It does not store raw identities, locations or titles and does not change output freshness. This is diagnostic evidence; unsupported tuples are still excluded from output. Static artwork names alone must never enable a runtime mapping.
+
+### Temporary artwork trial (0.1.23, unpublished)
+
+GOFA source 3 is also an internal trial. Its contract is described below; it uses
+the existing shared semantic artwork without adding GOFA-specific image paths.
+
+Shared semantic IDs35–88 are appended for the missing road-warning families, with temporary original Waze PNGs in the existing common artwork directory. Existing IDs and schema/wire layout are unchanged. Other providers use the same semantic-to-artwork lookup. Exact known descriptor icon names map to these semantics experimentally; substring guesses and `_hidden` aliases are rejected. The red-light10/1/0 tuple retains its measured guard. Other mappings are asset-name-derived and must be compared with native warnings before release. Validity, passed status, distance bounds and original5-second freshness remain required. Seven compiled-only reference groups lack extracted PNGs and remain unavailable. Missing world speed-limit PNGs5/15/25/35/45 also use temporary Waze artwork; unsupported numeric limits retain the numeric fallback.
+
+## GOFA adapter (internal trial)
+
+Source 3 supports GOFA 4.2.1, version code 3 (`com.lumi.GOFA`). The adapter observes
+`notificationSpeedBoard`, `notificationNextBoard` and `notificationOtherBoard`.
+[The Swift parser](../provider/gofa-payload.swift) reflects only measured
+`GOFA.SpeedBoardModel` and `GOFA.DatapointModel` fields. Next/other groups retain
+separate original receive times and clear independently. Unknown models and signs
+are rejected. Candidate coordinates and identities stay in the GOFA process.
+
+[The source](../tweak/gofa-source.m) converts GOFA GPS input from m/s to km/h,
+using the original date and rejecting duplicate, reordered, future and stale
+samples. It excludes GOFA's own displayed-speed adjustment. Current limit comes
+from `currentAllowSpeed`. Distances use `CLLocation.distanceFromLocation`, the same
+operation verified in GOFA's native `DatapointModel.distanceToLocation`.
+Alerts require fresh GPS and fresh candidate membership; polling/movement never
+renew an old candidate list. Native removal, empty lists, very close points and
+five-second expiration clear warnings. Low native event cadence can temporarily
+leave scalars unavailable; no cached-limit fallback is applied.
+
+Sixteen existing semantics have enum-backed mappings: camera speed/traffic/red-light/AI,
+residential start/end, toll, no-passing start/end, rest area and six turn restrictions.
+Red-light and no-right output/rendering were measured during replay. Parking/stopping restrictions
+and unverified upcoming numeric-limit IDs remain unavailable. This does not
+establish every warning family or physical-road accuracy.
+
+Selecting GOFA opts into continuing its already-running GPS while Google Maps is
+visible. The shared location-session helper uses existing authorized When In Use
+or Always access, a fresh host heartbeat and native background-location indication.
+It respects GOFA's stop requests, restores original manager settings when the
+source changes or visibility expires, and invalidates its temporary activity.
+A two-second timer checks lease cleanup even without GPS callbacks, while the app
+can execute. It never requests permission or cold-launches GOFA. Reopening GOFA
+can be required after switching away/suspension; source switching still invalidates
+old frames immediately.
+
+The DuoDash workspace records device checks in `plans/261014-0230-gofa-source/results.md`.
+GOFA's diagnostic `tmp/gmaphud-gofa-output.json` contains sanitized output, app state,
+authorization, background-location flag and GPS age, without coordinates.
+
+## Selected-source background lifecycle
+
+The SpringBoard supervisor owns one selected app lease. The timed location-session
+signal must also match the separate location-source ID and current selection.
+Switching sources clears both signals before managing the next app. The provider
+starts only its measured primary GPS delegate when needed; ending the lease stops
+only starts owned by the feature and restores temporary manager flags.
+
+The main preferences menu exposes the source as a dropdown plus `autoWake` and
+`autoExit` switches. Auto-exit observes real `CARSessionStatus` connection changes,
+waits at least 20 seconds, and terminates only the tracked PID if it still matches.
+Reconnection cancels the countdown; an exited source is not immediately restarted
+by a phone-map heartbeat. Waze cold CarPlay initialization is owned by the guarded
+CarPlay relay, not by an output refresh. It preserves native samples and restores
+the previous display after three seconds unless the user changes apps.
+
+## Upcoming source availability gate
+
+`GVMSourceEnabled` permits only source1 in the current product. Wire
+validation and Waze adapter tests keep ID2 stable; availability is separate from
+schema validity. Selection, publication, reader and refresh-request boundaries
+reject Waze and GOFA. Saved source2/source3 migrate to VietMap through a new selection epoch.
+The current package omits WazeGMapHUDSource, GofaGMapHUDSource and the CarPlay bootstrap companion;
+source files remain for future investigation. To re-enable, the availability
+policy, package composition and experimental tests require deliberate review.

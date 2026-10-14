@@ -55,6 +55,11 @@ NSUInteger GVMDecodeSize(uint64_t state,NSUInteger surface) {
 void GVMPublishSavedSizes(void) {
     CFStringRef domain=CFSTR("com.chou.gmaphud");
     CFPreferencesAppSynchronize(domain);
+    id scope=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("overspeedScope"),domain));
+    NSUInteger mode=[scope isEqual:@"map"] ? 1 : [scope isEqual:@"screen"] ? 2 : 0;
+    static int overspeedToken=-1;
+    if (overspeedToken<0) notify_register_check(GVMOverspeedModeName,&overspeedToken);
+    if (overspeedToken>=0) { notify_set_state(overspeedToken,mode); notify_post(GVMOverspeedModeName); }
     id enabled=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("bubbleEnabled"),domain));
     id fullEnabled=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("fullEnabled"),domain));
     id dashboardEnabled=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("dashboardEnabled"),domain));
@@ -168,4 +173,43 @@ NSUInteger GVMDecodeBubbleLayout(uint64_t state,NSUInteger surface) { return Bub
 NSArray<NSString *> *GVMDecodeModuleOrder(uint64_t state,NSUInteger surface,BOOL vertical) {
     NSUInteger permutation=BubbleByte(state,surface)&15;
     return permutation ? ModulePermutations()[permutation-1] : GVMNormalizeModuleOrder(nil,vertical);
+}
+
+const char *GVMOverspeedModeName="com.chou.gmaphud.overspeed.mode";
+const char *GVMOverspeedLeaseName="com.chou.gmaphud.overspeed.lease";
+NSUInteger GVMOverspeedMode(void) {
+    static int token=-1; uint64_t state=0;
+    if (token<0) notify_register_check(GVMOverspeedModeName,&token);
+    if (token>=0) notify_get_state(token,&state);
+    return state<=2 ? (NSUInteger)state : 0;
+}
+static BOOL OverspeedNumber(id value) {
+    return [value isKindOfClass:NSNumber.class] && CFGetTypeID((__bridge CFTypeRef)value)!=CFBooleanGetTypeID() && isfinite([value doubleValue]);
+}
+uint64_t GVMEncodeOverspeedLease(NSDictionary *output,double now) {
+    if (![output isKindOfClass:NSDictionary.class] || !isfinite(now) || now<0) return 0;
+    id speed=output[@"speed"],limit=output[@"speedLimit"];
+    if (![speed isKindOfClass:NSDictionary.class] || ![limit isKindOfClass:NSDictionary.class]) return 0;
+    double expiry=now+1;
+    for (NSDictionary *sample in @[speed,limit]) {
+        if (!OverspeedNumber(sample[@"value"]) || !OverspeedNumber(sample[@"receivedAt"])) return 0;
+        double received=[sample[@"receivedAt"] doubleValue];
+        double value=[sample[@"value"] doubleValue];
+        if (received<0 || received>now || now-received>=5 || value<0 || value>400 || floor(value)!=value) return 0;
+        expiry=MIN(expiry,received+5);
+    }
+    if ([limit[@"value"] doubleValue]<=0 || [speed[@"value"] doubleValue]<=[limit[@"value"] doubleValue] ||
+        expiry>=(double)(UINT64_MAX>>2)/1000) return 0;
+    double excess=[speed[@"value"] doubleValue]-[limit[@"value"] doubleValue];
+    NSUInteger level=excess<5 ? 1 : excess<10 ? 2 : 3;
+    return ((uint64_t)floor(expiry*1000)<<2)|level;
+}
+BOOL GVMOverspeedLeaseActive(uint64_t state,double now) {
+    double deadline=(double)(state>>2)/1000;
+    return (state&3) && isfinite(now) && now>=0 && now<deadline && deadline-now<=1.001;
+}
+void GVMPublishOverspeedLease(uint64_t state) {
+    static int token=-1; static uint64_t last=UINT64_MAX;
+    if (token<0) notify_register_check(GVMOverspeedLeaseName,&token);
+    if (token>=0 && state!=last) { notify_set_state(token,state); notify_post(GVMOverspeedLeaseName); last=state; }
 }

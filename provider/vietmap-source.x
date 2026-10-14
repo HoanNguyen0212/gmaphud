@@ -76,6 +76,50 @@ static void Publish(void) {
 #endif
 }
 
+#ifdef VM_GOOGLE_MAPS_RELAY
+static void ObserveAlerts(NSString *method,id payload,NSUInteger accepted,NSTimeInterval received) {
+    NSString *gate=[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-alert-observation.enable"];
+    NSDate *modified=[[NSFileManager.defaultManager attributesOfItemAtPath:gate error:nil] fileModificationDate];
+    NSTimeInterval age=modified ? -modified.timeIntervalSinceNow : -1;
+    if (age<0 || age>180) return;
+    static NSMutableDictionary *last;
+    @synchronized(source) {
+        if (!last) last=[NSMutableDictionary new];
+        if (last[method] && received-[last[method] doubleValue]<2) return;
+        last[method]=@(received);
+    }
+    // Capture one explicitly selected warning image locally, never its payload or coordinates.
+    if ([method isEqualToString:@"updateStickyAlerts"] && [payload isKindOfClass:NSArray.class]) {
+        NSString *imageGate=[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-alert-image.enable"];
+        NSDate *imageModified=[[NSFileManager.defaultManager attributesOfItemAtPath:imageGate error:nil] fileModificationDate];
+        if (imageModified && -imageModified.timeIntervalSinceNow>=0 && -imageModified.timeIntervalSinceNow<=180) {
+            for (__strong id item in [payload subarrayWithRange:NSMakeRange(0,MIN([payload count],8))]) {
+                if ([item isKindOfClass:NSString.class] && [item length]<=262144)
+                    item=[NSJSONSerialization JSONObjectWithData:[item dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
+                id encoded=[item isKindOfClass:NSDictionary.class] ? item[@"image"] : nil;
+                if (![encoded isKindOfClass:NSString.class] || [encoded length]>180000) continue;
+                NSData *bytes=[[NSData alloc] initWithBase64EncodedString:encoded options:0];
+                NSDictionary *observed=GVMVietMapAlertObservation(@[item],0);
+                NSString *hash=[observed[@"items"] firstObject][@"imageSHA256"];
+                if (![hash isEqualToString:@"ee9fc9ee37a92ddfa0d9090d7add3172efdced4efa3ac1cc0bf90c310faf1881"] ||
+                    !bytes.length || bytes.length>131072) continue;
+                NSString *path=[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-alert-image.png"];
+                if ([bytes writeToFile:path options:NSDataWritingAtomic error:nil])
+                    [NSFileManager.defaultManager removeItemAtPath:imageGate error:nil];
+                break;
+            }
+        }
+    }
+    NSDictionary *summary=[method isEqualToString:@"updateMapOverlayData"] ?
+        GVMVietMapOverlayObservation(payload) : GVMVietMapAlertObservation(payload,accepted);
+    NSData *data=[NSJSONSerialization dataWithJSONObject:summary options:0 error:nil];
+    NSString *json=data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+    if (json) dispatch_async(dispatch_get_main_queue(), ^{
+        BridgeLog([NSString stringWithFormat:@"alert-observation method=%@ %@",method,json]);
+    });
+}
+#endif
+
 static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler handler) {
     id name = object_getIvar(channel, channelNameIvar);
     if (!handler || ![name isKindOfClass:NSString.class] || (![name isEqualToString:@"vietmap_car_method_channel"] && ![name isEqualToString:@"vml_main_channel"])) {
@@ -85,6 +129,9 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
     dispatch_async(dispatch_get_main_queue(), ^{ BridgeLog(@"VietMap overlay handler registered"); GVMDiagnosticsRecord(GVMDiagnosticChannel,1); });
     VMFlutterHandler wrapped = ^(id<VMFlutterMethodCall> call, VMFlutterResult result) {
         NSArray *update = nil;
+#ifdef VM_GOOGLE_MAPS_RELAY
+        NSArray *overlaySticky=nil;
+#endif
         id mainLimit=nil; BOOL hasMainLimit=NO;
         NSTimeInterval received = NSProcessInfo.processInfo.systemUptime;
         @try {
@@ -95,6 +142,7 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
                 BOOL sticky=[[call method] isEqualToString:@"updateStickyAlerts"];
                 id alertPayload=[call arguments];
                 NSArray<NSDictionary *> *alerts=GVMVietMapAlertsFromPayload(alertPayload);
+                ObserveAlerts([call method],alertPayload,alerts.count,received);
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (sticky && received>=stickyReceived) { stickyAlerts=alerts; stickyReceived=received; }
                     else if (!sticky && received>=upcomingReceived) { upcomingAlerts=alerts; upcomingReceived=received; }
@@ -143,6 +191,10 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
             }
             if ([name isEqualToString:@"vietmap_car_method_channel"] && [[call method] isEqualToString:@"updateMapOverlayData"])
             {
+                #ifdef VM_GOOGLE_MAPS_RELAY
+                overlaySticky=GVMVietMapOverlayStickyAlerts([call arguments]);
+                ObserveAlerts(@"updateMapOverlayData",[call arguments],overlaySticky.count,received);
+#endif
                 update = VMNavCopyOverlayArguments([call arguments]);
                 BOOL valid=update!=nil;
                 if (valid) {
@@ -163,6 +215,11 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
         }
         if (!update) return;
         dispatch_async(dispatch_get_main_queue(), ^{
+#ifdef VM_GOOGLE_MAPS_RELAY
+            if (overlaySticky && received>=stickyReceived) {
+                stickyAlerts=overlaySticky; stickyReceived=received;
+            }
+#endif
             [source applyArguments:update receivedAt:received];
             static NSTimeInterval lastLog;
             if (received - lastLog >= 5) {

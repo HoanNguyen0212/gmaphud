@@ -1,13 +1,13 @@
 #import "speed-presentation.h"
 #import "placement-state.h"
 #include <math.h>
-static const double GVMModuleExtent=88, GVMCardPadding=4, GVMSourceHeaderHeight=24;
+static const double GVMModuleExtent=88, GVMCardPadding=4;
 
 GVMCardSize GVMCardCanvasSize(NSUInteger alerts,BOOL vertical) {
     double length=(2+MIN(alerts,2))*GVMModuleExtent+2*GVMCardPadding;
     double breadth=GVMModuleExtent+2*GVMCardPadding;
     return (GVMCardSize){vertical ? breadth : length,
-        vertical ? length : breadth+GVMSourceHeaderHeight,vertical};
+        vertical ? length : breadth,vertical};
 }
 GVMWarning GVMWarningFor(NSNumber *speed, NSNumber *limit) {
     if (!speed || !limit || limit.doubleValue <= 0) return GVMWarningNormal;
@@ -119,7 +119,7 @@ GVMModuleRect GVMModuleFrame(NSArray<NSString *> *order,NSString *module,BOOL ve
         if ([item isEqual:module]) {
             if ([item isEqual:@"alerts"]) cursor+=alertIndex*GVMModuleExtent;
             return (GVMModuleRect){vertical ? GVMCardPadding : cursor,
-                vertical ? cursor : GVMCardPadding+GVMSourceHeaderHeight,GVMModuleExtent,GVMModuleExtent};
+                vertical ? cursor : GVMCardPadding,GVMModuleExtent,GVMModuleExtent};
         }
         cursor+=GVMModuleExtent*([item isEqual:@"alerts"] ? alerts : 1);
     }

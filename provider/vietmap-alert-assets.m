@@ -56,13 +56,16 @@ static const GVMAsset assets[] = {
     {@"tunnel.png", @"66ba6d4ded8149a8039fe3c2169dc76390596f1cad28bdee83b7e38bfe321604"},
 };
 
-NSUInteger GVMVietMapKindForImage(NSData *image) {
-    if (!image.length || image.length>131072) return 0;
+static NSString *ImageDigest(NSData *image) {
+    if (!image.length || image.length>131072) return nil;
     unsigned char digest[CC_SHA256_DIGEST_LENGTH];
     CC_SHA256(image.bytes,(CC_LONG)image.length,digest);
     NSMutableString *hash=[NSMutableString stringWithCapacity:64];
     for (NSUInteger i=0;i<sizeof(digest);i++) [hash appendFormat:@"%02x",digest[i]];
-    return GVMVietMapKindForImageDigest(hash);
+    return hash;
+}
+NSUInteger GVMVietMapKindForImage(NSData *image) {
+    return GVMVietMapKindForImageDigest(ImageDigest(image));
 }
 // Upstream recognition digests stay independent of replaceable display artwork.
 NSUInteger GVMVietMapKindForImageDigest(NSString *hash) {
@@ -109,7 +112,7 @@ NSArray<NSDictionary *> *GVMVietMapAlertsFromPayload(id payload) {
         }
         if (!kind) continue;
         NSNumber *distance=Distance(item[@"distance"]);
-        if (item[@"distance"] && !distance) continue;
+        if (item[@"distance"] && item[@"distance"]!=NSNull.null && !distance) continue;
         [alerts addObject:@{@"provider":@(GVMVietMapProviderID), @"kind":@(kind),
             @"distance":distance ?: NSNull.null}];
     }
@@ -121,4 +124,70 @@ NSArray<NSDictionary *> *GVMVietMapAlertsFromPayload(id payload) {
     }];
     if (alerts.count>2) [alerts removeObjectsInRange:NSMakeRange(2,alerts.count-2)];
     return alerts;
+}
+
+NSDictionary *GVMVietMapAlertObservation(id payload, NSUInteger acceptedCount) {
+    BOOL array=[payload isKindOfClass:NSArray.class];
+    NSMutableArray *items=[NSMutableArray new];
+    NSUInteger count=array ? [payload count] : 0;
+    for (NSUInteger i=0;i<MIN(count,8);i++) {
+        id item=payload[i];
+        BOOL json=[item isKindOfClass:NSString.class];
+        if (json && [item length]<=262144)
+            item=[NSJSONSerialization JSONObjectWithData:[item dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
+        NSMutableDictionary *entry=[@{@"index":@(i),@"jsonString":@(json),
+            @"dictionary":[NSNumber numberWithBool:[item isKindOfClass:NSDictionary.class]]} mutableCopy];
+        if ([item isKindOfClass:NSDictionary.class]) {
+            id encoded=item[@"image"];
+            if ([encoded isKindOfClass:NSString.class] && [encoded length]<=180000) {
+                NSData *bytes=[[NSData alloc] initWithBase64EncodedString:encoded options:0];
+                NSString *digest=ImageDigest(bytes);
+                entry[@"imageCharacters"]=@([encoded length]);
+                entry[@"imageBytes"]=@(bytes.length);
+                if (digest) entry[@"imageSHA256"]=digest;
+                NSString *name=GVMVietMapAssetName(GVMVietMapKindForImageDigest(digest));
+                if (name) entry[@"recognizedAsset"]=name;
+            } else entry[@"imageUnavailable"]=@YES;
+            for (NSString *key in @[@"distance",@"speedLimit"]) {
+                id value=item[key];
+                NSString *state=!value ? @"missing" : value==NSNull.null ? @"null" : @"invalid";
+                NSNumber *number=Distance(value);
+                if (number && (![key isEqual:@"speedLimit"] || number.doubleValue<=400)) {
+                    entry[key]=number; state=@"number";
+                }
+                entry[[key stringByAppendingString:@"State"]]=state;
+            }
+        }
+        [items addObject:entry];
+    }
+    return @{@"array":@(array),@"count":@(count),@"acceptedCount":@(MIN(acceptedCount,2)),
+        @"truncated":@(count>items.count),@"items":items};
+}
+
+NSDictionary *GVMVietMapOverlayObservation(id payload) {
+    // Inspect only known warning field names; never record map coordinates or free text.
+    id patch=([payload isKindOfClass:NSArray.class] && [payload count]==2) ? payload[0] : payload;
+    if (![patch isKindOfClass:NSDictionary.class]) return @{ @"dictionary":@NO };
+    NSMutableDictionary *fields=[NSMutableDictionary new];
+    for (NSString *key in @[@"stickyAlerts",@"upcomingAlerts",@"upcommingAlerts",@"alerts",
+        @"restrictionEventData",@"parkingInfo",@"noPassingGoingIn",@"trafficSignal"]) {
+        id value=patch[key];
+        if (!value) continue;
+        if ([value isKindOfClass:NSArray.class]) fields[key]=GVMVietMapAlertObservation(value,0);
+        else fields[key]=@{@"shape":value==NSNull.null ? @"null" :
+            [value isKindOfClass:NSDictionary.class] ? @"dictionary" :
+            [value isKindOfClass:NSString.class] ? @"string" : @"other"};
+    }
+    return @{@"dictionary":@YES,@"fields":fields};
+}
+
+NSArray<NSDictionary *> *GVMVietMapOverlayStickyAlerts(id payload) {
+    if (![payload isKindOfClass:NSArray.class] || [payload count]!=2 ||
+        ![payload[0] isKindOfClass:NSDictionary.class]) return nil;
+    id value=payload[0][@"stickyAlerts"];
+    // Absent patch fields preserve prior state; an explicit empty/null field clears it.
+    if (!value) return nil;
+    if (value==NSNull.null) return @[];
+    if (![value isKindOfClass:NSArray.class] || [value count]>32) return nil;
+    return GVMVietMapAlertsFromPayload(value);
 }

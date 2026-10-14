@@ -43,6 +43,9 @@ static BOOL Selection(uint64_t *state) {
     if (selectionToken<0 && notify_register_check([Prefix() stringByAppendingString:@".source.selection"].UTF8String,&selectionToken)!=NOTIFY_STATUS_OK) return NO;
     return Read(selectionToken,state);
 }
+BOOL GVMSourceEnabled(NSUInteger sourceID) {
+    return sourceID==GVMSourceVietMap;
+}
 static GVMOutputEndpoint *Endpoint(NSUInteger sourceID) {
     if (!GVMSourceIDValid(sourceID)) return nil;
     if (!endpoints) endpoints=[NSMutableDictionary new];
@@ -56,7 +59,7 @@ NSUInteger GVMSelectedSourceID(void) {
     }
 }
 BOOL GVMSelectOutputSource(NSUInteger sourceID) {
-    if (!GVMSourceIDValid(sourceID)) return NO;
+    if (!GVMSourceEnabled(sourceID)) return NO;
     @synchronized(NSProcessInfo.processInfo) {
         uint64_t selected=0;
         if (!Selection(&selected) || (selected>>3)==(UINT64_MAX>>3)) return NO;
@@ -76,14 +79,17 @@ void GVMRestoreOutputSelection(void) {
         NSUInteger sourceID=GVMSourceVietMap;
         if ([saved isKindOfClass:NSNumber.class] && CFGetTypeID((__bridge CFTypeRef)saved)!=CFBooleanGetTypeID() &&
             [saved doubleValue]==[saved unsignedIntegerValue] && GVMSourceIDValid([saved unsignedIntegerValue])) sourceID=[saved unsignedIntegerValue];
+        BOOL unavailable=sourceID==GVMSourceWaze || sourceID==GVMSourceGofa;
+        if (unavailable) sourceID=GVMSourceVietMap;
         uint64_t selected=0;
-        if (Selection(&selected) && (!selected || GVMSourceIDForSelection(selected)!=sourceID)) GVMSelectOutputSource(sourceID);
+        if (Selection(&selected) && (unavailable || !selected || GVMSourceIDForSelection(selected)!=sourceID)) GVMSelectOutputSource(sourceID);
     }
 }
 BOOL GVMPublishSourceOutput(NSDictionary *output,NSTimeInterval now,BOOL force) {
     NSDictionary *normalized=GVMNormalizeSourceOutput(output,now);
     if (!normalized) return NO;
     NSUInteger sourceID=[normalized[@"sourceID"] unsignedIntegerValue];
+    if (!GVMSourceEnabled(sourceID)) return NO;
     GVMOutputWords words;
     if (!GVMEncodeSourceOutput(normalized,now,&words)) return NO;
     @synchronized(NSProcessInfo.processInfo) {
@@ -113,6 +119,7 @@ NSDictionary *GVMReadSourceOutput(NSTimeInterval now) {
         uint64_t selected=0, afterSelection=0, before=0, after=0, frameSelection=0;
         if (!Selection(&selected)) return nil;
         NSUInteger sourceID=GVMSourceIDForSelection(selected);
+        if (!GVMSourceEnabled(sourceID)) return nil;
         GVMOutputEndpoint *endpoint=Endpoint(sourceID);
         if (!endpoint || !Read(endpoint->tokens[0],&before) || !Read(endpoint->tokens[1],&frameSelection)) return nil;
         GVMOutputWords words={0};
@@ -123,7 +130,7 @@ NSDictionary *GVMReadSourceOutput(NSTimeInterval now) {
     }
 }
 NSString *GVMOutputRequestName(NSUInteger sourceID) {
-    return GVMSourceIDValid(sourceID) ? [Prefix() stringByAppendingFormat:@".source.%lu.request",(unsigned long)sourceID] : nil;
+    return GVMSourceEnabled(sourceID) ? [Prefix() stringByAppendingFormat:@".source.%lu.request",(unsigned long)sourceID] : nil;
 }
 BOOL GVMRequestSelectedSource(void) {
     @synchronized(NSProcessInfo.processInfo) {

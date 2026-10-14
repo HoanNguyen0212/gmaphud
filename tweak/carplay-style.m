@@ -1,7 +1,8 @@
 #import <rootless.h>
 #import "carplay-style.h"
+#import "overspeed-frame.h"
 #import "speed-presentation.h"
-#import "vietmap-alert-assets.h"
+#import "source-output.h"
 #import "placement-state.h"
 #import "source-transport.h"
 #import <objc/runtime.h>
@@ -55,6 +56,19 @@ static void DrawArtwork(UIImage *image,CGRect frame) {
     CGFloat scale=MIN(frame.size.width/image.size.width,frame.size.height/image.size.height);
     [image drawInRect:CenteredRect(frame,image.size.width*scale,image.size.height*scale)];
 }
+static UIImage *AlertArtwork(NSUInteger type,NSNumber *value) {
+    NSString *name=GVMRoadAlertIconName(type,value);
+    if (!name) return nil;
+    static NSMutableDictionary<NSString *,UIImage *> *cache;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ cache=[NSMutableDictionary new]; });
+    UIImage *image=cache[name];
+    if (!image) {
+        image=[UIImage imageWithContentsOfFile:[ROOT_PATH_NS(@"/usr/share/gmaphud/gmaphud") stringByAppendingPathComponent:name]];
+        if (image) cache[name]=image;
+    }
+    return image;
+}
 @implementation GVMSpeedCard
 - (void)drawRect:(CGRect)rect {
     (void)rect;
@@ -77,23 +91,17 @@ static void DrawArtwork(UIImage *image,CGRect frame) {
         alertRegion=i ? CGRectUnion(alertRegion,cell) : cell;
     }
     body=CGRectInset(body,-3,-3);
-    if (!self.compact) {
-        CGFloat badgeX=(canvas.width-112)/2;
-        UIBezierPath *badge=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(badgeX,1,112,32) cornerRadius:12];
-        [RGB(0x202631,0.94) setFill]; [badge fill];
-        Text(GVMSourceDisplayName(self.sourceID).uppercaseString,CGRectMake(badgeX+2,4,108,20),13,UIFontWeightBold,UIColor.whiteColor);
-    }
     UIBezierPath *bubble=[UIBezierPath bezierPathWithRoundedRect:body cornerRadius:self.compact ? body.size.width/2 : 24];
     [RGB(self.night ? 0x303642 : 0x59616f,0.60) setFill]; [bubble fill];
     [RGB(0x303947,0.8) setStroke]; bubble.lineWidth=1.5; [bubble stroke];
-    if (count) {
+    if (count && self.compact) {
         UIBezierPath *sourceRegion=[UIBezierPath bezierPathWithRoundedRect:CGRectInset(alertRegion,2,2) cornerRadius:18];
         [RGB(0x162b35,0.22) setFill]; [sourceRegion fill];
     }
     // Identical cells stay balanced even when the alert group is first or between values.
     CGRect firstCell=ModuleRect(@[@"speed",@"limit",@"alerts"],@"speed",self.compact,count,0);
     UIBezierPath *dividers=[UIBezierPath bezierPath];
-    for (NSUInteger i=1;i<2+count;i++) {
+    for (NSUInteger i=1;self.compact && i<2+count;i++) {
         CGFloat edge=self.compact ? firstCell.origin.y+i*firstCell.size.height : firstCell.origin.x+i*firstCell.size.width;
         [dividers moveToPoint:self.compact ? CGPointMake(CGRectGetMinX(firstCell)+12,edge) : CGPointMake(edge,CGRectGetMinY(firstCell)+12)];
         [dividers addLineToPoint:self.compact ? CGPointMake(CGRectGetMaxX(firstCell)-12,edge) : CGPointMake(edge,CGRectGetMaxY(firstCell)-12)];
@@ -103,24 +111,29 @@ static void DrawArtwork(UIImage *image,CGRect frame) {
     // The visible rim and all alert artwork share a 64-point optical envelope.
     CGFloat signDiameter=64;
     CGRect signRect=CenteredRect(limitCell,signDiameter,signDiameter);
-    UIBezierPath *sign=[UIBezierPath bezierPathWithOvalInRect:CGRectInset(signRect,3,3)];
-    sign.lineWidth=self.limit ? 6 : 2.5;
-    if (self.limit) {
-        [UIColor.whiteColor setFill]; [sign fill]; [RGB(0xff3b30,1) setStroke];
-    } else {
-        CGFloat dash[]={5,3}; [sign setLineDash:dash count:2 phase:0]; [muted setStroke];
+    if (!self.compact) signRect.origin.y=limitCell.origin.y+2;
+    UIImage *limitArtwork=AlertArtwork(GVMRoadAlertSpeedLimit,self.limit);
+    if (limitArtwork) DrawArtwork(limitArtwork,signRect);
+    else {
+        UIBezierPath *sign=[UIBezierPath bezierPathWithOvalInRect:CGRectInset(signRect,3,3)];
+        sign.lineWidth=self.limit ? 6 : 2.5;
+        if (self.limit) {
+            [UIColor.whiteColor setFill]; [sign fill]; [RGB(0xff3b30,1) setStroke];
+        } else {
+            CGFloat dash[]={5,3}; [sign setLineDash:dash count:2 phase:0]; [muted setStroke];
+        }
+        [sign stroke];
+        DrawText(self.limit ? self.limit.stringValue : @"–",CGRectInset(signRect,7,7),
+            LimitFont(self.limit.doubleValue>=100 ? 28 : 32),self.limit ? RGB(0x17191d,1) : muted);
     }
-    [sign stroke];
-    DrawText(self.limit ? self.limit.stringValue : @"–",CGRectInset(signRect,7,7),
-        LimitFont(self.limit.doubleValue>=100 ? 28 : 32),self.limit ? RGB(0x17191d,1) : muted);
-    CGRect speedGroup=CenteredRect(speedCell,speedCell.size.width-8,62);
-    Text(self.speed ? self.speed.stringValue : @"--",CGRectMake(speedGroup.origin.x,speedGroup.origin.y,speedGroup.size.width,44),
-        36,UIFontWeightBold,self.speed ? accent : muted);
-    Text(@"km/h",CGRectMake(speedGroup.origin.x,speedGroup.origin.y+44,speedGroup.size.width,18),14,UIFontWeightMedium,muted);
+    CGRect speedGroup=CenteredRect(speedCell,speedCell.size.width-8,self.compact ? 62 : 84);
+    CGFloat speedHeight=self.compact ? 44 : 64;
+    DrawText(self.speed ? self.speed.stringValue : @"--",
+        CGRectMake(speedGroup.origin.x,speedGroup.origin.y,speedGroup.size.width,speedHeight),
+        LimitFont(self.compact ? 36 : 56),self.speed ? accent : muted);
+    Text(@"km/h",CGRectMake(speedGroup.origin.x,speedGroup.origin.y+speedHeight+2,speedGroup.size.width,18),
+        self.compact ? 14 : 16,UIFontWeightSemibold,muted);
     if (count) {
-        static NSMutableDictionary<NSNumber *, UIImage *> *artworkCache;
-        static dispatch_once_t artworkOnce;
-        dispatch_once(&artworkOnce, ^{ artworkCache=[NSMutableDictionary dictionary]; });
         for (NSUInteger i=0;i<count;i++) {
             NSDictionary *alert=self.alerts[i];
             id meters=alert[@"distance"];
@@ -131,29 +144,21 @@ static void DrawArtwork(UIImage *image,CGRect frame) {
             CGFloat groupHeight=signDiameter+(distance.length ? 20 : 0);
             CGRect group=CenteredRect(cell,cell.size.width-8,groupHeight);
             CGRect alertRect=CGRectMake(CGRectGetMidX(cell)-signDiameter/2,group.origin.y,signDiameter,signDiameter);
-            NSNumber *kind=alert[@"artworkID"];
-            NSNumber *cacheKey=@((self.sourceID<<8)|kind.unsignedIntegerValue);
-            UIImage *artwork=artworkCache[cacheKey];
-            if (!artwork && self.sourceID==GVMVietMapProviderID) {
-                NSString *name=GVMVietMapAssetName(kind.unsignedIntegerValue);
-                if (name) {
-                    NSString *path=[ROOT_PATH_NS(@"/usr/share/gmaphud/vietmap") stringByAppendingPathComponent:name];
-                    artwork=[UIImage imageWithContentsOfFile:path];
-                    if (artwork) artworkCache[cacheKey]=artwork;
-                }
-            }
+            if (!self.compact) alertRect.origin.y=cell.origin.y+2;
+            UIImage *artwork=AlertArtwork([alert[@"type"] unsignedIntegerValue],alert[@"value"]);
             if (artwork) DrawArtwork(artwork,alertRect);
             else if ([alert[@"type"] unsignedIntegerValue]==GVMRoadAlertSpeedLimit) {
                 UIBezierPath *nextLimit=[UIBezierPath bezierPathWithOvalInRect:CGRectInset(alertRect,3,3)];
                 [UIColor.whiteColor setFill]; [nextLimit fill]; [RGB(0xff3b30,1) setStroke];
                 nextLimit.lineWidth=6; [nextLimit stroke];
-                Text([alert[@"value"] stringValue],CGRectInset(alertRect,7,7),
-                    [alert[@"value"] doubleValue]>=100 ? 28 : 32,UIFontWeightBold,RGB(0x17191d,1));
+                DrawText([alert[@"value"] stringValue],CGRectInset(alertRect,7,7),
+                    LimitFont([alert[@"value"] doubleValue]>=100 ? 28 : 32),RGB(0x17191d,1));
             } else {
                 BOOL camera=[alert[@"type"] unsignedIntegerValue]==GVMRoadAlertCameraAI ||
                     [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertPenaltyCamera ||
                     [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertSpeedCamera ||
-                    [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertTrafficCamera;
+                    [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertTrafficCamera ||
+                    [alert[@"type"] unsignedIntegerValue]==GVMRoadAlertRedLightCamera;
                 UIImage *symbol=[[UIImage systemImageNamed:camera ? @"camera.fill" : @"exclamationmark.triangle.fill"]
                     imageWithTintColor:UIColor.whiteColor renderingMode:UIImageRenderingModeAlwaysOriginal];
                 DrawArtwork(symbol,CGRectInset(alertRect,5,5));
@@ -269,6 +274,54 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     if (card && !CGRectEqualToRect(card.frame,frame)) { card.frame=frame; [card setNeedsDisplay]; }
     return frame;
 }
+static void UpdateOverspeedBorder(UIView *map,NSDictionary *output) {
+    static const void *key=&key;
+    NSUInteger mode=GVMOverspeedMode();
+    BOOL visible=ExternalMap(map) && GVMBubbleEnabledForHost(map);
+    for (UIView *view=map;view;view=view.superview) if (view.hidden || view.alpha<=0.01) visible=NO;
+    if (map.window.windowScene.activationState!=UISceneActivationStateForegroundActive) visible=NO;
+    uint64_t lease=visible ? GVMEncodeOverspeedLease(output,NSProcessInfo.processInfo.systemUptime) : 0;
+    // Hidden retained maps must not clear the visible map's shared warning.
+    // With no visible publisher the bounded lease expires on its own.
+    if (visible || mode!=2) GVMPublishOverspeedLease(mode==2 ? lease : 0);
+    GVMOverspeedFrame *frame=objc_getAssociatedObject(map,key);
+    if (mode==1 && lease && !frame) {
+        frame=[[GVMOverspeedFrame alloc] initWithFrame:map.bounds]; [map.layer addSublayer:frame.layer];
+        objc_setAssociatedObject(map,key,frame,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    // Draw inside the visible viewport so clipping/sidebar cannot remove an edge.
+    CGRect viewport=map.bounds;
+    UIWindow *window=map.window;
+    if (window) {
+        // Safe-area insets also reserve Google's buttons, not just the sidebar.
+        // Intersect actual host geometry; coordinate conversion handles any screen ratio.
+        CGRect visibleWindow=window.bounds;
+        // Full map can extend under the CarPlay rail. Keep only the dominant
+        // edge reservation; other safe-area edges belong to Google controls.
+        CGSize screenSize=window.screen.bounds.size;
+        BOOL dashboard=screenSize.width>0 && map.bounds.size.width/screenSize.width<0.72;
+        if (!dashboard) {
+            UIEdgeInsets rail=window.safeAreaInsets;
+            CGFloat edge=MAX(MAX(rail.left,rail.right),MAX(rail.top,rail.bottom));
+            UIEdgeInsets exclusion=UIEdgeInsetsZero;
+            if (edge>0) {
+                if (rail.left==edge) exclusion.left=edge;
+                else if (rail.right==edge) exclusion.right=edge;
+                else if (rail.top==edge) exclusion.top=edge;
+                else exclusion.bottom=edge;
+            }
+            visibleWindow=UIEdgeInsetsInsetRect(visibleWindow,exclusion);
+        }
+        viewport=CGRectIntersection(viewport,[map convertRect:visibleWindow fromView:window]);
+        for (UIView *parent=map.superview;parent;parent=parent.superview)
+            if (parent.clipsToBounds) viewport=CGRectIntersection(viewport,[map convertRect:parent.bounds fromView:parent]);
+    }
+    BOOL valid=!CGRectIsNull(viewport) && !CGRectIsEmpty(viewport);
+    frame.autoresizingMask=UIViewAutoresizingNone;
+    frame.frame=valid ? viewport : CGRectZero;
+    [frame setWarningLevel:mode==1 && valid ? (NSUInteger)(lease&3) : 0];
+    if (frame && !frame.hidden) { [frame setNeedsLayout]; [frame layoutIfNeeded]; frame.layer.zPosition=10000; }
+}
 void GVMUpdateSpeedCard(UIView *map, NSDictionary *output, BOOL night) {
     NSNumber *speed=output[@"speed"][@"value"], *limit=output[@"speedLimit"][@"value"];
     // Freshness is validated upstream; a new receive time alone must not repaint.
@@ -279,6 +332,7 @@ void GVMUpdateSpeedCard(UIView *map, NSDictionary *output, BOOL night) {
     NSArray *alerts=[visibleAlerts copy];
     NSUInteger sourceID=output ? [output[@"sourceID"] unsignedIntegerValue] : GVMSelectedSourceID();
     if (!ExternalMap(map) && !([objc_getAssociatedObject(map,phoneKey) boolValue] && NSThread.isMainThread && HostWindow(map).screen==UIScreen.mainScreen)) return;
+    if (ExternalMap(map)) UpdateOverspeedBorder(map,output);
     GVMSpeedCard *card = objc_getAssociatedObject(map,cardKey);
     if (!GVMBubbleEnabledForHost(map)) { card.hidden=YES; return; }
     if (!card) {

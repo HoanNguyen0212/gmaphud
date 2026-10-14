@@ -1,5 +1,6 @@
 #import "background-location.h"
 #import "background-policy.h"
+#import "source-transport.h"
 #import <UIKit/UIKit.h>
 #import <CoreLocation/CoreLocation.h>
 #import <objc/runtime.h>
@@ -10,7 +11,7 @@
 @interface GVMLocationSession : NSObject
 @property(nonatomic, weak) CLLocationManager *manager;
 @property(nonatomic) BOOL requestedBackground, requestedPause, requestedIndicator;
-@property(nonatomic) BOOL running;
+@property(nonatomic) BOOL running, forcedRunning, sourceGPS;
 @property(atomic) BOOL applied;
 @property(nonatomic) NSUInteger callbacks;
 @property(nonatomic) double lastLog;
@@ -112,16 +113,28 @@ static GVMLocationSession *Session(CLLocationManager *manager) {
     }
     return session;
 }
+static NSUInteger ManagedSourceID(void) {
+#if GVM_GOFA_SOURCE
+    return GVMSourceGofa;
+#elif GVM_WAZE_SOURCE
+    return GVMSourceWaze;
+#else
+    return GVMSourceVietMap;
+#endif
+}
+static int sourceSessionToken=-1;
 static BOOL Active(CLLocationManager *manager) {
-    uint64_t state=0;
-    return sessionToken>=0 && notify_get_state(sessionToken,&state)==NOTIFY_STATUS_OK &&
+    uint64_t state=0,source=0;
+    return sessionToken>=0 && sourceSessionToken>=0 &&
+        notify_get_state(sessionToken,&state)==NOTIFY_STATUS_OK &&
+        notify_get_state(sourceSessionToken,&source)==NOTIFY_STATUS_OK &&
+        source==ManagedSourceID() && GVMSelectedSourceID()==source &&
         GVMBackgroundPermissionAllowed(NSProcessInfo.processInfo.systemUptime,state) &&
-        manager.authorizationStatus==kCLAuthorizationStatusAuthorizedWhenInUse &&
-        CLLocationManager.locationServicesEnabled;
+        GVMBackgroundLocationAuthorized(manager.authorizationStatus) && CLLocationManager.locationServicesEnabled;
 }
 static void Apply(GVMLocationSession *session,BOOL active) {
     CLLocationManager *manager=session.manager;
-    active=active && session.running;
+    active=active && (session.running || session.forcedRunning);
     if (!manager || session.applied==active) return;
     originalBackground(manager,@selector(setAllowsBackgroundLocationUpdates:),active ? YES : session.requestedBackground);
     originalPause(manager,@selector(setPausesLocationUpdatesAutomatically:),active ? NO : session.requestedPause);
@@ -129,12 +142,58 @@ static void Apply(GVMLocationSession *session,BOOL active) {
     session.applied=active;
     Record([NSString stringWithFormat:@"location configuration active=%d running=%d app=%ld permission=%d",active,session.running,(long)UIApplication.sharedApplication.applicationState,manager.authorizationStatus]);
 }
+#if GVM_WAZE_SOURCE
+static BOOL carplayBootstrapAttempted, carplayBootstrapScheduled;
+static double sourceProcessStarted;
+static void BootstrapCarPlay(CLLocationManager *manager) {
+    if (carplayBootstrapAttempted || carplayBootstrapScheduled || !Active(manager)) return;
+    uint64_t carplay=0; int token=-1;
+    if (notify_register_check(GVM_BACKGROUND_SIGNAL,&token)==NOTIFY_STATUS_OK) {
+        notify_get_state(token,&carplay); notify_cancel(token);
+    }
+    if (!GVMBackgroundActive(NSProcessInfo.processInfo.systemUptime,carplay)) return;
+    carplayBootstrapScheduled=YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,2*NSEC_PER_SEC),dispatch_get_main_queue(), ^{
+        carplayBootstrapScheduled=NO;
+        if (!Active(manager)) return;
+        NSDictionary *output=GVMReadSourceOutput(NSProcessInfo.processInfo.systemUptime);
+        BOOL warm=[output[@"speed"][@"receivedAt"] doubleValue]>=sourceProcessStarted ||
+            [output[@"speedLimit"][@"receivedAt"] doubleValue]>=sourceProcessStarted;
+        carplayBootstrapAttempted=YES;
+        if (warm) { Record(@"native source GPS already fresh; scene initialization skipped"); return; }
+        int request=-1;
+        if (notify_register_check(GVM_BACKGROUND_BOOTSTRAP_CARPLAY,&request)==NOTIFY_STATUS_OK) {
+            uint64_t state=((uint64_t)(NSProcessInfo.processInfo.systemUptime*1000)<<3)|GVMSourceWaze;
+            notify_set_state(request,state); notify_post(GVM_BACKGROUND_BOOTSTRAP_CARPLAY); notify_cancel(request);
+            Record(@"native CarPlay source initialization requested");
+        }
+    });
+}
+#endif
 void GVMRefreshLocationSession(void) {
     if (!NSThread.isMainThread) return;
     BOOL desired=NO;
     for (CLLocationManager *manager in managers.allObjects) {
-        BOOL active=Active(manager); desired=desired || active;
-        Apply(Session(manager),active);
+        GVMLocationSession *session=Session(manager);
+        BOOL active=Active(manager);
+#if GVM_WAZE_SOURCE
+        if (active && session.sourceGPS) BootstrapCarPlay(manager);
+#endif
+        // A native cold background launch may construct its GPS delegate without starting
+        // updates. The explicit wake lease owns only this measured source GPS manager.
+        if (active && session.sourceGPS && !session.running && !session.forcedRunning) {
+            session.forcedRunning=YES;
+            Apply(session,YES);
+            originalStart(manager,@selector(startUpdatingLocation));
+            Record(@"selected source GPS started by wake lease");
+        } else if (!active && session.forcedRunning) {
+            session.forcedRunning=NO;
+            if (!session.running) originalStop(manager,@selector(stopUpdatingLocation));
+            Record(@"wake-owned source GPS released");
+        }
+        active=active && (session.running || session.forcedRunning);
+        desired=desired || active;
+        Apply(session,active);
     }
     RefreshBackgroundActivity(desired);
 }
@@ -179,11 +238,28 @@ static void ObserveDelegate(id delegate) {
 static void SetDelegate(CLLocationManager *manager,SEL selector,id delegate) {
     ObserveDelegate(delegate);
     originalDelegate(manager,selector,delegate);
+    __weak CLLocationManager *weakManager=manager;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        CLLocationManager *current=weakManager;
+        if (!current) return;
+#if GVM_GOFA_SOURCE || GVM_WAZE_SOURCE
+        NSString *name=NSStringFromClass([current.delegate class]);
+#endif
+#if GVM_GOFA_SOURCE
+        BOOL primary=[name isEqual:@"GOFA.GofaLocationManager"];
+#elif GVM_WAZE_SOURCE
+        BOOL primary=[name isEqual:@"WazeLocationManager"];
+#else
+        BOOL primary=NO;
+#endif
+        Session(current).sourceGPS=primary;
+        GVMRefreshLocationSession();
+    });
 }
 static void Start(CLLocationManager *manager,SEL selector) {
     if (NSThread.isMainThread) {
         GVMLocationSession *session=Session(manager);
-        BOOL newlyRunning=!session.running; session.running=YES;
+        BOOL newlyRunning=!session.running; session.running=YES; session.forcedRunning=NO;
         ObserveDelegate(manager.delegate); Apply(session,Active(manager));
         if (newlyRunning) Record(@"app requested standard GPS start");
     }
@@ -193,7 +269,7 @@ static void Start(CLLocationManager *manager,SEL selector) {
 }
 static void Stop(CLLocationManager *manager,SEL selector) {
     if (NSThread.isMainThread) {
-        GVMLocationSession *session=Session(manager); session.running=NO;
+        GVMLocationSession *session=Session(manager); session.running=NO; session.forcedRunning=NO;
         Apply(session,NO); Record(@"app requested standard GPS stop; forwarded");
     }
     originalStop(manager,selector);
@@ -214,10 +290,26 @@ static void Indicator(CLLocationManager *manager,SEL selector,BOOL value) {
     originalIndicator(manager,selector,session.applied ? YES : value);
 }
 __attribute__((constructor)) static void InitializeLocationSession(void) {
-    if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"vn.vietmap.live"] ||
-        ![[NSBundle.mainBundle objectForInfoDictionaryKey:@"UIBackgroundModes"] containsObject:@"location"]) return;
+#if GVM_GOFA_SOURCE
+    if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.lumi.GOFA"] ||
+        ![[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] isEqual:@"4.2.1"] ||
+        ![[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] isEqual:@"3"]) return;
+#elif GVM_WAZE_SOURCE
+    if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.waze.iphone"] ||
+        ![[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] isEqual:@"5.25.0"]) return;
+#else
+    if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"vn.vietmap.live"]) return;
+#endif
+    if (![[NSBundle.mainBundle objectForInfoDictionaryKey:@"UIBackgroundModes"] containsObject:@"location"]) return;
+#if GVM_WAZE_SOURCE
+    sourceProcessStarted=NSProcessInfo.processInfo.systemUptime;
+#endif
     managers=[NSHashTable weakObjectsHashTable]; delegateClasses=[NSMutableSet new];
-    if (notify_register_check(GVM_BACKGROUND_LOCATION_SESSION,&sessionToken)!=NOTIFY_STATUS_OK) return;
+    if (notify_register_check(GVM_BACKGROUND_LOCATION_SESSION,&sessionToken)!=NOTIFY_STATUS_OK ||
+        notify_register_check(GVM_BACKGROUND_LOCATION_SOURCE,&sourceSessionToken)!=NOTIFY_STATUS_OK) return;
+    [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(__unused NSTimer *timer) {
+        GVMRefreshLocationSession();
+    }];
     MSHookMessageEx(CLLocationManager.class,@selector(startUpdatingLocation),(IMP)Start,(IMP *)&originalStart);
     MSHookMessageEx(CLLocationManager.class,@selector(stopUpdatingLocation),(IMP)Stop,(IMP *)&originalStop);
     MSHookMessageEx(CLLocationManager.class,@selector(setDelegate:),(IMP)SetDelegate,(IMP *)&originalDelegate);
