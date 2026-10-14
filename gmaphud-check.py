@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Run GMapHUD checks, retain local logs and classify failed diagnostics with Jev."""
+"""Run GMapHUD checks, retain local logs and print a compact local summary."""
 import argparse
 from collections import Counter
 from contextlib import contextmanager
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -15,33 +14,11 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location("gmaphud_triage", ROOT / "gmaphud-log-triage.py")
-jev = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(jev)
+STORAGE = Path.home() / ".config/gmaphud/checks"
 ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 MAX_EVENTS = 40
 MAX_CHUNK = 8192
-CRITERIA = {
-    "syntax": "Compiler reports malformed syntax or an undeclared identifier.",
-    "type_or_api": "Compiler reports incompatible types, argument mismatch or unavailable member/API.",
-    "dependency_or_toolchain": "Missing input/header/library/tool, invalid SDK/architecture or build configuration.",
-    "link": "Undefined or duplicate symbols, or linker failure after compilation.",
-    "test_assertion": "Executed tests report failed assertions, unit-test failure or regression.",
-    "packaging_or_signing": "Package assembly, signing, permissions or disk failure after build.",
-    "process_failure": "Owned command timed out, was interrupted or terminated by a signal.",
-    "unknown": "No supported diagnostic explains the failed exit, or the available evidence is ambiguous.",
-}
-NEXT = {
-    "syntax": "Đọc lỗi cú pháp/identifier đầu tiên và dòng mã tương ứng.",
-    "type_or_api": "Đối chiếu kiểu dữ liệu, chữ ký hàm và API/SDK tại dòng lỗi.",
-    "dependency_or_toolchain": "Kiểm tra input, THEOS, SDK và công cụ còn thiếu.",
-    "link": "Kiểm tra symbol và danh sách file/thư viện được link.",
-    "test_assertion": "Đọc assertion/test đầu tiên thất bại; chưa sửa kỳ vọng để làm test qua.",
-    "packaging_or_signing": "Kiểm tra bước đóng gói/ký và quyền ghi.",
-    "process_failure": "Kiểm tra timeout hoặc signal trước khi chạy lại.",
-    "unknown": "Cần đọc log gốc tại máy; chưa xác định nhóm lỗi.",
-}
-# Only fixed codes leave the machine. Raw messages, source excerpts, literals and commands stay local.
+# Fixed diagnostic codes summarize the log; raw messages stay in the private local log.
 PATTERNS = [
     (r"assertion.*failed|assertionerror|\bFAIL: |\bFAILED \(|\b[1-9]\d* failed\b", "assertion_failed"),
     (r"(?:fatal error:|error:).*file not found|no such file or directory|cannot find -l|library not found|no rule to make target", "missing_input"),
@@ -56,6 +33,19 @@ PATTERNS = [
 RULES = [(re.compile(pattern, re.IGNORECASE), kind) for pattern, kind in PATTERNS]
 DIAGNOSTIC = re.compile(r"^(.*?):(\d+)(?::\d+)?:\s*(fatal error|error|warning|note):")
 MARKER = re.compile(r"\b(?:error|warning|fatal|failed|exception|traceback|assertion)\b", re.IGNORECASE)
+
+
+def private_write(path, text):
+    """Atomic private file; never follows an existing destination symlink."""
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd, tmp = tempfile.mkstemp(prefix=".check-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
 
 
 def project_files(root):
@@ -139,7 +129,6 @@ def handle_interrupts():
 def execute(command, cwd, log_path, timeout):
     env = os.environ.copy()
     env["GMAPHUD_CHECK_RUNNING"] = "1"
-    env.pop("OPENROUTER_API_KEY", None)
     started = time.monotonic()
     reason = "exit"
     with handle_interrupts():
@@ -174,51 +163,17 @@ def execute(command, cwd, log_path, timeout):
     return (128 - status if status < 0 else status), round(time.monotonic() - started, 3), reason
 
 
-def classify_failure(state):
-    if os.environ.get("GMAPHUD_JEV", "auto") == "off":
-        return {"status": "disabled"}
-    if state["reason"] != "exit":
-        return {"status": "skipped_interrupted_or_timed_out"}
-    if not state["evidence"]["diagnostics"]:
-        return {"status": "no_supported_diagnostics"}
-    payload = {"model": jev.MODEL, "state": state, "questions": {"triage": {
-        "type": "choice", "criteria": CRITERIA,
-        "instructions": "Route a failed GMapHUD build/test to a developer. Exit code is authoritative: "
-        "the command already failed. Pick the earliest plausible cause, not later make/clang cascades. "
-        "Warning/note records alone cannot explain failure. Records contain fixed diagnostic codes, not raw text. "
-        "Unknown/omitted facts stay unknown. Choose unknown if evidence cannot distinguish causes. "
-        "Do not recommend execution or decide whether tests passed."
-    }}}
-    try:
-        result, latency = jev.call_jev(payload, jev.read_key(), criteria=CRITERIA)
-        return {"status": "classified", "decision": result, "latency_seconds": latency}
-    except (jev.TriageError, OSError, ValueError):
-        return {"status": "unavailable", "note": "Jev/key/network/schema unavailable; inspect local log. Original failure preserved."}
-
-
 def finish(task, exit_code, duration, reason, directory, root=ROOT):
     log = directory / "full.log"
     evidence = extract_log(log, root)
     state = {"task": task, "exit_code": exit_code, "reason": reason, "evidence": evidence}
-    jev.private_write(directory / "evidence.json", json.dumps(state, ensure_ascii=False, indent=2) + "\n")
-    try:
-        with handle_interrupts():
-            decision = classify_failure(state) if exit_code else {"status": "not_needed_success"}
-    except KeyboardInterrupt:
-        # The check already finished: cancelling the optional model must not replace its verdict.
-        decision = {"status": "classification_interrupted"}
+    private_write(directory / "evidence.json", json.dumps(state, ensure_ascii=False, indent=2) + "\n")
     passed = exit_code == 0
     lines = [f"{'PASS' if passed else 'FAIL'} {task} · exit {exit_code} · {duration:.1f}s · "
              f"{evidence['counts'].get('warning', 0)} warning(s)"]
     if not passed:
-        if decision["status"] == "classified":
-            answer = decision["decision"]
-            lines.append(f"Jev gợi ý: {answer['choice']} · confidence {answer['confidence']:.2f} · USD {answer['usage']['cost']}")
-            lines.append(NEXT[answer["choice"]])
-            if answer["confidence"] < 0.8:
-                lines.append("Confidence thấp; cần Codex kiểm tra bằng chứng.")
-        else:
-            lines.append(f"Jev: {decision['status']}; cần kiểm tra log tại máy.")
+        if reason != "exit":
+            lines.append(f"Lệnh bị dừng ({reason}); kiểm tra timeout hoặc tín hiệu trước khi chạy lại.")
         for event in [item for item in evidence["diagnostics"] if item["severity"] == "error"][:5]:
             location = f" {event['project_file']}:{event['source_line']}" if "project_file" in event else ""
             lines.append(f"L{event['log_line']}: {event['kind']}{location}")
@@ -230,10 +185,9 @@ def finish(task, exit_code, duration, reason, directory, root=ROOT):
     metrics = {"exit_code": exit_code, "duration_seconds": duration, "raw_log_bytes": raw_bytes,
                "brief_bytes": len(brief.encode()), "output_byte_reduction_percent":
                round(100 * (1 - len(brief.encode()) / raw_bytes), 2) if raw_bytes else None,
-               "note": "Output bytes only; local filtering is not Jev reasoning or measured Codex quota savings."}
-    for name, data in (("jev.json", decision), ("metrics.json", metrics)):
-        jev.private_write(directory / name, json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-    jev.private_write(directory / "brief.txt", brief)
+               "note": "Output bytes only; not measured agent quota savings."}
+    private_write(directory / "metrics.json", json.dumps(metrics, ensure_ascii=False, indent=2) + "\n")
+    private_write(directory / "brief.txt", brief)
     print(brief, end="", flush=True)
     return exit_code
 
@@ -251,15 +205,14 @@ def main():
     command = ["sh", str(ROOT / {"test": "test.sh", "source-test": "test-source-output.sh", "build": "build-tweak.sh"}[args.task])]
     if args.task == "build":
         command.append(args.scheme or "all")
-    storage = jev.CONFIG / "checks"
-    storage.mkdir(parents=True, exist_ok=True, mode=0o700)
-    storage.chmod(0o700)
-    directory = Path(tempfile.mkdtemp(prefix=time.strftime("%Y%m%d-%H%M%S-") + args.task + "-", dir=storage))
+    STORAGE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    STORAGE.chmod(0o700)
+    directory = Path(tempfile.mkdtemp(prefix=time.strftime("%Y%m%d-%H%M%S-") + args.task + "-", dir=STORAGE))
     print(f"GMapHUD: chạy {args.task}; đang lưu log riêng…", flush=True)
     try:
         status, duration, reason = execute(command, ROOT, directory / "full.log", args.timeout)
     except OSError:
-        print("Không khởi chạy được build/test. Chưa gọi Jev.", file=sys.stderr)
+        print("Không khởi chạy được build/test.", file=sys.stderr)
         return 127
     with handle_interrupts():
         try:

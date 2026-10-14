@@ -38,5 +38,4 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
 
 xcrun clang -Wall -Wextra -Werror "$source_dir/tests/background-policy-tests.c" -o "$test_dir/background-policy"
 "$test_dir/background-policy"
-python3 "$source_dir/tests/log-triage-tests.py"
 python3 "$source_dir/tests/check-runner-tests.py"

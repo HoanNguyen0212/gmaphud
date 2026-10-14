@@ -80,7 +80,7 @@ THEOS="$HOME/theos" sh build-tweak.sh all
 
 Packages appear in `packages/`. Both scripts use disposable directories and support spaces in the checkout path. The tested toolchain emits a pre-existing `-multiply_defined is obsolete` linker warning.
 
-Build/test commands now keep full logs locally and return a compact result. Successful runs never call AI; failures can use the configured Jev key to classify filtered diagnostics while preserving the command's exit code. See [build/test triage](docs/build-triage.md) for key setup, local reports and the `GMAPHUD_JEV=off` / `GMAPHUD_CHECK_RAW=1` options.
+Build/test commands keep full logs locally and return a compact result with fixed diagnostic labels, preserving the command's exit code. No AI or external API is called. See [build/test reports](docs/build-triage.md) for local reports and the `GMAPHUD_CHECK_RAW=1` option.
 
 ## Maintain the Sileo source
 

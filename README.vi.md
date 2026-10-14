@@ -81,7 +81,7 @@ THEOS="$HOME/theos" sh build-tweak.sh all
 
 Gói được tạo trong `packages/`. Hai script dùng thư mục tạm và hỗ trợ đường dẫn checkout có dấu cách. Toolchain đã kiểm thử có cảnh báo linker tồn tại từ trước: `-multiply_defined is obsolete`.
 
-Các lệnh build/test giữ log đầy đủ tại máy và trả kết quả ngắn. Thành công không gọi AI; khi lỗi có thể dùng key Jev đã cấu hình để phân loại chẩn đoán đã lọc, luôn giữ mã thoát của lệnh. Xem [hướng dẫn build/test với Jev](docs/build-triage.md) để đặt key, đọc báo cáo và dùng tùy chọn `GMAPHUD_JEV=off` / `GMAPHUD_CHECK_RAW=1`.
+Các lệnh build/test giữ log đầy đủ tại máy và trả kết quả ngắn kèm nhãn lỗi cố định, luôn giữ mã thoát của lệnh. Không gọi AI hay API bên ngoài. Xem [hướng dẫn build/test](docs/build-triage.md) để đọc báo cáo và dùng tùy chọn `GMAPHUD_CHECK_RAW=1`.
 
 ## Duy trì nguồn Sileo
 
