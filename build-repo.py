@@ -105,6 +105,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.2.2", "Giữ giới hạn tốc độ của Waze và GOFA ổn định khi điện thoại đứng yên; GOFA không còn mất giới hạn khi chạy nền. Cải thiện độ ổn định định vị nền.",
+         "Keeps Waze and GOFA speed limits steady while the phone is stationary; GOFA no longer loses the limit in the background. Improves background location stability."),
         ("0.2.1", "Thêm nguồn cảnh báo Waze và GOFA, bổ sung bộ icon cảnh báo. Cải thiện chạy nền và độ ổn định tốc độ, giới hạn và cảnh báo đường.",
          "Adds Waze and GOFA warning sources and new warning icons. Improves background operation and stability of speed, limits and road alerts."),
         ("0.2", "Làm gọn Cài đặt, thêm kéo thả và xem trước bố cục. Bổ sung tùy chọn thoát nguồn khi ngắt CarPlay; sửa cảnh báo vượt tốc chặn thao tác. Hiện hỗ trợ VietMap Live.",
