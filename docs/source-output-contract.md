@@ -1,4 +1,4 @@
-> Release 0.2.1 enables Waze alongside VietMap (one selected source only). Waze 5.25.0 ABI/UUID guards remain; GOFA4.2.1 build3 re-enabled experimentally; cold/locked GPS measured, native current-limit snapshot verified on fresh GPS; red-light/no-right replay observed, long-idle/full alert coverage pending. Designed artwork replaces temporary Waze images. Cold mobile-only initialization supplied fresh native 0/60 to Full Map and Dashboard in device tests. Real-road speed, long-idle reliability and active alert coverage remain unverified. Published as0.2.1.
+> Release 0.2.1 enables Waze alongside VietMap (one selected source only). Waze 5.25.0 ABI/UUID guards remain; GOFA4.2.1 build3 re-enabled experimentally; cold/locked GPS measured, current native limits held while stationary GPS is silent; red-light/no-right replay observed, long-idle/full alert coverage pending. Designed artwork replaces temporary Waze images. Cold mobile-only initialization supplied fresh native 0/60 to Full Map and Dashboard in device tests. Real-road speed, long-idle reliability and active alert coverage remain unverified. Published as 0.2.2.
 
 # Common source output · v1
 
@@ -158,7 +158,11 @@ Shared traffic-camera artwork represents this warning. Unknown tuples are omitte
 
 `WSVLocationGPSPosition` supplies mm/s converted to rounded km/h, preserving GPS
 sample age and rejecting duplicates/future/stale timestamps. The optional native
-limit getter is guarded by the measured executable UUID and entry bytes. Missing
+limit getter is guarded by the measured executable UUID and entry bytes. After Waze
+has processed its first GPS position, the adapter also re-reads that live native limit
+every second, because iOS may deliver no GPS while the phone is stationary and Waze
+still holds its current limit (VietMap's engine likewise re-sends its limit). A read
+without a limit clears it; speed still requires fresh GPS. Missing
 limit support does not disable camera or speed data. Its build-specific semantics
 and nonzero speed still require wider device validation.
 
@@ -202,11 +206,11 @@ are rejected. Candidate coordinates and identities stay in the GOFA process.
 [The source](../tweak/gofa-source.m) converts GOFA GPS input from m/s to km/h,
 using the original date and rejecting duplicate, reordered, future and stale
 samples. It excludes GOFA's own displayed-speed adjustment. Current limit comes
-from the measured live `GOFA.HomeViewModel.currentSpeedBoard` (Swift.Int), with the native notification `currentAllowSpeed` fallback when no owner exists. A weak owner is retained only for lookup; each fresh GPS observation reads the current property. Unknown/zero native state clears the limit, and stale GPS cannot renew it. Distances use `CLLocation.distanceFromLocation`, the same
+from the latest native `notificationSpeedBoard` `currentAllowSpeed`. GOFA re-issues that board only as its pipeline accepts movement, while its own map keeps showing it. GOFA re-issued boards every 5–9 seconds while nearly stationary in background, and none while iOS delivered no GPS. The adapter therefore re-asserts the latest board every second until GOFA replaces or clears it, or the latest GPS lies more than 50 m from the latest fresh position known when the board was processed (or the first fresh fix within the board's own five-second TTL); a board without such a position expires after five seconds. This works after a cold background launch, which creates no GOFA view model. Empty, unknown or zero native boards clear the limit, and stale GPS cannot renew it. Distances use `CLLocation.distanceFromLocation`, the same
 operation verified in GOFA's native `DatapointModel.distanceToLocation`.
 Alerts require fresh GPS and fresh candidate membership; polling/movement never
 renew an old candidate list. Native removal, empty lists, very close points and
-five-second expiration clear warnings. GOFA remembers identities reached within the existing5m exclusion while their fresh native membership persists; crossing to a larger distance cannot resurrect the same point. Removal/expiry releases suppression, and another approach can be observed. Native current-state reads prevent unchanged limits disappearing between notifications. No cached-notification timestamp extension is applied. Warning membership keeps its original receive time.
+five-second expiration clear warnings. GOFA remembers identities reached within the existing5m exclusion while their fresh native membership persists; crossing to a larger distance cannot resurrect the same point. Removal/expiry releases suppression, and another approach can be observed. Only the speed board uses the position bound above; warning membership keeps its original receive time and is never renewed by GPS.
 
 Sixteen existing semantics have enum-backed mappings: camera speed/traffic/red-light/AI,
 residential start/end, toll, no-passing start/end, rest area and six turn restrictions.

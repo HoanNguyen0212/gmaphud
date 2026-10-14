@@ -55,6 +55,11 @@ static NSUInteger ExperimentalType(NSString *icon) {
 }
 
 
+static NSDictionary *LimitSample(uint64_t limit,double receivedAt) {
+    int32_t kmh=(int32_t)limit;
+    return ((limit>>32)&255)==1 && kmh>0 && kmh<=400 ? @{@"value":@(kmh),@"receivedAt":@(receivedAt)} : nil;
+}
+
 @implementation GVMWazeOutputStore {
     NSMutableDictionary<NSString *, NSDictionary *> *_alerts;
     NSDictionary *_samples;
@@ -96,9 +101,13 @@ static NSUInteger ExperimentalType(NSString *icon) {
     double kmh=speed*0.0036;
     if (isfinite(kmh) && kmh>=0 && kmh<=400)
         samples[@"speed"]=@{@"value":@(lround(kmh)),@"receivedAt":@(uptime-age)};
-    int32_t kmhLimit=(int32_t)limit;
-    if (((limit>>32)&255)==1 && kmhLimit>0 && kmhLimit<=400)
-        samples[@"speedLimit"]=@{@"value":@(kmhLimit),@"receivedAt":@(uptime-age)};
+    samples[@"speedLimit"]=LimitSample(limit,uptime-age);
+    _samples=[samples copy];
+}
+- (void)updateLimit:(uint64_t)limit uptime:(double)uptime {
+    if (!isfinite(uptime) || uptime<0) return;
+    NSMutableDictionary *samples=[_samples mutableCopy];
+    samples[@"speedLimit"]=LimitSample(limit,uptime);
     _samples=[samples copy];
 }
 - (NSDictionary *)outputAtUptime:(double)uptime {

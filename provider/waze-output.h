@@ -8,5 +8,7 @@
                atUptime:(NSTimeInterval)uptime;
 - (void)updateSpeed:(double)millimetresPerSecond timestamp:(double)timestamp
                now:(double)now uptime:(double)uptime optionalLimit:(uint64_t)limit;
+// Live native limit read at uptime; replaces or clears only the limit field.
+- (void)updateLimit:(uint64_t)limit uptime:(double)uptime;
 - (NSDictionary *)outputAtUptime:(NSTimeInterval)uptime;
 @end

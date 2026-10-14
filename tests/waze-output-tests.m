@@ -49,6 +49,15 @@ int main(void) { @autoreleasepool {
     Require([output[@"speed"][@"value"] isEqual:@0] && !output[@"speedLimit"],@"zero speed and absent limit are distinct");
     [store updateSpeed:999 timestamp:1010 now:1006 uptime:205 optionalLimit:0];
     Require([[store outputAtUptime:205][@"speed"][@"value"] isEqual:@0],@"future GPS rejected");
+    GVMWazeOutputStore *held=[GVMWazeOutputStore new];
+    [held updateSpeed:10000 timestamp:1000 now:1000 uptime:300 optionalLimit:((uint64_t)1<<32)|50];
+    [held updateLimit:((uint64_t)1<<32)|50 uptime:308];
+    NSDictionary *heldOutput=[held outputAtUptime:308];
+    Require(!heldOutput[@"speed"] && [heldOutput[@"speedLimit"][@"value"] isEqual:@50],@"live native limit holds without GPS; speed still expires");
+    [held updateLimit:0 uptime:309];
+    Require(![held outputAtUptime:309][@"speedLimit"],@"live native read without a limit clears it");
+    [held updateLimit:((uint64_t)1<<32)|50 uptime:NAN];
+    Require(![held outputAtUptime:309][@"speedLimit"],@"invalid read time is ignored");
     GVMOutputWords words;
     Require(GVMEncodeSourceOutput(output,204,&words),@"Waze encodes into shared wire");
     NSDictionary *decoded=GVMDecodeSourceOutput(2,words,204);

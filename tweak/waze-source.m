@@ -48,6 +48,8 @@ static void ObserveAlert(NSString *icon,NSInteger type,NSInteger subtype,NSInteg
 }
 
 static uint64_t (*ReadNativeLimit)(void);
+// Set once a native GPS position has been processed, so the native limit state exists.
+static BOOL nativeLimitReady;
 static NSString *limitGuardStatus=@"not checked";
 typedef id (*GPSInit)(id __attribute__((ns_consumed)),SEL,double,double,double,double,double,double,double,BOOL,double,double) __attribute__((ns_returns_retained));
 static GPSInit OriginalGPS;
@@ -63,6 +65,7 @@ static id GPS(id self __attribute__((ns_consumed)),SEL cmd,double longitude,doub
         double current=NSProcessInfo.processInfo.systemUptime;
         if (current-uptime>=5) return;
         uint64_t limit=ReadNativeLimit ? ReadNativeLimit() : 0;
+        nativeLimitReady=ReadNativeLimit!=NULL;
         [store updateSpeed:speed timestamp:time now:now uptime:uptime optionalLimit:limit];
         Publish(NO);
         if (lastStatusTime<0 || current-lastStatusTime>=5) {
@@ -168,6 +171,11 @@ __attribute__((constructor)) static void Start(void) {
     if (gpsMethod && !strcmp(method_getTypeEncoding(gpsMethod),"@92@0:8d16d24d32d40d48d56d64B72d76d84"))
         MSHookMessageEx(gpsClass,gpsSelector,(IMP)GPS,(IMP *)&OriginalGPS);
     dispatch_async(dispatch_get_main_queue(), ^{
-        [NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(__unused NSTimer *timer) { Publish(NO); }];
+        [NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(__unused NSTimer *timer) {
+            // iOS may deliver no GPS while stationary; Waze still holds its current limit, so
+            // re-read that live native state each second as VietMap's engine re-sends it.
+            if (nativeLimitReady) [store updateLimit:ReadNativeLimit() uptime:NSProcessInfo.processInfo.systemUptime];
+            Publish(NO);
+        }];
     });
 }

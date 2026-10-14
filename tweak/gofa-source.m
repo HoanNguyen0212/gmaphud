@@ -10,9 +10,10 @@
 #include "gofa-alert-policy.h"
 #include <math.h>
 extern void *GVMGofaPayload(const void *);
-extern void *GVMGofaBoardState(const void *);
 static NSMutableDictionary *samples;
-static __weak id boardOwner;
+static NSNumber *boardLimit;
+static CLLocation *boardAnchor;
+static double boardReceived=-1;
 static NSMutableDictionary *candidateGroups, *candidateTimes;
 static NSMutableSet *passedPoints;
 static CLLocation *position;
@@ -22,6 +23,14 @@ static NSInteger authorization=-1;
 static BOOL backgroundLocation;
 static NSArray *PointKey(NSDictionary *point) {
     return @[point[@"identity"],point[@"sign"],point[@"latitude"],point[@"longitude"]];
+}
+// Latest fresh GPS position when the native board was processed; nil when none was fresh.
+static CLLocation *FreshAnchor(void) {
+    double age=NSProcessInfo.processInfo.systemUptime-positionTime;
+    return age>=0 && age<5 ? position : nil;
+}
+static double AnchorDistance(CLLocation *anchor) {
+    return position && anchor ? [position distanceFromLocation:anchor] : NAN;
 }
 static void (*originalLocations)(id,SEL,CLLocationManager *,NSArray *);
 static NSUInteger Semantic(NSInteger sign) {
@@ -49,6 +58,11 @@ static NSUInteger Semantic(NSInteger sign) {
 static void Publish(BOOL force) {
     GVMRefreshLocationSession();
     double now=NSProcessInfo.processInfo.systemUptime;
+    // GOFA's latest board remains its displayed limit, including while iOS delivers no GPS,
+    // until GOFA replaces or clears it or the latest GPS lies away from where it was observed.
+    if (boardLimit && GVMGofaBoardNear(AnchorDistance(boardAnchor)))
+        samples[@"speedLimit"]=@{@"value":boardLimit,@"receivedAt":@(now)};
+    else if (boardLimit && boardAnchor) [samples removeObjectForKey:@"speedLimit"];
     NSMutableArray *alerts=NSMutableArray.array;
     NSMutableSet *membership=NSMutableSet.set;
     for (NSString *group in candidateGroups) {
@@ -107,43 +121,19 @@ static void Locations(id self,SEL cmd,CLLocationManager *manager,NSArray *locati
         double speed=location.speed;
         if (isfinite(speed) && speed>=0 && speed*3.6<=400) samples[@"speed"]=@{@"value":@(llround(speed*3.6)),@"receivedAt":@(timestamp)};
         else [samples removeObjectForKey:@"speed"];
-        id owner=boardOwner;
-        if (owner) {
-            // Read GOFA's live current-board property for this fresh GPS observation.
-            // A repeated read is not a replay of the notification payload.
-            NSDictionary *state=CFBridgingRelease(GVMGofaBoardState((__bridge const void *)owner));
-            id limit=state[@"value"];
-            if ([limit isKindOfClass:NSNumber.class] && [limit integerValue]>0 && [limit integerValue]<=400)
-                samples[@"speedLimit"]=@{@"value":limit,@"receivedAt":@(timestamp)};
-            else [samples removeObjectForKey:@"speedLimit"];
-        }
+        // A board processed before any fresh fix is anchored to the first fix within its TTL.
+        double now=NSProcessInfo.processInfo.systemUptime;
+        if (boardLimit && !boardAnchor && now-boardReceived>=0 && now-boardReceived<5) boardAnchor=location;
         Publish(NO);
     });
-}
-static void ObserveBoardState(void) {
-    for (NSString *name in @[@"GOFA.HomeViewModel",@"GOFA.MapViewModel",@"GOFA.MapCarplayViewModel",@"GOFA.NavigationMapViewModel"]) {
-        Class cls=NSClassFromString(name); SEL selector=NSSelectorFromString(@"bindSpeedBoardWithNotification:");
-        Method method=class_getInstanceMethod(cls,selector);
-        if (!method || strcmp(method_getTypeEncoding(method),"v24@0:8@16")) continue;
-        __block void (*original)(id,SEL,id);
-        IMP replacement=imp_implementationWithBlock(^(id self,id notification) {
-            original(self,selector,notification);
-            NSDictionary *state=CFBridgingRelease(GVMGofaBoardState((__bridge const void *)self));
-            if (!state) return;
-            if (!boardOwner || [name isEqual:@"GOFA.HomeViewModel"]) boardOwner=self;
-            NSData *data=[NSJSONSerialization dataWithJSONObject:state options:0 error:nil];
-            [data writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-gofa-native-state.json"] atomically:YES];
-        });
-        MSHookMessageEx(cls,selector,replacement,(IMP *)&original);
-    }
 }
 __attribute__((constructor)) static void Initialize(void) {
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.lumi.GOFA"]) return;
     if (![[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] isEqual:@"4.2.1"] ||
         ![[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] isEqual:@"3"]) return;
     dispatch_async(dispatch_get_main_queue(), ^{
-        ObserveBoardState();
-        samples=NSMutableDictionary.dictionary; candidateGroups=NSMutableDictionary.dictionary; candidateTimes=NSMutableDictionary.dictionary;
+        samples=NSMutableDictionary.dictionary; candidateGroups=NSMutableDictionary.dictionary;
+        candidateTimes=NSMutableDictionary.dictionary;
         passedPoints=NSMutableSet.set;
         Class cls=NSClassFromString(@"GOFA.GofaLocationManager");
         SEL selector=@selector(locationManager:didUpdateLocations:);
@@ -162,10 +152,17 @@ __attribute__((constructor)) static void Initialize(void) {
                         candidateGroups[group]=payload[@"candidates"]; candidateTimes[group]=@(received);
                     }
                     else {
-                        if (samples[@"speedLimit"] && received<[samples[@"speedLimit"][@"receivedAt"] doubleValue]) return;
+                        if (received<boardReceived) return;
+                        boardReceived=received;
                         id value=payload[@"speedLimit"];
-                        if ([value isKindOfClass:NSNumber.class]) samples[@"speedLimit"]=@{@"value":value,@"receivedAt":@(received)};
-                        else [samples removeObjectForKey:@"speedLimit"];
+                        if ([value isKindOfClass:NSNumber.class] && [value integerValue]>0 && [value integerValue]<=400) {
+                            boardLimit=value; boardAnchor=FreshAnchor();
+                            samples[@"speedLimit"]=@{@"value":value,@"receivedAt":@(received)};
+                        } else {
+                            // An unknown or zero native board clears the limit.
+                            boardLimit=nil; boardAnchor=nil;
+                            [samples removeObjectForKey:@"speedLimit"];
+                        }
                     }
                     Publish(NO);
                 });
@@ -173,9 +170,9 @@ __attribute__((constructor)) static void Initialize(void) {
         }
         notify_register_dispatch(GVMOutputRequestName(GVMSourceGofa).UTF8String,&requestToken,dispatch_get_main_queue(),^(int token){ (void)token; Publish(YES); });
         Publish(YES);
-        // Release a vanished host's location lease even when GPS is stationary or silent.
-        [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(__unused NSTimer *timer) {
-            GVMRefreshLocationSession();
+        // Hold the native board and release a vanished host's lease while GPS is silent.
+        [NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(__unused NSTimer *timer) {
+            Publish(NO);
         }];
     });
 }

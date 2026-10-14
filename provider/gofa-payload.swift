@@ -23,10 +23,15 @@ public func gofaPayload(_ pointer: UnsafeRawPointer) -> UnsafeMutableRawPointer?
     let info = note.userInfo ?? [:]
     var result: [String: Any] = [:]
     if note.name.rawValue == "notificationSpeedBoard" {
-        guard let raw = info["pushSpeedBoard"], let model = unwrap(raw),
-              String(reflecting: type(of: model)) == "GOFA.SpeedBoardModel" else { return nil }
-        result["speedLimit"] = integer(field(model, "currentAllowSpeed")) ?? NSNull() as Any
-        result["speed"] = integer(field(model, "userSpeed")) ?? NSNull() as Any
+        guard let raw = info["pushSpeedBoard"] else { return nil }
+        if let model = unwrap(raw) {
+            guard String(reflecting: type(of: model)) == "GOFA.SpeedBoardModel" else { return nil }
+            result["speedLimit"] = integer(field(model, "currentAllowSpeed")) ?? NSNull() as Any
+            result["speed"] = integer(field(model, "userSpeed")) ?? NSNull() as Any
+        } else {
+            // An empty native board clears the limit instead of leaving the previous one.
+            result["speedLimit"] = NSNull()
+        }
     } else if note.name.rawValue == "notificationNextBoard" || note.name.rawValue == "notificationOtherBoard" {
         let key = note.name.rawValue == "notificationNextBoard" ? "pushNextBoard" : "pushOtherBoardToCarplay"
         guard let raw = info[key], let value = unwrap(raw),
@@ -44,23 +49,5 @@ public func gofaPayload(_ pointer: UnsafeRawPointer) -> UnsafeMutableRawPointer?
         result["candidates"] = candidates
         result["candidateGroup"] = note.name.rawValue
     } else { return nil }
-    return Unmanaged.passRetained(result as NSDictionary).toOpaque()
-}
-
-// Observe only the current board property on measured native view models.
-@_cdecl("GVMGofaBoardState")
-public func gofaBoardState(_ pointer: UnsafeRawPointer) -> UnsafeMutableRawPointer? {
-    let model = Unmanaged<AnyObject>.fromOpaque(pointer).takeUnretainedValue()
-    let name = String(reflecting: type(of: model))
-    guard ["GOFA.HomeViewModel", "GOFA.MapViewModel", "GOFA.MapCarplayViewModel", "GOFA.NavigationMapViewModel"].contains(name) else { return nil }
-    let mirror = Mirror(reflecting: model)
-    guard let child = mirror.children.first(where: { $0.label == "currentSpeedBoard" }) else { return nil }
-    var result: [String: Any] = ["model": name, "fieldType": String(reflecting: type(of: child.value))]
-    if let value = unwrap(child.value) {
-        if let numeric = value as? Int { result["value"] = numeric }
-        else if String(reflecting: type(of: value)) == "GOFA.SpeedBoardModel" {
-            result["value"] = integer(field(value, "currentAllowSpeed")) ?? NSNull() as Any
-        }
-    }
     return Unmanaged.passRetained(result as NSDictionary).toOpaque()
 }

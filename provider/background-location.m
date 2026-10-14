@@ -10,11 +10,12 @@
 
 @interface GVMLocationSession : NSObject
 @property(nonatomic, weak) CLLocationManager *manager;
-@property(nonatomic) BOOL requestedBackground, requestedPause, requestedIndicator;
+// Requested values may be written by an off-main setter while main applies the lease.
+@property(atomic) BOOL requestedBackground, requestedPause, requestedIndicator;
 @property(nonatomic) BOOL running, forcedRunning, sourceGPS;
 #if GVM_GOFA_SOURCE
-@property(nonatomic) CLLocationDistance requestedDistance;
-@property(nonatomic) BOOL distanceApplied;
+@property(atomic) CLLocationDistance requestedDistance;
+@property(atomic) BOOL distanceApplied;
 #endif
 @property(atomic) BOOL applied;
 @property(nonatomic) NSUInteger callbacks;
@@ -168,10 +169,11 @@ static void Apply(GVMLocationSession *session,BOOL active) {
     }
 #endif
     if (session.applied==active) return;
+    // Commit before the setters so off-main setter hooks and re-entrant refreshes see the lease.
+    session.applied=active;
     originalBackground(manager,@selector(setAllowsBackgroundLocationUpdates:),active ? YES : session.requestedBackground);
     originalPause(manager,@selector(setPausesLocationUpdatesAutomatically:),active ? NO : session.requestedPause);
     originalIndicator(manager,@selector(setShowsBackgroundLocationIndicator:),active ? YES : session.requestedIndicator);
-    session.applied=active;
     Record([NSString stringWithFormat:@"location configuration active=%d running=%d app=%ld permission=%d distanceFilter=%.1f desiredAccuracy=%.1f background=%d paused=%d",active,session.running,(long)UIApplication.sharedApplication.applicationState,manager.authorizationStatus,manager.distanceFilter,manager.desiredAccuracy,manager.allowsBackgroundLocationUpdates,manager.pausesLocationUpdatesAutomatically]);
 }
 void GVMRefreshLocationSession(void) {
@@ -315,25 +317,37 @@ static void Stop(CLLocationManager *manager,SEL selector) {
 }
 #if GVM_GOFA_SOURCE
 static void Distance(CLLocationManager *manager,SEL selector,CLLocationDistance value) {
-    GVMLocationSession *session=NSThread.isMainThread ? Session(manager) : nil;
+    // Off-main setters reuse an existing session; only the main thread creates one.
+    GVMLocationSession *session=Session(manager);
     session.requestedDistance=value;
-    originalDistance(manager,selector,session.distanceApplied ? kCLDistanceFilterNone : value);
+    BOOL leased=session.distanceApplied;
+    originalDistance(manager,selector,leased ? kCLDistanceFilterNone : value);
+    // Main may commit a lease change between the check and the setter; settle on its state.
+    if (session && session.distanceApplied!=leased)
+        originalDistance(manager,selector,session.distanceApplied ? kCLDistanceFilterNone : session.requestedDistance);
 }
 #endif
+// Like Distance, each hook settles on the lease state main may commit concurrently.
 static void Background(CLLocationManager *manager,SEL selector,BOOL value) {
-    GVMLocationSession *session=NSThread.isMainThread ? Session(manager) : nil;
+    GVMLocationSession *session=Session(manager);
     session.requestedBackground=value;
-    originalBackground(manager,selector,session.applied ? YES : value);
+    BOOL leased=session.applied;
+    originalBackground(manager,selector,leased ? YES : value);
+    if (session && session.applied!=leased) originalBackground(manager,selector,session.applied ? YES : session.requestedBackground);
 }
 static void Pause(CLLocationManager *manager,SEL selector,BOOL value) {
-    GVMLocationSession *session=NSThread.isMainThread ? Session(manager) : nil;
+    GVMLocationSession *session=Session(manager);
     session.requestedPause=value;
-    originalPause(manager,selector,session.applied ? NO : value);
+    BOOL leased=session.applied;
+    originalPause(manager,selector,leased ? NO : value);
+    if (session && session.applied!=leased) originalPause(manager,selector,session.applied ? NO : session.requestedPause);
 }
 static void Indicator(CLLocationManager *manager,SEL selector,BOOL value) {
-    GVMLocationSession *session=NSThread.isMainThread ? Session(manager) : nil;
+    GVMLocationSession *session=Session(manager);
     session.requestedIndicator=value;
-    originalIndicator(manager,selector,session.applied ? YES : value);
+    BOOL leased=session.applied;
+    originalIndicator(manager,selector,leased ? YES : value);
+    if (session && session.applied!=leased) originalIndicator(manager,selector,session.applied ? YES : session.requestedIndicator);
 }
 __attribute__((constructor)) static void InitializeLocationSession(void) {
 #if GVM_GOFA_SOURCE
