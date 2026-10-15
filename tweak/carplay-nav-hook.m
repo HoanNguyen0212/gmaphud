@@ -9,13 +9,13 @@
 // ── Vietnamese Diacritics Stripper for Mazda CMU HUD ────────────────────────
 
 NSString *GVMStripVietnameseDiacritics(NSString *str) {
-    if (!str || !str.length) return @"";
+    if (!str || [str length] == 0) return @"";
     NSMutableString *ms = [str mutableCopy];
     CFStringTransform((__bridge CFMutableStringRef)ms, NULL, kCFStringTransformStripCombiningMarks, NO);
-    [ms replaceOccurrencesOfString:@"đ" withString:@"d" options:NSLiteralSearch range:NSMakeRange(0, ms.length)];
-    [ms replaceOccurrencesOfString:@"Đ" withString:@"D" options:NSLiteralSearch range:NSMakeRange(0, ms.length)];
-    [ms replaceOccurrencesOfString:@"\n" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, ms.length)];
-    [ms replaceOccurrencesOfString:@"\r" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, ms.length)];
+    [ms replaceOccurrencesOfString:@"đ" withString:@"d" options:NSLiteralSearch range:NSMakeRange(0, [ms length])];
+    [ms replaceOccurrencesOfString:@"Đ" withString:@"D" options:NSLiteralSearch range:NSMakeRange(0, [ms length])];
+    [ms replaceOccurrencesOfString:@"\n" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, [ms length])];
+    [ms replaceOccurrencesOfString:@"\r" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, [ms length])];
     return [ms stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 }
 
@@ -81,10 +81,17 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
         id distObj = ((id (*)(id, SEL))objc_msgSend)(estimates, @selector(distanceRemaining));
         if ([distObj isKindOfClass:[NSMeasurement class]]) {
             NSMeasurement *meas = (NSMeasurement *)distObj;
-            if ([meas canBeConvertedToUnit:NSUnitLength.meters]) {
-                distMeters = [meas measurementByConvertingToUnit:NSUnitLength.meters].doubleValue;
+            Class unitClass = NSClassFromString(@"NSUnitLength");
+            if (unitClass && [unitClass respondsToSelector:@selector(meters)]) {
+                NSUnit *metersUnit = [unitClass performSelector:@selector(meters)];
+                if ([meas canBeConvertedToUnit:(NSUnitLength *)metersUnit]) {
+                    NSMeasurement *inMeters = [meas measurementByConvertingToUnit:(NSUnitLength *)metersUnit];
+                    distMeters = [inMeters doubleValue];
+                } else {
+                    distMeters = [meas doubleValue];
+                }
             } else {
-                distMeters = meas.doubleValue;
+                distMeters = [meas doubleValue];
             }
         } else if ([distObj respondsToSelector:@selector(doubleValue)]) {
             distMeters = [distObj doubleValue];
@@ -95,10 +102,17 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
             id distObj = ((id (*)(id, SEL))objc_msgSend)(initEst, @selector(distanceRemaining));
             if ([distObj isKindOfClass:[NSMeasurement class]]) {
                 NSMeasurement *meas = (NSMeasurement *)distObj;
-                if ([meas canBeConvertedToUnit:NSUnitLength.meters]) {
-                    distMeters = [meas measurementByConvertingToUnit:NSUnitLength.meters].doubleValue;
+                Class unitClass = NSClassFromString(@"NSUnitLength");
+                if (unitClass && [unitClass respondsToSelector:@selector(meters)]) {
+                    NSUnit *metersUnit = [unitClass performSelector:@selector(meters)];
+                    if ([meas canBeConvertedToUnit:(NSUnitLength *)metersUnit]) {
+                        NSMeasurement *inMeters = [meas measurementByConvertingToUnit:(NSUnitLength *)metersUnit];
+                        distMeters = [inMeters doubleValue];
+                    } else {
+                        distMeters = [meas doubleValue];
+                    }
                 } else {
-                    distMeters = meas.doubleValue;
+                    distMeters = [meas doubleValue];
                 }
             } else if ([distObj respondsToSelector:@selector(doubleValue)]) {
                 distMeters = [distObj doubleValue];
@@ -109,8 +123,8 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     NSString *road = @"";
     if ([maneuver respondsToSelector:@selector(instructionVariants)]) {
         NSArray *variants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(instructionVariants));
-        if ([variants isKindOfClass:[NSArray class]] && variants.count > 0) {
-            road = variants.firstObject;
+        if ([variants isKindOfClass:[NSArray class]] && [variants count] > 0) {
+            road = [variants firstObject];
         }
     }
 
@@ -141,15 +155,16 @@ static void hook_setManeuvers(id self, SEL _cmd, id maneuvers) {
         orig_setManeuvers(self, _cmd, maneuvers);
     }
     @try {
-        if ([maneuvers isKindOfClass:[NSArray class]] && [maneuvers count] > 0) {
-            id targetManeuver = maneuvers.firstObject;
+        if ([maneuvers isKindOfClass:[NSArray class]] && [(NSArray *)maneuvers count] > 0) {
+            NSArray *arr = (NSArray *)maneuvers;
+            id targetManeuver = [arr firstObject];
             // If the first maneuver is start route (14), pick the immediate next action if available
             NSUInteger mType = 0;
             if ([targetManeuver respondsToSelector:@selector(maneuverType)]) {
                 mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(targetManeuver, @selector(maneuverType));
             }
-            if (mType == 14 && [maneuvers count] > 1) {
-                targetManeuver = maneuvers[1];
+            if (mType == 14 && [arr count] > 1) {
+                targetManeuver = [arr objectAtIndex:1];
             }
             ProcessManeuverAndEstimates(targetManeuver, nil);
         }
