@@ -14,9 +14,8 @@ jobs:
       - name: Build CMU Shim with m3-toolchain
         run: |
           git clone https://github.com/KidMixer/mazda-carplay-hud.git cphud
-          cd cphud
-          git submodule update --init --recursive
-          cd mazda
+          git clone --depth 1 https://github.com/lmagder/m3-toolchain cphud/mazda/m3-toolchain
+          cd cphud/mazda
           # Enable speed limits: remove -DCARPLAY_NO_SPLIM
           sed -i 's/-DCARPLAY_NO_SPLIM//g' Makefile
           make
