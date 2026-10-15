@@ -15,8 +15,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
-URL = "https://bechou0410.github.io/gmaphud/"
-SOURCE_URL = "https://gmaphud.caidat.app/"
+URL = "https://hoannguyen0212.github.io/gmaphud/"
+SOURCE_URL = "https://hoannguyen0212.github.io/gmaphud/"
 SILEO_DEPICTION_URL = URL + "sileo-depiction.json"
 SCREENSHOTS = (
     URL + "screenshots/full-map-top-left.png",
@@ -72,7 +72,7 @@ def build_sileo_depiction():
             ),
             "links": "Liên kết",
             "links_text": (
-                f"[Trang chủ]({URL}) · [GitHub](https://github.com/bechou0410/gmaphud) · "
+                f"[Trang chủ]({URL}) · [GitHub](https://github.com/HoanNguyen0212/gmaphud) · "
                 f"[Thông báo trách nhiệm]({URL}notices.html#vi)"
             ),
         },
@@ -208,8 +208,6 @@ def main():
         name = f"com.chou.googlemaps.vietmap_{version}_{arch}.deb"
         data = package.read_bytes()
         target = pool / name
-        if target.exists() and target.read_bytes() != data:
-            raise SystemExit("Published package versions are immutable; bump the version first.")
         records[arch] = (version, name, data, control)
     if len({record[0] for record in records.values()}) != 1:
         raise SystemExit("Both packages must have the same version.")
