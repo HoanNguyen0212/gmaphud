@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/build-cmu-shim.yml'
+      - 'mazda-patches/**'
 
 jobs:
   build:
@@ -15,12 +16,13 @@ jobs:
         run: |
           git clone https://github.com/KidMixer/mazda-carplay-hud.git cphud
           git clone --depth 1 https://github.com/lmagder/m3-toolchain cphud/mazda/m3-toolchain
-          cd cphud/mazda
-          # Enable speed limits: remove -DCARPLAY_NO_SPLIM
-          sed -i 's/-DCARPLAY_NO_SPLIM//g' Makefile
+          cd cphud
+          git apply ../mazda-patches/0001-cmu-hud-splim-and-googlemaps-nav.patch
+          cd mazda
           make
           ls -lh build/release/libpatch-blmjcicarplay.so
           readelf -V build/release/libpatch-blmjcicarplay.so | grep -E "GLIBC"
+          strings build/release/libpatch-blmjcicarplay.so | grep -E "data_persist"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
