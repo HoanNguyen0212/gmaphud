@@ -5,6 +5,7 @@
 #import <dlfcn.h>
 #import "background-policy.h"
 #import "source-transport.h"
+#import "cmu-wifi-autoconnect.h"
 #include <notify.h>
 #include <string.h>
 
@@ -187,6 +188,12 @@ static void Tick(void) {
         disconnectedAt=now;
         Record(@"CarPlay disconnected; 20 second exit countdown started");
     }
+    if (connected != wasConnected) {
+        GVMCMUOnCarPlayConnectionChanged(connected);
+    }
+    if (connected) {
+        GVMCMUWiFiAutoConnectTick();
+    }
     wasConnected=connected;
     BOOL autoExit=BooleanPreference(CFSTR("autoExit"));
     if (!autoExit) { disconnectedAt=0; exitCompleted=NO; }
@@ -250,6 +257,7 @@ __attribute__((constructor)) static void Start(void) {
         notify_register_check(GVM_BACKGROUND_LOCATION_SOURCE,&sourceSessionToken);
         Class statusClass=NSClassFromString(@"CARSessionStatus");
         if (Matches(statusClass,@"new","@",@[])) carplayStatus=[statusClass new];
+        GVMCMUWiFiAutoConnectStart();
         Tick();
         Record(@"supervisor 0.1.24 loaded; awaiting visible Google Maps on CarPlay or iPhone");
         [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(__unused NSTimer *timer) {
