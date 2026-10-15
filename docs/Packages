@@ -9,13 +9,13 @@ Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm
 Version: 0.2.3
-Installed-Size: 8324
+Installed-Size: 8344
 Filename: pool/com.chou.googlemaps.vietmap_0.2.3_iphoneos-arm.deb
-Size: 5193586
-MD5sum: d64b0203f71c06071a7012cf8705990c
-SHA1: 78f8183b61105c5ccf34bbd3cfdc65302de3da39
-SHA256: 35d397da61cec2e40048539cc3890c758183dc8fda4bfac4a3319ba6a6df3444
-SHA512: d9b9d996331e3a36e59e3d6b1a36a641b2d7ffd9aa09e6dbeccc49f8ae01a72a583c74b0c543856d76347590d1d077400be283af73a0efd41f537a617aea643d
+Size: 5195168
+MD5sum: bc95e1cbee3b9575ac748d22a7056373
+SHA1: 00fa82ca4ff9f41ad8005facffd62609f1dbcf2b
+SHA256: 262b2803d5f4f9e7e751eed7481a171ec2a24b5772306a35a8a88c5be733b252
+SHA512: 39ef8c97c32bdb8b01f71b0a03ad532e35913782f6a06038a2eca64443065a4a06ee38139ddc837343db7aa0aa1310f3284b19a969ebfe78bd333febd0fcbd8e
 Depiction: https://hoannguyen0212.github.io/gmaphud/
 SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/HoanNguyen0212/gmaphud
@@ -32,13 +32,13 @@ Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm64
 Version: 0.2.3
-Installed-Size: 8324
+Installed-Size: 8344
 Filename: pool/com.chou.googlemaps.vietmap_0.2.3_iphoneos-arm64.deb
-Size: 5193142
-MD5sum: e8b6ebc0feb1996b9d33dc3d9a463b7b
-SHA1: e26658a5ec7052fcb74eac637bed9c24de4abe25
-SHA256: 195b1beb5751786e7a32ad56ffd8db63958a22a54b21e8745d81283dc3dd7fa2
-SHA512: 14c81addd5d8da944a582ad58bee7639b0a2027da6230d172ff6c73bff87921f25711397b15ad0545e5062d948f28ce01d7031942065fbedb9f66d3c4e649b1b
+Size: 5194812
+MD5sum: a69e94086e9335564688919d467fe121
+SHA1: 4dfa8efb55bf926339c743599dfcf7d48606b307
+SHA256: c832a6851d2f780fe968ef54f2d42d6bd351a4988f3a2f276264b2b1604ece54
+SHA512: 3180c89fa333ea12b94b17ce60c7ee3e6857159af73b54ec0d5179aa7d6a2c53e5a94b7b08618ed0f7932799d7b2e0aae6a20e40a8498535b37ca3a27f000d0e
 Depiction: https://hoannguyen0212.github.io/gmaphud/
 SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/HoanNguyen0212/gmaphud
