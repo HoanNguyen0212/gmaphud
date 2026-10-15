@@ -12,6 +12,7 @@
 #import "source-transport.h"
 #import "vietmap-output.h"
 #import "vietmap-alert-assets.h"
+#import "cmu-hud-relay.h"
 static int requestToken=-1;
 static NSTimeInterval lastRequestHandled=-1;
 static BOOL forceOutput;
@@ -57,6 +58,12 @@ static void Publish(void) {
     NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
     NSDictionary *samples=[source freshSamplesAtUptime:now];
     GVMDiagnosticsRecord(GVMDiagnosticSamples,(samples[@"speed"] ? 1 : 0) | (samples[@"speedLimit"] ? 2 : 0) | (UIApplication.sharedApplication.applicationState==UIApplicationStateActive ? 4 : 0));
+    NSNumber *hudLimit = samples[@"speedLimit"][@"value"];
+    if (hudLimit && [hudLimit isKindOfClass:NSNumber.class]) {
+        GVMCMURelaySetLimit([hudLimit unsignedIntegerValue]);
+    } else {
+        GVMCMURelaySetLimit(0);
+    }
     if (GVMSelectedSourceID()!=GVMSourceVietMap) return;
     NSMutableArray *entries=[NSMutableArray new];
     for (NSDictionary *alert in upcomingAlerts)
@@ -264,6 +271,9 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
 %ctor {
     @autoreleasepool {
         GVMDiagnosticsStart(@"vietmap");
+#ifdef VM_GOOGLE_MAPS_RELAY
+        GVMCMURelayStart();
+#endif
         source = [VMNavSource new];
 #ifdef VM_GOOGLE_MAPS_RELAY
         notify_register_dispatch(GVMOutputRequestName(GVMSourceVietMap).UTF8String,&requestToken,dispatch_get_main_queue(), ^(__unused int token) {

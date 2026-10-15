@@ -290,6 +290,8 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
 __attribute__((constructor)) static void Start(void) {
     if ([NSBundle.mainBundle.bundleIdentifier isEqual:@"com.google.Maps"]) {
         GVMDiagnosticsStart(@"googlemaps");
+        GVMCMURelayStart();
+        GVMInstallCarPlayNavHook();
         _dyld_register_func_for_add_image(ImageLoaded);
     }
 }

@@ -204,36 +204,34 @@ void GVMInstallCarPlayNavHook(void) {
         dlopen("/System/Library/Frameworks/CarPlay.framework/CarPlay", RTLD_NOW);
 
         Class navSession = NSClassFromString(@"CPNavigationSession");
-        if (!navSession) {
-            return;
-        }
+        if (navSession) {
+            // Hook maneuver & estimates update
+            SEL selUpdate = NSSelectorFromString(@"updateTravelEstimates:forManeuver:");
+            if (class_getInstanceMethod(navSession, selUpdate)) {
+                MSHookMessageEx(navSession, selUpdate, (IMP)hook_updateTravelEstimates, (IMP *)&orig_updateTravelEstimates);
+            }
 
-        // Hook maneuver & estimates update
-        SEL selUpdate = NSSelectorFromString(@"updateTravelEstimates:forManeuver:");
-        if ([navSession instancesRespondToSelector:selUpdate]) {
-            MSHookMessageEx(navSession, selUpdate, (IMP)hook_updateTravelEstimates, (IMP *)&orig_updateTravelEstimates);
-        }
+            // Hook upcoming maneuvers list
+            SEL selManeuvers = NSSelectorFromString(@"setManeuvers:");
+            if (class_getInstanceMethod(navSession, selManeuvers)) {
+                MSHookMessageEx(navSession, selManeuvers, (IMP)hook_setManeuvers, (IMP *)&orig_setManeuvers);
+            }
 
-        // Hook upcoming maneuvers list
-        SEL selManeuvers = NSSelectorFromString(@"setManeuvers:");
-        if ([navSession instancesRespondToSelector:selManeuvers]) {
-            MSHookMessageEx(navSession, selManeuvers, (IMP)hook_setManeuvers, (IMP *)&orig_setManeuvers);
-        }
+            // Hook trip pause, finish, and cancel
+            SEL selPause = NSSelectorFromString(@"pauseTripForReason:description:");
+            if (class_getInstanceMethod(navSession, selPause)) {
+                MSHookMessageEx(navSession, selPause, (IMP)hook_pauseTrip, (IMP *)&orig_pauseTrip);
+            }
 
-        // Hook trip pause, finish, and cancel
-        SEL selPause = NSSelectorFromString(@"pauseTripForReason:description:");
-        if ([navSession instancesRespondToSelector:selPause]) {
-            MSHookMessageEx(navSession, selPause, (IMP)hook_pauseTrip, (IMP *)&orig_pauseTrip);
-        }
+            SEL selFinish = NSSelectorFromString(@"finishTrip");
+            if (class_getInstanceMethod(navSession, selFinish)) {
+                MSHookMessageEx(navSession, selFinish, (IMP)hook_finishTrip, (IMP *)&orig_finishTrip);
+            }
 
-        SEL selFinish = NSSelectorFromString(@"finishTrip");
-        if ([navSession instancesRespondToSelector:selFinish]) {
-            MSHookMessageEx(navSession, selFinish, (IMP)hook_finishTrip, (IMP *)&orig_finishTrip);
-        }
-
-        SEL selCancel = NSSelectorFromString(@"cancelTrip");
-        if ([navSession instancesRespondToSelector:selCancel]) {
-            MSHookMessageEx(navSession, selCancel, (IMP)hook_cancelTrip, (IMP *)&orig_cancelTrip);
+            SEL selCancel = NSSelectorFromString(@"cancelTrip");
+            if (class_getInstanceMethod(navSession, selCancel)) {
+                MSHookMessageEx(navSession, selCancel, (IMP)hook_cancelTrip, (IMP *)&orig_cancelTrip);
+            }
         }
     });
 }
