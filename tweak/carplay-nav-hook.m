@@ -132,6 +132,19 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     NSString *cleanRoad = GVMStripVietnameseDiacritics(road);
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(distMeters));
 
+    char navLog[512];
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char timeStr[32];
+    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
+    snprintf(navLog, sizeof(navLog), "[%s] [NAV_INTERCEPT] mType=%lu hudIcon=%u dist=%lu road=\"%s\"\n",
+             timeStr, (unsigned long)mType, (unsigned int)hudIcon, (unsigned long)finalDist, cleanRoad.UTF8String ?: "");
+    FILE *f = fopen("/private/var/mobile/gmaphud-relay.log", "a");
+    if (f) {
+        fputs(navLog, f);
+        fclose(f);
+    }
+
     GVMCMURelaySetNav(hudIcon, finalDist, cleanRoad);
 }
 

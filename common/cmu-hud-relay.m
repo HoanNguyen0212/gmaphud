@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
+#include <errno.h>
 
 // ── Configuration ──────────────────────────────────────────────────────────
 #ifndef GVM_CMU_HUD_TARGET_IP
@@ -39,10 +41,43 @@ static NSTimeInterval MonotonicNow(void) {
     return NSProcessInfo.processInfo.systemUptime;
 }
 
+static void LogRelay(const char *buf, size_t len, ssize_t sent, int err) {
+    static int logCount = 0;
+    if (sent < 0 && (++logCount % 10 != 1)) return; // Debounce errors
+
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char timeStr[32];
+    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
+
+    char cleanBuf[256];
+    size_t copyLen = (len < sizeof(cleanBuf) - 1) ? len : sizeof(cleanBuf) - 1;
+    memcpy(cleanBuf, buf, copyLen);
+    cleanBuf[copyLen] = '\0';
+    if (copyLen > 0 && cleanBuf[copyLen - 1] == '\n') cleanBuf[copyLen - 1] = '\0';
+
+    char logLine[512];
+    if (sent >= 0) {
+        snprintf(logLine, sizeof(logLine), "[%s] [SENT %zdB] %s -> %s:%d\n",
+                 timeStr, sent, cleanBuf, GVM_CMU_HUD_TARGET_IP, GVM_CMU_HUD_TARGET_PORT);
+    } else {
+        snprintf(logLine, sizeof(logLine), "[%s] [FAIL errno=%d (%s)] %s -> %s:%d\n",
+                 timeStr, err, strerror(err), cleanBuf, GVM_CMU_HUD_TARGET_IP, GVM_CMU_HUD_TARGET_PORT);
+    }
+
+    FILE *f = fopen("/private/var/mobile/gmaphud-relay.log", "a");
+    if (f) {
+        fputs(logLine, f);
+        fclose(f);
+    }
+}
+
 static BOOL SendDatagram(const char *buf, size_t len) {
     if (sSock < 0 || len == 0) return NO;
     ssize_t sent = sendto(sSock, buf, len, 0,
                           (struct sockaddr *)&sTarget, sizeof(sTarget));
+    int err = (sent < 0) ? errno : 0;
+    LogRelay(buf, len, sent, err);
     if (sent >= 0) {
         @synchronized(sLock) {
             sLastDatagram = [[NSString alloc] initWithBytes:buf length:len
