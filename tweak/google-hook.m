@@ -37,11 +37,11 @@ static void Log(NSString *message) {
     NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"googlemaps-vietmap.log"];
     [message writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
-static BOOL External(UIView *view) {
-    if (!view) return NO;
-    if ([view isKindOfClass:NSClassFromString(@"AZCarPlayView")]) return YES;
-    return view.window && view.window.screen != UIScreen.mainScreen;
+static BOOL MethodMatches(Class cls, NSString *name, const char *encoding) {
+    Method method = class_getInstanceMethod(cls, NSSelectorFromString(name));
+    return method && strcmp(method_getTypeEncoding(method), encoding) == 0;
 }
+static BOOL External(UIView *view) { return view.window && view.window.screen != UIScreen.mainScreen; }
 static void PublishBackgroundHeartbeat(UIView *view, BOOL test, double now) {
     static NSString *lastState;
     NSString *state=[NSString stringWithFormat:@"window=%@ scene=%@ activation=%ld app=%ld test=%d token=%d hidden=%d alpha=%.2f boundsEmpty=%d",
@@ -96,18 +96,10 @@ static id ModelFor(NSNumber *speed, NSNumber *limit, NSUInteger style, NSInteger
     double limitMS = limit ? limit.doubleValue / 3.6 : -1;
     // This supported Google build uses 2 for minor speeding; 0/1 share normal colors.
     NSUInteger severity = speed && limit && speed.doubleValue > limit.doubleValue ? 2 : 0;
-    Class infoClass = NSClassFromString(@"GMSNSpeedLimitInfo");
-    SEL sel5 = NSSelectorFromString(@"initWithSpeedLimit:speed:style:distanceUnit:speedingType:");
-    if ([infoClass instancesRespondToSelector:sel5]) {
-        return ((id (*)(id, SEL, double, double, NSUInteger, NSInteger, NSUInteger))objc_msgSend)(
-            [infoClass alloc], sel5, limitMS, speedMS, style, unit, severity);
-    }
-    SEL sel4 = NSSelectorFromString(@"initWithSpeedLimit:speed:style:distanceUnit:");
-    if ([infoClass instancesRespondToSelector:sel4]) {
-        return ((id (*)(id, SEL, double, double, NSUInteger, NSInteger))objc_msgSend)(
-            [infoClass alloc], sel4, limitMS, speedMS, style, unit);
-    }
-    return nil;
+    return ((id (*)(id, SEL, double, double, NSUInteger, NSInteger, NSUInteger))objc_msgSend)(
+        [NSClassFromString(@"GMSNSpeedLimitInfo") alloc],
+        NSSelectorFromString(@"initWithSpeedLimit:speed:style:distanceUnit:speedingType:"),
+        limitMS, speedMS, style, unit, severity);
 }
 static void Apply(UIView *view, BOOL forceNative) {
     if (!NSThread.isMainThread || !External(view)) return;
@@ -161,7 +153,8 @@ static void Apply(UIView *view, BOOL forceNative) {
             test ? @"TEST" : @"live",
             speed ?: @"unavailable",limit ?: @"unavailable",
             NSStringFromClass(view.window.class), child ? NSStringFromClass([child class]) : @"none",
-            NSStringFromCGRect(view.bounds), tpmsData.hasData];
+            NSStringFromCGRect(view.bounds),NSStringFromUIEdgeInsets(view.safeAreaInsets),
+            NSStringFromUIEdgeInsets(view.window.safeAreaInsets),NSStringFromCGRect(view.window.screen.bounds)];
         if (![[statuses objectForKey:view] isEqual:status]) {
             Log(status); [statuses setObject:status forKey:view];
         }
@@ -223,28 +216,7 @@ static void LayoutChild(id self, SEL selector) {
 }
 static void LayoutMap(id self, SEL selector) {
     originalMapLayout(self, selector);
-    if (NSThread.isMainThread && External(self)) {
-        if (![views containsObject:self]) [views addObject:self];
-        Apply(self);
-    } else {
-        GVMLayoutSpeedCard(self);
-    }
-}
-static void MapMoveToWindow(id self, SEL selector) {
-    if (originalMapMoveToWindow) originalMapMoveToWindow(self, selector);
-    if (NSThread.isMainThread && External(self)) {
-        if (![views containsObject:self]) [views addObject:self];
-        Apply(self);
-    }
-}
-static void ScanForCarPlayViews(UIView *root, NSHashTable *targetViews) {
-    if (!root) return;
-    if ([root isKindOfClass:NSClassFromString(@"AZCarPlayView")]) {
-        [targetViews addObject:root];
-    }
-    for (UIView *sub in root.subviews) {
-        ScanForCarPlayViews(sub, targetViews);
-    }
+    GVMLayoutSpeedCard(self);
 }
 static void Install(void) {
     if (installed) return;
@@ -272,7 +244,7 @@ static void Install(void) {
         GVMDiagnosticsRecord(GVMDiagnosticHook,3); Log(@"unsupported Google Maps ABI; replacement inactive"); return;
     }
     notify_register_check(GVM_BACKGROUND_SIGNAL,&backgroundToken);
-    notify_register_check(GVMTPMSStateName, &tpmsToken);
+    // Test transport failure must not disable the production source.
     notify_register_check(GVMTestStateName, &testToken);
     notify_register_check("com.chou.googlemaps.vietmap.test.photo", &photoToken);
     notify_register_check(GVMTestFirstAlertStateName, &testFirstAlertToken);
@@ -290,32 +262,15 @@ static void Install(void) {
     uint64_t placementState=0;
     if (placementToken>=0 && notify_get_state(placementToken,&placementState)==NOTIFY_STATUS_OK)
         GVMSetPlacementState(placementState);
-    if ([map instancesRespondToSelector:NSSelectorFromString(@"setSpeedLimitInfo:")]) {
-        MSHookMessageEx(map, NSSelectorFromString(@"setSpeedLimitInfo:"), (IMP)SetModel, (IMP *)&originalModel);
-    }
-    if ([map instancesRespondToSelector:NSSelectorFromString(@"setSupportsSpeedLimitView:")]) {
-        MSHookMessageEx(map, NSSelectorFromString(@"setSupportsSpeedLimitView:"), (IMP)SetSupports, (IMP *)&originalSupports);
-    }
-    if ([map instancesRespondToSelector:NSSelectorFromString(@"setShouldDisplaySpeedLimitView:")]) {
-        MSHookMessageEx(map, NSSelectorFromString(@"setShouldDisplaySpeedLimitView:"), (IMP)SetDisplay, (IMP *)&originalDisplay);
-    }
-    if ([map instancesRespondToSelector:NSSelectorFromString(@"setupSpeedLimitViewIfNeeded")]) {
-        MSHookMessageEx(map, NSSelectorFromString(@"setupSpeedLimitViewIfNeeded"), (IMP)Setup, (IMP *)&originalSetup);
-    }
+    MSHookMessageEx(map, NSSelectorFromString(@"setSpeedLimitInfo:"), (IMP)SetModel, (IMP *)&originalModel);
+    MSHookMessageEx(map, NSSelectorFromString(@"setSupportsSpeedLimitView:"), (IMP)SetSupports, (IMP *)&originalSupports);
+    MSHookMessageEx(map, NSSelectorFromString(@"setShouldDisplaySpeedLimitView:"), (IMP)SetDisplay, (IMP *)&originalDisplay);
+    MSHookMessageEx(map, NSSelectorFromString(@"setupSpeedLimitViewIfNeeded"), (IMP)Setup, (IMP *)&originalSetup);
+    MSHookMessageEx(child, NSSelectorFromString(@"initWithConfiguration:"), (IMP)InitChild, (IMP *)&originalChildInit);
+    MSHookMessageEx(child, NSSelectorFromString(@"setSpeedLimitInfo:"), (IMP)SetChildModel, (IMP *)&originalChildModel);
+    MSHookMessageEx(child, NSSelectorFromString(@"setSpeedometerEnabled:"), (IMP)SetSpeedEnabled, (IMP *)&originalSpeedEnabled);
     MSHookMessageEx(map, @selector(layoutSubviews), (IMP)LayoutMap, (IMP *)&originalMapLayout);
-    MSHookMessageEx(map, @selector(didMoveToWindow), (IMP)MapMoveToWindow, (IMP *)&originalMapMoveToWindow);
-    if (child) {
-        if ([child instancesRespondToSelector:NSSelectorFromString(@"initWithConfiguration:")]) {
-            MSHookMessageEx(child, NSSelectorFromString(@"initWithConfiguration:"), (IMP)InitChild, (IMP *)&originalChildInit);
-        }
-        if ([child instancesRespondToSelector:NSSelectorFromString(@"setSpeedLimitInfo:")]) {
-            MSHookMessageEx(child, NSSelectorFromString(@"setSpeedLimitInfo:"), (IMP)SetChildModel, (IMP *)&originalChildModel);
-        }
-        if ([child instancesRespondToSelector:NSSelectorFromString(@"setSpeedometerEnabled:")]) {
-            MSHookMessageEx(child, NSSelectorFromString(@"setSpeedometerEnabled:"), (IMP)SetSpeedEnabled, (IMP *)&originalSpeedEnabled);
-        }
-        MSHookMessageEx(child, @selector(layoutSubviews), (IMP)LayoutChild, (IMP *)&originalChildLayout);
-    }
+    MSHookMessageEx(child, @selector(layoutSubviews), (IMP)LayoutChild, (IMP *)&originalChildLayout);
     installed = YES;
     GVMCMURelayStart();
     GVMDiagnosticsRecord(GVMDiagnosticHook,1);

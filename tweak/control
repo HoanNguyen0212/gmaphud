@@ -7,5 +7,5 @@ Icon: https://bechou0410.github.io/gmaphud/gmaphud-icon.png
 Maintainer: bechou0410
 Author: chou (AI-assisted with Codex)
 Section: Tweaks
-Recommends: preferenceloader
+Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe

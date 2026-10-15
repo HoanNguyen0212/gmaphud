@@ -1,6 +1,4 @@
 #import <UIKit/UIKit.h>
-#import "tpms-state.h"
-
 void GVMStyleNativeSpeedView(UIView *view);
 void GVMUpdateSpeedCard(UIView *map, NSDictionary *output, BOOL night);
 

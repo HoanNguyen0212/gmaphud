@@ -122,10 +122,7 @@ static void ObserveAlerts(NSString *method,id payload,NSUInteger accepted,NSTime
 
 static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler handler) {
     id name = object_getIvar(channel, channelNameIvar);
-    BOOL isKnownChannel = [name isEqualToString:@"vietmap_car_method_channel"] || [name isEqualToString:@"vml_main_channel"] ||
-        [name rangeOfString:@"tpms" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-        [name rangeOfString:@"tire" options:NSCaseInsensitiveSearch].location != NSNotFound;
-    if (!handler || ![name isKindOfClass:NSString.class] || !isKnownChannel) {
+    if (!handler || ![name isKindOfClass:NSString.class] || (![name isEqualToString:@"vietmap_car_method_channel"] && ![name isEqualToString:@"vml_main_channel"])) {
         originalSetHandler(channel, selector, handler);
         return;
     }
@@ -139,21 +136,6 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
         NSTimeInterval received = NSProcessInfo.processInfo.systemUptime;
         @try {
     #ifdef VM_GOOGLE_MAPS_RELAY
-            NSString *cMethod = [call method];
-            if ([cMethod rangeOfString:@"tpms" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-                [cMethod rangeOfString:@"tire" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-                [cMethod rangeOfString:@"pressure" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-                GVMTPMSData tpmsData = GVMParseTPMSPayload([call arguments]);
-                if (tpmsData.hasData) {
-                    tpmsData.receivedAt = received;
-                    uint64_t encoded = GVMEncodeTPMS(&tpmsData, received);
-                    if (tpmsToken >= 0 && notify_set_state(tpmsToken, encoded) == NOTIFY_STATUS_OK) {
-                        notify_post(GVMTPMSStateName);
-                    }
-                    BridgeLog([NSString stringWithFormat:@"tpms published fl=%.1f fr=%.1f rl=%.1f rr=%.1f",
-                        tpmsData.fl.pressure, tpmsData.fr.pressure, tpmsData.rl.pressure, tpmsData.rr.pressure]);
-                }
-            }
             if ([name isEqualToString:@"vml_main_channel"] &&
                 ([[call method] isEqualToString:@"updateUpcommingAlerts"] ||
                  [[call method] isEqualToString:@"updateStickyAlerts"])) {
@@ -269,38 +251,6 @@ static void InstallHook(void) {
     }
     channelNameIvar = name;
     MSHookMessageEx(target, selector, (IMP)SetMethodCallHandler, (IMP *)&originalSetHandler);
-    
-    // Also install EventChannel hook for tpmsDataStream
-    Class eventTarget = NSClassFromString(@"FlutterEventChannel");
-    SEL eventSelector = NSSelectorFromString(@"setStreamHandler:");
-    Method eventMethod = class_getInstanceMethod(eventTarget, eventSelector);
-    Ivar eventName = class_getInstanceVariable(eventTarget, "_name");
-    if (eventMethod && eventName) {
-        eventChannelNameIvar = eventName;
-        MSHookMessageEx(eventTarget, eventSelector, (IMP)SetEventStreamHandler, (IMP *)&originalEventSetHandler);
-        BridgeLog(@"EventChannel hook installed");
-    }
-    
-    // Also hook native TPMSData if loaded
-    Class tpmsDataCls = NSClassFromString(@"TPMSData");
-    if (tpmsDataCls) {
-        SEL setPressSel = NSSelectorFromString(@"setPressure:");
-        Method setPressMethod = class_getInstanceMethod(tpmsDataCls, setPressSel);
-        if (setPressMethod) {
-            static void (*origSetPress)(id, SEL, float);
-            void (^newSetPress)(id, float) = ^(id tpmsObj, float p) {
-                if (origSetPress) origSetPress(tpmsObj, setPressSel, p);
-                NSString *devId = [tpmsObj respondsToSelector:NSSelectorFromString(@"deviceID")] ?
-                    ((NSString *(*)(id, SEL))objc_msgSend)(tpmsObj, NSSelectorFromString(@"deviceID")) : nil;
-                NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-                NSDictionary *d = @{@"code": devId ?: @"0", @"pressure": @(p)};
-                GVMProcessTirePayload(d, now);
-            };
-            MSHookMessageEx(tpmsDataCls, setPressSel, imp_implementationWithBlock(newSetPress), (IMP *)&origSetPress);
-            BridgeLog(@"TPMSData hook installed");
-        }
-    }
-    
     hookInstalled = YES;
     GVMDiagnosticsRecord(GVMDiagnosticHook,1);
     BridgeLog(@"overlay hook installed");

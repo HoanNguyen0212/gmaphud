@@ -11,7 +11,6 @@
 @interface GVMSpeedCard : UIView
 @property(nonatomic, copy) NSNumber *speed, *limit;
 @property(nonatomic, copy) NSArray<NSDictionary *> *alerts;
-@property(nonatomic) GVMTPMSData tpms;
 @property(nonatomic) BOOL night, compact;
 @property(nonatomic) NSUInteger sourceID;
 @property(nonatomic,copy) NSArray<NSString *> *moduleOrder;
@@ -167,34 +166,6 @@ static UIImage *AlertArtwork(NSUInteger type,NSNumber *value) {
             Text(distance,CGRectMake(group.origin.x,CGRectGetMaxY(alertRect)+2,group.size.width,18),14,UIFontWeightMedium,UIColor.whiteColor);
         }
     }
-    
-    // Draw TPMS (Áp suất lốp)
-    if (hasTpms) {
-        if (self.compact) {
-            CGFloat tpmsY = count == 2 ? 335 : count == 1 ? 245 : 155;
-            UIBezierPath *tpmsDiv = [UIBezierPath bezierPath];
-            [tpmsDiv moveToPoint:CGPointMake(10, tpmsY - 5)];
-            [tpmsDiv addLineToPoint:CGPointMake(74, tpmsY - 5)];
-            [RGB(0x303947, 0.65) setStroke]; tpmsDiv.lineWidth = 1; [tpmsDiv stroke];
-            
-            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, CGRectMake(6, tpmsY, 34, 26), self.night);
-            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, CGRectMake(44, tpmsY, 34, 26), self.night);
-            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, CGRectMake(6, tpmsY + 30, 34, 26), self.night);
-            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, CGRectMake(44, tpmsY + 30, 34, 26), self.night);
-        } else {
-            CGFloat tpmsX = count == 2 ? 300 : count == 1 ? 244 : 210;
-            UIBezierPath *tpmsDiv = [UIBezierPath bezierPath];
-            [tpmsDiv moveToPoint:CGPointMake(tpmsX - 8, 34)];
-            [tpmsDiv addLineToPoint:CGPointMake(tpmsX - 8, 96)];
-            [RGB(0x303947, 0.65) setStroke]; tpmsDiv.lineWidth = 1; [tpmsDiv stroke];
-            
-            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, CGRectMake(tpmsX, 34, 34, 27), self.night);
-            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, CGRectMake(tpmsX + 38, 34, 34, 27), self.night);
-            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, CGRectMake(tpmsX, 65, 34, 27), self.night);
-            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, CGRectMake(tpmsX + 38, 65, 34, 27), self.night);
-        }
-    }
-    
     CGContextRestoreGState(context);
 }
 @end
@@ -221,9 +192,8 @@ static UIWindow *HostWindow(UIView *host) {
     return [host isKindOfClass:UIWindow.class] ? (UIWindow *)host : host.window;
 }
 static BOOL ExternalMap(UIView *map) {
-    if (!NSThread.isMainThread || !map) return NO;
-    if ([map isKindOfClass:NSClassFromString(@"AZCarPlayView")]) return YES;
-    return map.window && map.window.screen != UIScreen.mainScreen;
+    return NSThread.isMainThread && [map isKindOfClass:NSClassFromString(@"AZCarPlayView")] &&
+        map.window && map.window.screen != UIScreen.mainScreen;
 }
 BOOL GVMBubbleEnabledForHost(UIView *host) {
     BOOL phone=[objc_getAssociatedObject(host,phoneKey) boolValue];
@@ -234,7 +204,7 @@ BOOL GVMBubbleEnabledForHost(UIView *host) {
 void GVMStyleNativeSpeedView(UIView *view) {
     UIView *owner = view.superview;
     while (owner && ![owner isKindOfClass:NSClassFromString(@"AZCarPlayView")]) owner=owner.superview;
-    if (ExternalMap(owner)) view.alpha=0;
+    if (ExternalMap(owner)) view.alpha=0; // Keep Google's model/layout boundary, replace only its artwork.
 }
 CGRect GVMLayoutSpeedCard(UIView *map) {
     BOOL phone=[objc_getAssociatedObject(map,phoneKey) boolValue];
@@ -243,9 +213,10 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     card.hidden=!GVMBubbleEnabledForHost(map);
     if (card.hidden) return card.frame;
     CGRect screen=HostWindow(map).screen.bounds;
-    if (screen.size.width <= 0 || screen.size.height <= 0) screen = CGRectMake(0, 0, 800, 480);
     UIEdgeInsets insets=map.safeAreaInsets;
     CGFloat margin=MIN(10,MAX(5,MIN(screen.size.width,screen.size.height)*0.03));
+    // Google propagates horizontal control exclusions into map/window safe
+    // areas. Anchor to the map bounds so disappearing alerts cannot shift it.
     CGFloat left=CGRectGetMinX(map.bounds)+margin;
     CGFloat right=CGRectGetMaxX(map.bounds)-margin;
     CGFloat top=CGRectGetMinY(map.bounds)+margin;
@@ -289,7 +260,7 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
         if (placement==GVMCardTopLeft || placement==GVMCardBottomLeft) left+=insets.left;
         if (placement==GVMCardBottomRight) right-=insets.right;
         if (placement==GVMCardBottomLeft || placement==GVMCardBottomRight)
-            bottom-=MAX(0,25-insets.bottom);
+            bottom-=MAX(0,25-insets.bottom); // Leave Google's map attribution clear.
     }
     GVMCardOrigin origin=GVMCardOriginFor(left,right,top,bottom,size,placement);
     if (phone) {
@@ -374,30 +345,11 @@ void GVMUpdateSpeedCard(UIView *map, NSDictionary *output, BOOL night) {
     }
     BOOL alertsChanged=!((card.alerts==alerts)||[card.alerts isEqual:alerts]);
     card.alerts=alerts;
-    
-    BOOL tpmsChanged = NO;
-    if (tpms) {
-        tpmsChanged = (card.tpms.hasData != tpms->hasData) ||
-            fabsf(card.tpms.fl.pressure - tpms->fl.pressure) > 0.05f ||
-            fabsf(card.tpms.fr.pressure - tpms->fr.pressure) > 0.05f ||
-            fabsf(card.tpms.rl.pressure - tpms->rl.pressure) > 0.05f ||
-            fabsf(card.tpms.rr.pressure - tpms->rr.pressure) > 0.05f ||
-            card.tpms.fl.warning != tpms->fl.warning ||
-            card.tpms.fr.warning != tpms->fr.warning ||
-            card.tpms.rl.warning != tpms->rl.warning ||
-            card.tpms.rr.warning != tpms->rr.warning;
-        card.tpms = *tpms;
-    } else if (card.tpms.hasData) {
-        tpmsChanged = YES;
-        card.tpms = (GVMTPMSData){0};
-    }
-    
     CGRect frame = GVMLayoutSpeedCard(map);
     BOOL changed = card.sourceID!=sourceID || alertsChanged || !CGRectEqualToRect(card.frame,frame) || card.night!=night ||
         !((card.speed==speed)||[card.speed isEqual:speed]) || !((card.limit==limit)||[card.limit isEqual:limit]);
     card.sourceID=sourceID; card.frame=frame; card.speed=speed; card.limit=limit; card.night=night;
     if (changed) [card setNeedsDisplay];
-    
     card.accessibilityLabel=[NSString stringWithFormat:@"Speed %@ km/h, limit %@ km/h", speed ?: @"unavailable",limit ?: @"unavailable"];
     for (NSDictionary *alert in alerts) {
         NSString *name=GVMRoadAlertName([alert[@"type"] unsignedIntegerValue]) ?: @"road warning";
@@ -414,7 +366,6 @@ void GVMUpdatePhoneSpeedCard(UIView *host,NSDictionary *output,BOOL night) {
     objc_setAssociatedObject(host,phoneKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     GVMUpdateSpeedCard(host,output,night);
 }
-
 void GVMRemovePhoneSpeedCard(UIView *host) {
     UIView *card=objc_getAssociatedObject(host,cardKey);
     [card removeFromSuperview];

@@ -12,45 +12,18 @@ static __weak UIView *phoneHost;
 static double lastRequest=-1;
 static double lastHeartbeat=-1;
 static UIView *ForegroundHost(void) {
-    UIApplication *app = UIApplication.sharedApplication;
-    if (app.applicationState != UIApplicationStateActive) return nil;
-    
-    // Primary lookup: UIWindowScene active foreground
+    UIApplication *app=UIApplication.sharedApplication;
+    if (app.applicationState!=UIApplicationStateActive) return nil;
     for (UIScene *scene in app.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class] || scene.activationState != UISceneActivationStateForegroundActive) continue;
+        if (![scene isKindOfClass:UIWindowScene.class] || scene.activationState!=UISceneActivationStateForegroundActive) continue;
         for (UIWindow *window in ((UIWindowScene *)scene).windows) {
-            if (window.screen == UIScreen.mainScreen && window.isKeyWindow && !window.hidden &&
-                window.alpha > 0.01 && window.windowLevel == UIWindowLevelNormal && window.rootViewController) {
+            if (window.screen==UIScreen.mainScreen && window.isKeyWindow && !window.hidden &&
+                window.alpha>0.01 && window.windowLevel==UIWindowLevelNormal && window.rootViewController) {
+                // Use the entire app window; navigation controllers can inset their root view.
                 return window;
             }
         }
     }
-    
-    // Fallback 1: Any visible root window in scenes (iOS 15.8 Dopamine on iPhone SE compatibility)
-    for (UIScene *scene in app.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class]) continue;
-        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
-            if (window.screen == UIScreen.mainScreen && !window.hidden &&
-                window.alpha > 0.01 && window.rootViewController) {
-                return window;
-            }
-        }
-    }
-    
-    // Fallback 2: Classic UIApplication window lookup for legacy Google Maps on iOS 15
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    UIWindow *key = [app keyWindow];
-    if (key && !key.hidden && key.alpha > 0.01 && key.rootViewController) return key;
-#pragma clang diagnostic pop
-    if (app.windows.count > 0) {
-        for (UIWindow *w in app.windows) {
-            if (w.screen == UIScreen.mainScreen && !w.hidden && w.alpha > 0.01 && w.rootViewController) {
-                return w;
-            }
-        }
-    }
-    
     return nil;
 }
 void GVMRefreshPhoneOverlay(void) {
@@ -73,7 +46,6 @@ void GVMRefreshPhoneOverlay(void) {
     }
     GVMUpdatePhoneSpeedCard(host,output,host.traitCollection.userInterfaceStyle==UIUserInterfaceStyleDark);
 }
-
 __attribute__((constructor)) static void StartPhone(void) {
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.google.Maps"]) return;
     dispatch_async(dispatch_get_main_queue(), ^{
