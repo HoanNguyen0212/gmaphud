@@ -139,7 +139,8 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
     snprintf(navLog, sizeof(navLog), "[%s] [NAV_INTERCEPT] mType=%lu hudIcon=%u dist=%lu road=\"%s\"\n",
              timeStr, (unsigned long)mType, (unsigned int)hudIcon, (unsigned long)finalDist, cleanRoad.UTF8String ?: "");
-    FILE *f = fopen("/private/var/mobile/gmaphud-relay.log", "a");
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-relay.log"];
+    FILE *f = fopen(path.UTF8String, "a");
     if (f) {
         fputs(navLog, f);
         fclose(f);

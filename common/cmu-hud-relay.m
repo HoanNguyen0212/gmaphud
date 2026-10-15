@@ -65,7 +65,8 @@ static void LogRelay(const char *buf, size_t len, ssize_t sent, int err) {
                  timeStr, err, strerror(err), cleanBuf, GVM_CMU_HUD_TARGET_IP, GVM_CMU_HUD_TARGET_PORT);
     }
 
-    FILE *f = fopen("/private/var/mobile/gmaphud-relay.log", "a");
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-relay.log"];
+    FILE *f = fopen(path.UTF8String, "a");
     if (f) {
         fputs(logLine, f);
         fclose(f);
