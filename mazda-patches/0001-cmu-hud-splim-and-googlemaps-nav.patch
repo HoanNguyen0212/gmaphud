@@ -12,7 +12,7 @@ index d5bb60c..608a02d 100644
  # -D_GLIBCXX_USE_CXX11_ABI=0 selects the pre-C++11 (COW) std::string/std::list ABI:
  # the device ships libstdc++.so.6.0.14 (GCC 4.6 era) which only knows that ABI.
 diff --git a/mazda/patches/blmjcicarplay/hud/hud_send.cpp b/mazda/patches/blmjcicarplay/hud/hud_send.cpp
-index 87777f7..398f1a1 100644
+index 87777f7..79a4f50 100644
 --- a/mazda/patches/blmjcicarplay/hud/hud_send.cpp
 +++ b/mazda/patches/blmjcicarplay/hud/hud_send.cpp
 @@ -51,6 +51,7 @@
@@ -100,7 +100,28 @@ index 87777f7..398f1a1 100644
              int32_t side_lr = (cur.turn_side == 1) ? 0 : 1;
              icon = roundabout_icon(cur.turn_angle, side_lr);
          } else if (cur.turn_event < 20) {
-@@ -770,18 +820,28 @@ void *sender_main(void *)
+@@ -684,9 +734,18 @@ void *splim_ticker_main(void *)
+ void *sender_main(void *)
+ {
+     // All D-Bus bring-up on this thread -> session start is never blocked.
+-    if (!sender_setup()) {
++    bool setup_ok = false;
++    for (int retry = 0; retry < 15 && !g_stop.load(std::memory_order_relaxed); ++retry) {
++        if (sender_setup()) {
++            setup_ok = true;
++            break;
++        }
++        LOGW("hud sender: setup attempt %d failed, retrying in 2s...", retry + 1);
++        sleep(2);
++    }
++    if (!setup_ok) {
+         sender_teardown();
+-        LOGD("hud sender: setup did not complete; thread exiting");
++        LOGC("hud sender: setup did not complete; thread exiting");
+         return nullptr;
+     }
+     g_active.store(true, std::memory_order_release);
+@@ -770,18 +829,28 @@ void *sender_main(void *)
          // GATED OUT of no_splim (read_splim()==0 -> splim_changed never re-fires here, so it was
          // already correct) -> that build path is unchanged.
  #ifndef CARPLAY_NO_SPLIM
@@ -132,3 +153,27 @@ index 87777f7..398f1a1 100644
              // [KEEPALIVE] Ticker woke us with no AA/splim change -> re-assert the
              // last frame so the cluster ECU doesn't age out the maneuver OR the
              // speed-limit (native re-asserts ~2Hz). Active when a route is live
+diff --git a/mazda/patches/blmjcicarplay/main.cpp b/mazda/patches/blmjcicarplay/main.cpp
+index 3b38b29..2640226 100644
+--- a/mazda/patches/blmjcicarplay/main.cpp
++++ b/mazda/patches/blmjcicarplay/main.cpp
+@@ -150,4 +150,6 @@ static void on_load(void)
+     install_fatal_handler();
+     LOGD("=== loaded into jciCARPLAY launcher pid=%d ppid=%d (CarPlay->HUD bridge, FW 74.00.324) ===",
+          (int)getpid(), (int)getppid());
++    // Auto-start HUD sender thread at boot so external nav / splim works without CarPlay
++    hud_send_start();
+ }
+diff --git a/mazda/patches/blmjcicarplay/patch.h b/mazda/patches/blmjcicarplay/patch.h
+index 1507f97..20a59a8 100644
+--- a/mazda/patches/blmjcicarplay/patch.h
++++ b/mazda/patches/blmjcicarplay/patch.h
+@@ -45,7 +45,7 @@ extern std::FILE *g_logf;
+ 
+ #ifndef LOG_LEVEL
+ #  ifdef NDEBUG
+-#    define LOG_LEVEL LOG_LEVEL_ERROR   /* release: only LOGE/LOGC; no maneuver-text/location chatter to /tmp */
++#    define LOG_LEVEL LOG_LEVEL_DEBUG   /* release: enable LOGD for live HUD troubleshooting */
+ #  else
+ #    define LOG_LEVEL LOG_LEVEL_VERBOSE
+ #  endif
