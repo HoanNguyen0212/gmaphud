@@ -12,7 +12,7 @@ index d5bb60c..608a02d 100644
  # -D_GLIBCXX_USE_CXX11_ABI=0 selects the pre-C++11 (COW) std::string/std::list ABI:
  # the device ships libstdc++.so.6.0.14 (GCC 4.6 era) which only knows that ABI.
 diff --git a/mazda/patches/blmjcicarplay/hud/hud_send.cpp b/mazda/patches/blmjcicarplay/hud/hud_send.cpp
-index 87777f7..79a4f50 100644
+index 87777f7..6ad1558 100644
 --- a/mazda/patches/blmjcicarplay/hud/hud_send.cpp
 +++ b/mazda/patches/blmjcicarplay/hud/hud_send.cpp
 @@ -51,6 +51,7 @@
@@ -77,7 +77,7 @@ index 87777f7..79a4f50 100644
 +
 +    std::memset(&outSnap, 0, sizeof(outSnap));
 +    outSnap.turn_number  = icon;                  // Carries direct Mazda HUD icon ID (1..60)
-+    outSnap.distance_dec = static_cast<int32_t>(dist * 10); // meters * 10
++    outSnap.distance_dec = static_cast<int32_t>(dist);      // direct meters for HUD (Mazda unit 1)
 +    outSnap.distance_unit = 1;                    // Meters unit
 +    if (n >= 4 && road[0] != '\0') {
 +        std::strncpy(outSnap.road_name, road, sizeof(outSnap.road_name) - 1);
@@ -100,6 +100,24 @@ index 87777f7..79a4f50 100644
              int32_t side_lr = (cur.turn_side == 1) ? 0 : 1;
              icon = roundabout_icon(cur.turn_angle, side_lr);
          } else if (cur.turn_event < 20) {
+@@ -563,7 +613,7 @@ bool send_one(const NaviSnapshot &cur,
+     }
+ 
+     if (distance_changed || splim_changed || force) {
+-        LOGV("hud_send: SetHUDDisplayMsgReq icon=%u dist=%u unit=%u splim=%u sync=%u",
++        LOGD("hud_send: SetHUDDisplayMsgReq icon=%u dist=%u unit=%u splim=%u sync=%u",
+              static_cast<unsigned>(disp.nextManeuverInfo),
+              static_cast<unsigned>(disp.distanceValue),
+              static_cast<unsigned>(disp.distanceUnit),
+@@ -573,7 +623,7 @@ bool send_one(const NaviSnapshot &cur,
+         if (rc != 0) { LOGE("hud_send: SetHUDDisplayMsgReq failed rc=%d", rc); return false; }
+     }
+     if (distance_changed || splim_changed || force) {   // [MIRROR NATIVE] Msg2 ALWAYS paired with Msg1, every push
+-        LOGV("hud_send: SetHUD_Display_Msg2 road=\"%s\" sync=%u",
++        LOGD("hud_send: SetHUD_Display_Msg2 road=\"%s\" sync=%u",
+              road.c_str(), static_cast<unsigned>(msg2.syncBit));
+         int rc = VBS_NAVI_TMC_SetHUD_Display_Msg2(g_conn, &msg2, nullptr, nullptr, nullptr);
+         if (rc != 0) { LOGE("hud_send: SetHUD_Display_Msg2 failed rc=%d", rc); return false; }
 @@ -684,9 +734,18 @@ void *splim_ticker_main(void *)
  void *sender_main(void *)
  {
@@ -153,6 +171,67 @@ index 87777f7..79a4f50 100644
              // [KEEPALIVE] Ticker woke us with no AA/splim change -> re-assert the
              // last frame so the cluster ECU doesn't age out the maneuver OR the
              // speed-limit (native re-asserts ~2Hz). Active when a route is live
+@@ -809,20 +878,25 @@ void *sender_main(void *)
+         bool full_req = g_fullclear_req.exchange(false, std::memory_order_relaxed);
+         bool nav_req  = g_clear_req.exchange(false, std::memory_order_relaxed);
+         if (full_req) {
+-            LOGD("hud: CarPlay session gone -> full HUD wipe (incl sign)");
+-            if (send_clear(sync_bit)) {
+-                g_have_guidance.store(false, std::memory_order_relaxed);
+-                prev       = {};
+-                prev_splim = 0;
+-                last_processed = g_seq.load(std::memory_order_acquire);
+-                nav_request_reset();
++            LOGD("hud: CarPlay session gone (full_req check)");
++            if (!have_ext_nav && splim == 0) {
++                if (send_clear(sync_bit)) {
++                    g_have_guidance.store(false, std::memory_order_relaxed);
++                    prev       = {};
++                    prev_splim = 0;
++                    last_processed = g_seq.load(std::memory_order_acquire);
++                    nav_request_reset();
++                }
++            } else {
++                LOGD("hud: keeping live external nav / splim despite CarPlay session deactive");
+             }
+         } else if (nav_req) {
+-            LOGD("hud: CarPlay TBT off (still connected) -> maneuver off, keep sign");
+-#ifndef CARPLAY_NO_SPLIM
+-            if (splim > 0) {
+-                // mirror AA: blank ONLY the maneuver, KEEP the live sign (reuse blankSnap above).
+-                // Do NOT reset prev_splim -> the keepalive keeps painting the sign, no flash.
++            LOGD("hud: CarPlay TBT off (nav_req check)");
++            if (have_ext_nav) {
++                // External nav (Google Maps) is active -> do NOT clear maneuver!
++                LOGD("hud: external nav (Google Maps) active, keeping maneuver");
++            } else if (splim > 0) {
++                // No external nav, but VietMap Live speed limit is active: blank maneuver, keep sign
+                 if (send_one(blankSnap, prev, sync_bit, splim, /*splim_changed=*/true, /*force=*/true)) {
+                     g_have_guidance.store(false, std::memory_order_relaxed);
+                     prev       = blankSnap;
+@@ -830,14 +904,14 @@ void *sender_main(void *)
+                     last_processed = g_seq.load(std::memory_order_acquire);
+                     nav_request_reset();
+                 }
+-            } else
+-#endif
+-            if (send_clear(sync_bit)) {
+-                g_have_guidance.store(false, std::memory_order_relaxed);
+-                prev       = {};
+-                prev_splim = 0;
+-                last_processed = g_seq.load(std::memory_order_acquire);
+-                nav_request_reset();   // [#3] so a re-started route re-emits even stationary/same-route
++            } else {
++                if (send_clear(sync_bit)) {
++                    g_have_guidance.store(false, std::memory_order_relaxed);
++                    prev       = {};
++                    prev_splim = 0;
++                    last_processed = g_seq.load(std::memory_order_acquire);
++                    nav_request_reset();
++                }
+             }
+         }
+ 
 diff --git a/mazda/patches/blmjcicarplay/main.cpp b/mazda/patches/blmjcicarplay/main.cpp
 index 3b38b29..2640226 100644
 --- a/mazda/patches/blmjcicarplay/main.cpp
