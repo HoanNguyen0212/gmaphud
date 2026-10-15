@@ -14,6 +14,7 @@
 #import "refresh-loop.h"
 #import "source-transport.h"
 #import "vietmap-output.h"
+#import "cmu-hud-relay.h"
 #include <notify.h>
 
 static NSHashTable *views;
@@ -109,6 +110,8 @@ static void Apply(UIView *view, BOOL forceNative) {
         @{@"speed":@{@"value":test[@"speed"],@"receivedAt":@(now)},
           @"speedLimit":@{@"value":test[@"limit"],@"receivedAt":@(now)}},TestAlerts(now),now) : GVMReadSourceOutput(now);
     NSNumber *speed=output[@"speed"][@"value"], *limit=output[@"speedLimit"][@"value"];
+    // Relay the current speed limit to Mazda CMU HUD via UDP.
+    GVMCMURelaySetLimit(limit ? limit.unsignedIntegerValue : 0);
     id googleModel=[models objectForKey:view];
     NSUInteger style=googleModel ? ((NSUInteger (*)(id,SEL))objc_msgSend)(googleModel,NSSelectorFromString(@"style")) : 1;
     NSInteger unit=googleModel ? ((NSInteger (*)(id,SEL))objc_msgSend)(googleModel,NSSelectorFromString(@"distanceUnit")) : 1;
@@ -269,6 +272,7 @@ static void Install(void) {
     MSHookMessageEx(map, @selector(layoutSubviews), (IMP)LayoutMap, (IMP *)&originalMapLayout);
     MSHookMessageEx(child, @selector(layoutSubviews), (IMP)LayoutChild, (IMP *)&originalChildLayout);
     installed = YES;
+    GVMCMURelayStart();
     GVMDiagnosticsRecord(GVMDiagnosticHook,1);
     Log(@"native CarPlay replacement loaded 0.1.8; awaiting fresh VietMap samples");
 }
