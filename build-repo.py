@@ -15,7 +15,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
-URL = "https://hoannguyen0212.github.io/gmaphud/"
+URL = "https://bechou0410.github.io/gmaphud/"
+SOURCE_URL = "https://gmaphud.caidat.app/"
 SILEO_DEPICTION_URL = URL + "sileo-depiction.json"
 SCREENSHOTS = (
     URL + "screenshots/full-map-top-left.png",
@@ -51,7 +52,7 @@ def build_sileo_depiction():
             "tab": "Tiếng Việt",
             "title": "GMapHUD trên CarPlay và iPhone",
             "intro": (
-                "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps trên CarPlay và iPhone. "
+                "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live, Waze hoặc GOFA trong Google Maps trên CarPlay và iPhone. "
                 "Google Maps tiếp tục đảm nhiệm việc dẫn đường."
             ),
             "screenshots": "Vị trí bong bóng · ảnh xem trước trong Cài đặt",
@@ -66,7 +67,7 @@ def build_sileo_depiction():
                 "Dữ liệu có thể sai, trễ hoặc thiếu. Chỉ dùng để nghiên cứu/kiểm thử khi xe đã đỗ an toàn; "
                 "tuân thủ biển báo thực tế. Không phải thiết bị hỗ trợ lái xe được chứng nhận.\n\n"
                 "Hiển thị tốc độ, giới hạn và tối đa hai cảnh báo đường đã nhận diện; không có cảnh báo âm thanh, giả lập GPS "
-                "hay vượt thuê bao/DRM. Mã do dự án viết theo giấy phép MIT; ảnh VietMap Live vẫn thuộc quyền của chủ sở hữu. Dự án độc lập, không được "
+                "hay vượt thuê bao/DRM. Mã do dự án viết theo giấy phép MIT; quyền với ứng dụng, dữ liệu và hình ảnh bên thứ ba vẫn thuộc chủ sở hữu. Dự án độc lập, không được "
                 "VietMap, Google hay Apple bảo trợ."
             ),
             "links": "Liên kết",
@@ -94,7 +95,7 @@ def build_sileo_depiction():
                 "Readings may be wrong, delayed, or missing. For research and stationary testing only; "
                 "follow actual signs. This is not a certified driving aid.\n\n"
                 "Speed, limits, and up to two recognized road alerts; no audible alerts, GPS simulation, or subscription/DRM "
-                "bypass. Project-authored code is MIT-licensed; VietMap Live images remain their owner’s property. Independent project, not endorsed by VietMap, Google, or Apple."
+                "bypass. Project-authored code is MIT-licensed; third-party apps, data and artwork retain their owners’ rights. Independent project, not endorsed by VietMap, Google, or Apple."
             ),
             "links": "Links",
             "links_text": (
@@ -104,6 +105,21 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.2.3", "Đánh thức và duy trì nguồn cảnh báo khi chỉ dùng Google Maps trên iPhone, kể cả sau khi vừa ngắt CarPlay. Banner hay Trung tâm điều khiển không còn làm ngắt nguồn.",
+         "Wakes and keeps the warning source when using Google Maps on iPhone only, including right after CarPlay disconnects. Banners or Control Center no longer end the source session."),
+        ("0.2.2", "Giữ giới hạn tốc độ của Waze và GOFA ổn định khi điện thoại đứng yên; GOFA không còn mất giới hạn khi chạy nền. Cải thiện độ ổn định định vị nền.",
+         "Keeps Waze and GOFA speed limits steady while the phone is stationary; GOFA no longer loses the limit in the background. Improves background location stability."),
+        ("0.2.1", "Thêm nguồn cảnh báo Waze và GOFA, bổ sung bộ icon cảnh báo. Cải thiện chạy nền và độ ổn định tốc độ, giới hạn và cảnh báo đường.",
+         "Adds Waze and GOFA warning sources and new warning icons. Improves background operation and stability of speed, limits and road alerts."),
+        ("0.2", "Làm gọn Cài đặt, thêm kéo thả và xem trước bố cục. Bổ sung tùy chọn thoát nguồn khi ngắt CarPlay; sửa cảnh báo vượt tốc chặn thao tác. Hiện hỗ trợ VietMap Live.",
+         "Simplifies Settings with drag ordering and layout previews. Adds optional source exit after CarPlay disconnect and fixes overspeed warnings blocking controls. VietMap Live is currently supported."),
+        ("0.1.22", "Cập nhật bộ icon biển báo; đồng bộ font số trên biển giới hạn tốc độ chính.",
+         "Updates road-sign icons and aligns the main speed-limit digits with the new artwork."),
+        ("0.1.21", "Tùy chỉnh bố cục ngang/dọc và kéo đổi thứ tự các phần trong bong bóng. Làm mới Cài đặt, thêm công tắc từng màn hình và nút đặt lại. Cập nhật bộ icon biển báo, giữ kích cỡ Dashboard ổn định khi đổi bố cục hoặc thêm/bớt cảnh báo. Báo cáo hỗ trợ có thêm phiên bản ứng dụng và tùy chọn đính kèm crash.",
+         "Customize horizontal/vertical layouts and drag to reorder bubble sections. Refreshes Settings with per-screen switches and reset controls. Updates road-sign icons and keeps Dashboard content sizes stable when changing layouts or adding/removing alerts. Support reports now include app versions and optional crash attachments."),
+        ("0.1.20", "Cải thiện tính ổn định", "Improved stability"),
+        ("0.1.19", "Tối ưu cập nhật bong bóng và giảm dung lượng gói cài. Tự đánh thức VietMap Live hỗ trợ cả Google Maps trên CarPlay và iPhone, với quyền định vị Khi dùng ứng dụng hoặc Luôn luôn. Cải thiện tự nhận lại dữ liệu khi VietMap chưa chạy; làm gọn mô tả trong Cài đặt.",
+         "Optimizes bubble updates and reduces package size. Automatic VietMap Live wake now supports Google Maps on both CarPlay and iPhone with When In Use or Always location access. Improves data recovery when VietMap is not running and simplifies Settings descriptions."),
         ("0.1.18", "Thêm bong bóng trong Google Maps trên iPhone, chọn bốn góc và tinh chỉnh vị trí tự do; hỗ trợ bố cục Tự động, Ngang hoặc Dọc. Chỉnh kích cỡ riêng cho bản đồ CarPlay đầy đủ, Dashboard và iPhone. Làm gọn giao diện Cài đặt; sửa lỗi bong bóng bị bóp hẹp khi dẫn đường và giữ kích thước đồng nhất giữa các góc.",
          "Adds a bubble inside Google Maps on iPhone with four corners, flexible positioning, and Auto, Horizontal or Vertical layouts. Adjust size separately for CarPlay Full Map, Dashboard and iPhone. Refreshes Settings controls and fixes squeezed navigation bubbles while keeping sizes consistent across corners."),
         ("0.1.17", "Thêm tùy chọn tự đánh thức VietMap Live khi mở Google Maps trên CarPlay. Công tắc chỉ khả dụng khi đã cấp định vị Luôn luôn; tự tắt nếu không còn đủ quyền. Cải thiện kết nối dữ liệu và chẩn đoán.",
@@ -220,7 +236,7 @@ def main():
         encoding="utf-8",
     )
     release = (
-        "Origin: GMapHUD\nLabel: GMapHUD\nSuite: experimental\nCodename: gmaphud\n"
+        "Origin: GMapHUD\nLabel: GMapHUD\nSuite: stable\nCodename: gmaphud\n"
         "Version: 1\nArchitectures: iphoneos-arm iphoneos-arm64\nComponents: main\n"
         "Description: Experimental VietMap speed integration for Google Maps CarPlay\n"
         f"Date: {format_datetime(datetime.now(timezone.utc), usegmt=True)}\n"
@@ -233,9 +249,17 @@ def main():
     template = (ROOT / "repo-template.html").read_text(encoding="utf-8")
     locales = json.loads((ROOT / "repo-locales.json").read_text(encoding="utf-8"))
     for language, filename in (("vi", "index.html"), ("en", "en.html")):
-        values = {**locales[language], "LANG": language, "VERSION": version, "REPO_URL": URL,
-                  "PACKAGE_PATH": "pool/" + name, "ROOTFUL_PACKAGE_PATH": "pool/" + records["iphoneos-arm"][1], "VI_CURRENT": "page" if language == "vi" else "false",
-                  "EN_CURRENT": "page" if language == "en" else "false"}
+        values = {
+            **locales[language],
+            "LANG": language,
+            "VERSION": version,
+            "REPO_URL": SOURCE_URL,
+            "FALLBACK_URL": URL,
+            "PACKAGE_PATH": SOURCE_URL + "pool/" + name,
+            "ROOTFUL_PACKAGE_PATH": SOURCE_URL + "pool/" + records["iphoneos-arm"][1],
+            "VI_CURRENT": "page" if language == "vi" else "false",
+            "EN_CURRENT": "page" if language == "en" else "false",
+        }
         page = re.sub(r"\{\{([A-Z_]+)\}\}", lambda match: html.escape(values[match[1]], quote=True), template)
         (site / filename).write_text(page, encoding="utf-8")
     notices = "<!doctype html><html lang='vi'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>GMapHUD · Thông báo / Notices</title><style>body{max-width:800px;margin:40px auto;padding:0 20px;font:16px/1.6 system-ui}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}</style><a href='./'>GMapHUD</a><nav aria-label='Ngôn ngữ / Language'><a href='#vi' lang='vi'>Tiếng Việt</a> · <a href='#en' lang='en'>English</a> · <a href='#license' lang='en'>MIT</a></nav>"

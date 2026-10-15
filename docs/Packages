@@ -1,45 +1,45 @@
 Package: com.chou.googlemaps.vietmap
-Name: GMapHUD (iOS 15.8 Dopamine)
-Description: VietMap speed, alerts, and TPMS in Google Maps for iOS 15.8 Dopamine (iPhone SE).
-Icon: https://hoannguyen0212.github.io/gmaphud/gmaphud-icon.png
-Maintainer: Hoan Nguyen
-Author: Hoan Nguyen
+Name: GMapHUD
+Description: Selected-source speed and road alerts in Google Maps on CarPlay and iPhone.
+Icon: https://bechou0410.github.io/gmaphud/gmaphud-icon.png
+Maintainer: bechou0410
+Author: chou (AI-assisted with Codex)
 Section: Tweaks
 Recommends: preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm
-Version: 0.1.24
-Installed-Size: 3020
-Filename: pool/com.chou.googlemaps.vietmap_0.1.24_iphoneos-arm.deb
-Size: 1812790
-MD5sum: 4735f6a54ca11f082bc303847fc15d2f
-SHA1: 95c843f5da97c71d92e895e5bbfd036ebf16083c
-SHA256: 834530dff9b1f4b6417a4fd301e2c21bc2a3d22596d4806ebf34f623e8ed161e
-SHA512: 7f6c7482eb4a5a1175981f51492d7493e5fdba7283b1c93e081b75c886046184f90e7291d7940c674697cefedf2bac9cb900c2673f02d1a2646d3e6d467b6cc5
-Depiction: https://hoannguyen0212.github.io/gmaphud/
-SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
-Homepage: https://github.com/HoanNguyen0212/gmaphud
-Bugs: https://github.com/HoanNguyen0212/gmaphud/issues
+Version: 0.2.3
+Installed-Size: 8260
+Filename: pool/com.chou.googlemaps.vietmap_0.2.3_iphoneos-arm.deb
+Size: 5190732
+MD5sum: 687a1e50d864cd3f13b9b198eb3bf5c9
+SHA1: 41aa4821c4ef7cf51b72a7bab2f98bcaccd63ee0
+SHA256: 83d46dfad82866b11bdc87fc41e9a00393c377db052de8bfabb791bb59e6925e
+SHA512: a1648bef993838a0f1e8e6a8b37cd83edd91311efa3bfe06363d592a0ddf45583b5dc5c1751379b81cbe3beb8d8d2199884ca785597624a2c99a4588292f9365
+Depiction: https://bechou0410.github.io/gmaphud/
+SileoDepiction: https://bechou0410.github.io/gmaphud/sileo-depiction.json
+Homepage: https://github.com/bechou0410/gmaphud
+Bugs: https://github.com/bechou0410/gmaphud/issues
 
 Package: com.chou.googlemaps.vietmap
-Name: GMapHUD (iOS 15.8 Dopamine)
-Description: VietMap speed, alerts, and TPMS in Google Maps for iOS 15.8 Dopamine (iPhone SE).
-Icon: https://hoannguyen0212.github.io/gmaphud/gmaphud-icon.png
-Maintainer: Hoan Nguyen
-Author: Hoan Nguyen
+Name: GMapHUD
+Description: Selected-source speed and road alerts in Google Maps on CarPlay and iPhone.
+Icon: https://bechou0410.github.io/gmaphud/gmaphud-icon.png
+Maintainer: bechou0410
+Author: chou (AI-assisted with Codex)
 Section: Tweaks
 Recommends: preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm64
-Version: 0.1.24
-Installed-Size: 3020
-Filename: pool/com.chou.googlemaps.vietmap_0.1.24_iphoneos-arm64.deb
-Size: 2014032
-MD5sum: 8d004204a231877e194acb659ddb1c6d
-SHA1: ace5115bc78f32bab2c06daf48b14e3930983041
-SHA256: d29aaef43ec2d415a2531d4570e6e32b9de2bfaef339ae67b9c2bb7ebc1acd5e
-SHA512: 6ce25c19e6cd2defd73d134d43cc884967a1e35124d10d71ab49f38b4c62b656c4639c187127f2fda617148d71ea7c018e72fbc467ebda29857899d027cd3624
-Depiction: https://hoannguyen0212.github.io/gmaphud/
-SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
-Homepage: https://github.com/HoanNguyen0212/gmaphud
-Bugs: https://github.com/HoanNguyen0212/gmaphud/issues
+Version: 0.2.3
+Installed-Size: 8260
+Filename: pool/com.chou.googlemaps.vietmap_0.2.3_iphoneos-arm64.deb
+Size: 5190742
+MD5sum: 5b39b96a0e2fcda0c3beb6dcfa2ec100
+SHA1: bc44aae438923ec493d37023824fd17daa23f3da
+SHA256: bc5a34cf2b6a8faa017beab725a3cb8adf4804a5b19275a9d7f95ed5732c1f64
+SHA512: 50020f2ea1a487394d6ec31bff5c6a54ee0fb616a04e4d54c6129b8b010183821f2b61c23511ad329b0179f1fbd7bf2d92bd69b14ea1beba2c5d907151f25a1a
+Depiction: https://bechou0410.github.io/gmaphud/
+SileoDepiction: https://bechou0410.github.io/gmaphud/sileo-depiction.json
+Homepage: https://github.com/bechou0410/gmaphud
+Bugs: https://github.com/bechou0410/gmaphud/issues

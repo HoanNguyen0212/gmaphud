@@ -6,6 +6,10 @@ BOOL GVMDecodePlacement(uint64_t state, NSUInteger *full, BOOL *dashboardLeft);
 
 extern const char *GVMSizeStateName;
 extern const char *GVMSizeChangedName;
+extern const char *GVMBubbleVisibilityStateName;
+uint64_t GVMEncodeBubbleVisibility(id enabled,id full,id dashboard,id phone);
+BOOL GVMDecodeBubbleVisibility(uint64_t state,NSUInteger surface);
+BOOL GVMBubbleEnabled(NSUInteger surface);
 NSUInteger GVMSizePercent(id value);
 uint64_t GVMEncodeSizes(id full, id dashboard, id phone);
 NSUInteger GVMDecodeSize(uint64_t state, NSUInteger surface);
@@ -18,3 +22,15 @@ void GVMDecodePhonePlacement(uint64_t state,NSUInteger *corner,NSInteger *x,NSIn
 
 NSInteger GVMOffsetPercentFromPoints(id value,double dimension);
 void GVMMigratePhoneOffsets(double width,double height);
+
+extern const char *GVMBubbleConfigurationStateName;
+NSArray<NSString *> *GVMNormalizeModuleOrder(id value,BOOL vertical);
+uint64_t GVMEncodeBubbleConfiguration(NSArray *layouts,NSArray *orders);
+NSUInteger GVMDecodeBubbleLayout(uint64_t state,NSUInteger surface);
+NSArray<NSString *> *GVMDecodeModuleOrder(uint64_t state,NSUInteger surface,BOOL vertical);
+
+extern const char *GVMOverspeedModeName, *GVMOverspeedLeaseName;
+NSUInteger GVMOverspeedMode(void);
+uint64_t GVMEncodeOverspeedLease(NSDictionary *output,double now);
+BOOL GVMOverspeedLeaseActive(uint64_t state,double now);
+void GVMPublishOverspeedLease(uint64_t state);

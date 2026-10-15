@@ -2,22 +2,15 @@
 #import "carplay-style.h"
 #import "speed-state.h"
 #import "alert-state.h"
-#import "test-state.h"
-#import "tpms-state.h"
+#import "refresh-loop.h"
 #import "background-policy.h"
+#import "source-transport.h"
 #include <notify.h>
 
-static int speedToken = -1, limitToken = -1, firstAlertToken = -1, secondAlertToken = -1, tpmsToken = -1;
-static int testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1, backgroundToken = -1;
+static int backgroundToken=-1;
 static __weak UIView *phoneHost;
-static double lastRequest = -1, lastBackgroundHeartbeat = 0;
-
-static uint64_t NotifyState(int token) {
-    uint64_t state = 0;
-    if (token >= 0) notify_get_state(token, &state);
-    return state;
-}
-
+static double lastRequest=-1;
+static double lastHeartbeat=-1;
 static UIView *ForegroundHost(void) {
     UIApplication *app = UIApplication.sharedApplication;
     if (app.applicationState != UIApplicationStateActive) return nil;
@@ -60,85 +53,34 @@ static UIView *ForegroundHost(void) {
     
     return nil;
 }
-
-static void UpdatePhone(void) {
-    UIView *host = ForegroundHost();
-    if (phoneHost != host) { GVMRemovePhoneSpeedCard(phoneHost); phoneHost = host; }
-    if (!host) return;
-    
-    double now = NSProcessInfo.processInfo.systemUptime;
-    NSNumber *speed = GVMDecodeSample(NotifyState(speedToken), now, YES);
-    NSNumber *limit = GVMDecodeSample(NotifyState(limitToken), now, NO);
-    
-    NSMutableArray *alerts = [NSMutableArray new];
-    for (NSNumber *token in @[@(firstAlertToken), @(secondAlertToken)]) {
-        NSDictionary *alert = GVMDecodeAlert(NotifyState(token.intValue), now);
-        if (alert) [alerts addObject:alert];
+void GVMRefreshPhoneOverlay(void) {
+    UIView *host=ForegroundHost();
+    if (phoneHost!=host) { GVMRemovePhoneSpeedCard(phoneHost); phoneHost=host; }
+    if (!host) {
+        // Let the heartbeat expire instead of clearing it, so a brief banner, Control Center
+        // or app switch does not end the source session while the phone map is in use.
+        lastHeartbeat=-1;
+        return;
     }
-    
-    // Test mode fallback
-    NSDictionary *test = testToken >= 0 ? GVMDecodeTest(NotifyState(testToken), now) : nil;
-    if (test) {
-        speed = test[@"speed"];
-        limit = test[@"limit"];
-        NSDictionary *t1 = testFirstAlertToken >= 0 ? GVMDecodeAlert(NotifyState(testFirstAlertToken), now) : nil;
-        NSDictionary *t2 = testSecondAlertToken >= 0 ? GVMDecodeAlert(NotifyState(testSecondAlertToken), now) : nil;
-        if (t1) [alerts addObject:t1];
-        if (t2) [alerts addObject:t2];
+    double now=NSProcessInfo.processInfo.systemUptime;
+    if (backgroundToken>=0 && (lastHeartbeat<0 || now-lastHeartbeat>=3)) {
+        notify_set_state(backgroundToken,(uint64_t)(now*1000)); lastHeartbeat=now;
     }
-    
-    GVMTPMSData tpms = GVMDecodeTPMS(NotifyState(tpmsToken), now);
-    
-    if (GVMShouldRequestSource(now, lastRequest, YES, test != nil, !speed || !limit)) {
-        lastRequest = now;
-        notify_post(GVMSourceRequestName);
+    NSDictionary *output=GVMReadSourceOutput(now);
+    NSNumber *speed=output[@"speed"][@"value"], *limit=output[@"speedLimit"][@"value"];
+    if (GVMShouldRequestSource(now,lastRequest,YES,NO,!speed || !limit)) {
+        lastRequest=now; GVMRequestSelectedSource();
     }
-    
-    // Maintain RunningBoard background supervisor for VietMap Live while Google Maps is active
-    if (!test && backgroundToken >= 0 && (now - lastBackgroundHeartbeat >= 3.0 || lastBackgroundHeartbeat == 0)) {
-        lastBackgroundHeartbeat = now;
-        notify_set_state(backgroundToken, (uint64_t)(now * 1000));
-    }
-    
-    static double lastLog = 0;
-    if (now - lastLog > 5.0) {
-        lastLog = now;
-        NSString *line = [NSString stringWithFormat:@"%f phone host=%@ speed=%@ limit=%@ alerts=%lu tpms=%d\n",
-            now, NSStringFromClass(host.class), speed, limit, (unsigned long)alerts.count, tpms.hasData];
-        NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-phone.log"];
-        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:path];
-        if (fh) {
-            [fh seekToEndOfFile];
-            [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
-            [fh closeFile];
-        } else {
-            [line writeToFile:path atomically:NO encoding:NSUTF8StringEncoding error:nil];
-        }
-    }
-    
-    GVMUpdatePhoneSpeedCard(host, speed, limit, alerts, &tpms, host.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
+    GVMUpdatePhoneSpeedCard(host,output,host.traitCollection.userInterfaceStyle==UIUserInterfaceStyleDark);
 }
 
 __attribute__((constructor)) static void StartPhone(void) {
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.google.Maps"]) return;
     dispatch_async(dispatch_get_main_queue(), ^{
-        notify_register_check(GVMSpeedStateName, &speedToken);
-        notify_register_check(GVMLimitStateName, &limitToken);
-        notify_register_check(GVMFirstAlertStateName, &firstAlertToken);
-        notify_register_check(GVMSecondAlertStateName, &secondAlertToken);
-        notify_register_check(GVMTPMSStateName, &tpmsToken);
-        notify_register_check(GVMTestStateName, &testToken);
-        notify_register_check(GVMTestFirstAlertStateName, &testFirstAlertToken);
-        notify_register_check(GVMTestSecondAlertStateName, &testSecondAlertToken);
-        notify_register_check(GVM_BACKGROUND_SIGNAL, &backgroundToken);
-        
+        notify_register_check(GVM_BACKGROUND_PHONE_SIGNAL,&backgroundToken);
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(__unused NSNotification *note) {
-            GVMRemovePhoneSpeedCard(phoneHost);
-            phoneHost = nil;
-        }];
-        
-        [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(__unused NSTimer *timer) {
-            UpdatePhone();
+            GVMRemovePhoneSpeedCard(phoneHost); phoneHost=nil;
+            lastHeartbeat=-1;
         }];
     });
 }

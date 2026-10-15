@@ -12,3 +12,7 @@ obj/
 *.jsonl
 *.ipa
 *.gpx
+__pycache__/
+*.pyc
+download-proxy/pages-*/
+download-proxy/.wrangler/

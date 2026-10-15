@@ -2,11 +2,15 @@
 
 **Tiếng Việt** · [English](README.md)
 
-Tweak thử nghiệm cho iOS jailbreak rootful/rootless, hiển thị **tốc độ hiện tại và giới hạn tốc độ từ VietMap Live trong Google Maps trên CarPlay và iPhone**. Ý tưởng từ tính năng bong bóng giao thông của DuoDash và TrueDash. Google Maps tiếp tục đảm nhiệm việc dẫn đường.
+Tweak cho iOS jailbreak rootful/rootless, hiển thị **tốc độ hiện tại và giới hạn tốc độ từ VietMap Live, Waze hoặc GOFA trong Google Maps trên CarPlay và iPhone**. Ý tưởng từ tính năng bong bóng giao thông của DuoDash và TrueDash. Google Maps tiếp tục đảm nhiệm việc dẫn đường.
 
 **Tác giả: chou · có AI hỗ trợ bằng Codex.** chou định hướng, kiểm thử và xuất bản dự án cộng đồng độc lập này; Codex hỗ trợ phát triển bằng AI. Ghi nhận này không có nghĩa OpenAI là đơn vị xuất bản, chủ sở hữu bản quyền, bên bảo trì hay cung cấp hỗ trợ. Dự án không liên kết hoặc được VietMap, Google, Apple hay OpenAI bảo trợ.
 
 > Phần mềm thử nghiệm dành cho nghiên cứu và kiểm thử khi xe đã đỗ an toàn; chưa được chứng nhận là thiết bị hỗ trợ lái xe. Dữ liệu có thể sai, thiếu hoặc trễ. Tuân thủ biển báo thực tế, điều kiện đường và pháp luật áp dụng. Đọc [thông báo trách nhiệm và quyền bên thứ ba](DISCLAIMER.vi.md) trước khi sử dụng; disclaimer không bảo đảm loại bỏ mọi rủi ro pháp lý.
+
+## Nguồn cảnh báo
+
+Chọn **VietMap Live**, **Waze** hoặc **GOFA**; mỗi lần chỉ dùng một nguồn. Waze5.25.0; GOFA4.2.1 build3.
 
 ## Ảnh xem trước vị trí bong bóng
 
@@ -26,18 +30,17 @@ Tweak thử nghiệm cho iOS jailbreak rootful/rootless, hiển thị **tốc đ
 
 ## Tính năng
 
-Bubble CarPlay ngang có tốc độ bên trái, biển giới hạn bên phải và nhãn VietMap Live phía trên; Dashboard dùng bubble dọc với giới hạn trên, tốc độ dưới. Cảnh báo đường dùng ảnh VietMap Live tương ứng và khoảng cách nguồn trong vùng VietMap riêng: tối đa hai biểu tượng cạnh nhau trên bản đồ đầy đủ, hai biểu tượng xếp dọc dưới tốc độ trong Dashboard. Nhận diện đầu vào đối chiếu mã băm ảnh đã quan sát từ VietMap Live 3.4.3. Bubble co giãn đồng đều theo khung bản đồ và mức kích cỡ đã chọn. Bảng dẫn đường chỉ ảnh hưởng vị trí, không làm kích thước khác nhau giữa các góc. Bố cục full map/Dashboard được chọn theo tỉ lệ chiều rộng màn hình. Ảnh phía trên minh họa đủ các vị trí được hỗ trợ.
+Bong bóng dùng chung bộ icon biển báo, cho chọn bố cục ngang/dọc và kéo đổi thứ tự các module. Chỉnh kích cỡ và vị trí riêng cho Bản đồ đầy đủ, Dashboard và iPhone. Tối đa hai cảnh báo đường kèm khoảng cách; cảnh báo vượt tốc có thể hiển thị quanh bản đồ hoặc toàn màn hình CarPlay.
 
-Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đồ đầy đủ và cạnh trái hoặc phải cho Dashboard. Ảnh phía trên minh họa từng lựa chọn. Mặc định cả hai ở phía trên bên phải. Mục nguồn cảnh báo hiện VietMap Live nhưng chưa cho đổi khi chưa hỗ trợ app khác. Vị trí mới áp dụng khi Google Maps CarPlay đang mở; phần relay trong SpringBoard khôi phục lựa chọn đã lưu sau khi giao diện máy nạp lại.
+Trong Cài đặt iPhone → GMapHUD, chọn một trong bốn góc cho bản đồ đầy đủ và cạnh trái hoặc phải cho Dashboard. Ảnh phía trên minh họa từng lựa chọn. Mặc định cả hai ở phía trên bên phải. Chọn một nguồn VietMap Live, Waze hoặc GOFA. Vị trí mới áp dụng khi Google Maps CarPlay đang mở; phần relay trong SpringBoard khôi phục lựa chọn đã lưu sau khi giao diện máy nạp lại.
 
 - Bảng tốc độ trên bản đồ đầy đủ và thẻ dọc nhỏ gọn trong Dashboard; hỗ trợ màu bản đồ sáng/tối.
 - Tốc độ hiện tại luôn có vị trí hiển thị, hiện `--` khi không có dữ liệu. Giới hạn chưa có dữ liệu được biểu diễn bằng biển nét đứt.
 - Màu vàng từ mức thấp hơn giới hạn 5 km/h đến bằng giới hạn; màu đỏ khi vượt giới hạn. Chỉ có cảnh báo bằng hình ảnh, không có hệ thống cảnh báo âm thanh.
 - Vị trí bảng theo vùng an toàn của thanh công cụ bản đồ. Nút hướng/la bàn của Google Maps CarPlay được ẩn.
-- Tốc độ và giới hạn hết hiệu lực độc lập sau 5 giây. Tín hiệu duy trì kết nối không làm dữ liệu cũ trở nên mới.
+- Tốc độ và giới hạn hết hiệu lực độc lập sau 5 giây. Tín hiệu duy trì kết nối không làm dữ liệu cũ trở nên mới; Waze và GOFA chỉ xác nhận lại giới hạn hiện tại do chính ứng dụng đang giữ khi điện thoại đứng yên.
 - Có chế độ kiểm thử hiển thị khi đứng yên, kèm nhãn TEST và tự hết hạn.
 
-Bản công khai 0.1.13 chưa hỗ trợ biển cảnh báo. Bản 0.1.14 nhận diện 46 mã băm ảnh cảnh báo đã quan sát từ VietMap Live 3.4.3; ảnh lạ hoặc đã đổi sẽ không hiển thị. Thông báo giới hạn tốc độ sắp tới của VietMap có thể không kèm ảnh; giới hạn hợp lệ sẽ dùng ảnh VietMap Live tương ứng trong gói. Dữ liệu camera và biển giới hạn sắp tới đã được quan sát trực tiếp; các loại cảnh báo khác mới được ánh xạ theo ảnh app đã thấy, chưa có mẫu payload thực tế. Chưa hỗ trợ chỉ dẫn đường hoặc Live Activity. Không bao gồm giả lập GPS, phát lại vị trí, vượt DRM hay vượt kiểm tra thuê bao.
 
 ## Tương thích
 
@@ -46,9 +49,9 @@ Bản công khai 0.1.13 chưa hỗ trợ biển cảnh báo. Bản 0.1.14 nhận
 | Thiết bị / hệ điều hành | iPhone 11, iOS 18.6.2, jailbreak rootless |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Gói | `com.chou.googlemaps.vietmap` 0.1.18, arm64/arm64e |
+| Gói | `com.chou.googlemaps.vietmap` 0.2.3, arm64/arm64e |
 
-Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói và định danh thông báo giữ nguyên để tương thích với bản đang cài.
+Từ 0.1.13, Google Maps không còn bị giới hạn theo phiên bản hoặc UUID executable. Tweak vẫn kiểm tra các lớp và chữ ký phương thức cần thiết; vượt qua kiểm tra không bảo đảm mọi bản đều tương thích. Mã gói giữ nguyên. Từ 0.1.20, tweak dùng kênh thông báo dữ liệu thật có phiên bản mới; kênh thử hiển thị có thời hạn vẫn giữ tên cũ.
 
 Từ 0.1.13, nguồn VietMap cũng không còn khóa phiên bản. Kiểm tra cấu trúc kênh Flutter và dữ liệu đầu vào vẫn được giữ lại. Các bản app mới vẫn cần kiểm chứng trên thiết bị.
 
@@ -57,17 +60,17 @@ Giao diện đã được kiểm tra bằng iPhone thật kết nối với CarP
 ## Cài đặt và gỡ bỏ
 
 1. Dùng jailbreak tương thích và ứng dụng được cài hợp lệ, có quyền sử dụng/thuê bao VietMap cần thiết. Dự án không cung cấp các thành phần này.
-2. Sao chép **https://bechou0410.github.io/gmaphud/** vào **Sileo → Sources (Nguồn) → +** hoặc **Zebra → Sources → +**, làm mới rồi tìm **GMapHUD**. [Trang nguồn](https://bechou0410.github.io/gmaphud/) có nút thêm nhanh cho cả hai. Hoặc tải `.deb` tại [Releases](https://github.com/bechou0410/gmaphud/releases) và đối chiếu SHA-256 với `SHA256SUMS`.
+2. Sao chép **https://gmaphud.caidat.app/** vào **Sileo → Sources (Nguồn) → +** hoặc **Zebra → Sources → +**, làm mới rồi tìm **GMapHUD**. [Trang nguồn](https://gmaphud.caidat.app/) có nút thêm nhanh cho cả hai. Hoặc tải `.deb` tại [Releases](https://github.com/bechou0410/gmaphud/releases) và đối chiếu SHA-256 với `SHA256SUMS`. [Nguồn GitHub Pages cũ](https://bechou0410.github.io/gmaphud/) vẫn hoạt động làm dự phòng; lượt tải trực tiếp qua nguồn này không được đếm.
 3. Cài bằng trình quản lý gói của jailbreak. Kiểm tra thông báo gỡ các gói bridge/probe cũ được liệt kê trong [tweak/control](tweak/control). Gói này không gỡ TrueDash của nhà phát triển. Nguồn gồm gói rootless (`iphoneos-arm64`) và rootful (`iphoneos-arm`). Rootful cần kiểm thử trên iOS 14; các bản app cũ có thể cần sửa tích hợp thêm.
 4. Đóng và mở lại VietMap cùng Google Maps, rồi mở Google Maps trên CarPlay. Duy trì chế độ cảnh báo nền của VietMap. Chỉ có Live Activity chưa chứng minh dữ liệu tốc độ vẫn được cập nhật.
 
-Không cung cấp hay yêu cầu mật khẩu SSH mặc định. Sau khi cập nhật 0.1.18, respring một lần để nạp phần khôi phục kích cỡ/vị trí đã lưu, rồi mở lại Google Maps và Cài đặt.
+Không cung cấp hay yêu cầu mật khẩu SSH mặc định. Sau khi cập nhật, respring một lần để nạp phần chạy nền, rồi mở lại Google Maps và Cài đặt. Tự đánh thức hỗ trợ quyền Khi dùng ứng dụng hoặc Luôn luôn; cần bật cảnh báo trong VietMap trước.
 
 Để gỡ: gỡ `com.chou.googlemaps.vietmap` bằng trình quản lý gói, rồi đóng và mở lại cả hai ứng dụng. Xóa tệp không tự dỡ thư viện đã được nạp vào một tiến trình còn đang chạy.
 
 ## Build và kiểm thử
 
-Cần macOS, công cụ dòng lệnh Xcode, Theos, toolchain hỗ trợ rootless và SDK iPhoneOS 16.5 được lấy theo giấy phép áp dụng. SDK và các phụ thuộc không được đóng kèm.
+Cần macOS, Python 3.9+, công cụ dòng lệnh Xcode, Theos, toolchain hỗ trợ rootless và SDK iPhoneOS 16.5 được lấy theo giấy phép áp dụng. SDK và các phụ thuộc không được đóng kèm.
 
 ```sh
 git clone https://github.com/bechou0410/gmaphud.git
@@ -78,17 +81,21 @@ THEOS="$HOME/theos" sh build-tweak.sh all
 
 Gói được tạo trong `packages/`. Hai script dùng thư mục tạm và hỗ trợ đường dẫn checkout có dấu cách. Toolchain đã kiểm thử có cảnh báo linker tồn tại từ trước: `-multiply_defined is obsolete`.
 
+Các lệnh build/test giữ log đầy đủ tại máy và trả kết quả ngắn kèm nhãn lỗi cố định, luôn giữ mã thoát của lệnh. Không gọi AI hay API bên ngoài. Xem [hướng dẫn build/test](docs/build-triage.md) để đọc báo cáo và dùng tùy chọn `GMAPHUD_CHECK_RAW=1`.
+
 ## Duy trì nguồn Sileo
 
 Quy tắc phiên bản: trong một chu kỳ phát triển chưa phát hành, mọi lần sửa, build và cài thử đều giữ cùng một phiên bản kế tiếp. Ví dụ bản đã phát hành là `0.1.13` thì tất cả bản thử dùng `0.1.14`; khi phát hành, push chính `0.1.14`. Chỉ sau lần phát hành đó, chu kỳ phát triển tiếp theo mới dùng `0.1.15`. Không tăng phiên bản theo từng lần thử. Có thể ghi mã commit hoặc checksum để phân biệt các bản build nội bộ cùng phiên bản; tuyệt đối không ghi đè gói đã công khai.
 
-[Nguồn tĩnh](https://bechou0410.github.io/gmaphud/) được GitHub Pages xuất bản từ `main` → `/docs`. [build-repo.py](build-repo.py) đưa gói đã build vào nguồn, tạo chỉ mục, trang và depiction Sileo song ngữ có carousel ảnh CarPlay cùng tab nhật ký thay đổi; [repo-template.html](repo-template.html) chứa bố cục landing page dùng chung và [repo-locales.json](repo-locales.json) chứa nội dung tiếng Việt/Anh của trang. Trang mặc định dùng tiếng Việt; [en.html](https://bechou0410.github.io/gmaphud/en.html) dùng tiếng Anh. Cấu hình xuất bản nằm trong Settings → Pages của repository. Xem log tại Actions hoặc bằng `gh api repos/bechou0410/gmaphud/pages/builds/latest`.
+[Nguồn tĩnh](https://bechou0410.github.io/gmaphud/) được GitHub Pages xuất bản từ `main` → `/docs`. [build-repo.py](build-repo.py) đưa gói đã build vào nguồn, tạo chỉ mục, trang và depiction Sileo song ngữ có carousel ảnh CarPlay cùng tab nhật ký thay đổi; [repo-template.html](repo-template.html) chứa bố cục landing page dùng chung và [repo-locales.json](repo-locales.json) chứa nội dung tiếng Việt/Anh của trang. Trang mặc định dùng tiếng Việt; [en.html](https://gmaphud.caidat.app/en.html) dùng tiếng Anh. Cấu hình xuất bản nằm trong Settings → Pages của repository. Xem log tại Actions hoặc bằng `gh api repos/bechou0410/gmaphud/pages/builds/latest`.
+
+[Nguồn cài đặt chính](https://gmaphud.caidat.app/) dùng proxy Cloudflare Pages để đếm lượt bắt đầu tải đầy đủ theo ngày, phiên bản và kiến trúc. Client đang dùng GitHub Pages vẫn hoạt động qua nguồn dự phòng. Xem [thống kê lượt tải](docs/download-statistics.md) để truy vấn số liệu, triển khai và rollback.
 
 `docs/CydiaIcon*.png` là biểu tượng repo được Sileo tải từ gốc nguồn. Trường `Icon` trong [tweak/control](tweak/control) là biểu tượng riêng của gói; `docs/gmaphud-icon.svg/png` dùng cho favicon và trang web.
 
 Để xuất bản gói đã rà soát, chạy `python3 build-repo.py packages/<rootless>.deb packages/<rootful>.deb` với Python 3 và `dpkg-deb`, kiểm tra thay đổi trong `docs/`, rồi commit và push. Chỉ mục quảng bá phiên bản vừa cung cấp; tệp gói cũ vẫn giữ cho các lượt tải đã có. Tệp đã xuất bản là bất biến: tăng phiên bản trước khi đổi nội dung gói. Chỉ đưa gói GMapHUD sản xuất đã rà soát vào nguồn. Không đưa log, khóa, bản dump ứng dụng hoặc dữ liệu cục bộ khác vào `docs/`; toàn bộ thư mục này được công khai.
 
-Đây là nguồn APT dạng phẳng qua HTTPS (`deb https://bechou0410.github.io/gmaphud/ ./`), có checksum gói/chỉ mục. Metadata Release chưa được ký PGP; riêng checksum không xác thực được người xuất bản. Dự án không cung cấp cách tắt cơ chế tin cậy/bảo mật APT toàn cục. Để hoàn tác một lần xuất bản nguồn, revert commit và push, đồng thời giữ tệp gói đã xuất bản. Xác nhận Pages build thành công và chỉ mục công khai khớp gói dự định trước khi thông báo cập nhật.
+Đây là nguồn APT dạng phẳng qua HTTPS (`deb https://gmaphud.caidat.app/ ./`), có checksum gói/chỉ mục. Metadata Release chưa được ký PGP; riêng checksum không xác thực được người xuất bản. Dự án không cung cấp cách tắt cơ chế tin cậy/bảo mật APT toàn cục. Để hoàn tác một lần xuất bản nguồn, revert commit và push, đồng thời giữ tệp gói đã xuất bản. Xác nhận Pages build thành công và chỉ mục công khai khớp gói dự định trước khi thông báo cập nhật.
 
 Nếu người dùng đã nâng cấp, khôi phục hành vi bằng một gói có phiên bản cao hơn. Chỉ hoàn tác chỉ mục nguồn không làm gói đã cài tự hạ phiên bản.
 
@@ -106,44 +113,47 @@ Chạy trên iPhone trong shell có quyền dùng công cụ đã cài, khi Goog
 
 Tham số lần lượt là tốc độ hiện tại (0–400 km/h), giới hạn (1–400 km/h), thời lượng (1–300 giây); bản thử 0.1.14 có thể thêm tên hai biển VietMap và khoảng cách (0–10000 m) theo dạng `TÊN_BIỂN:MÉT`. Có thể nhập hai số trần để thử hai biển camera. Chỉ mô hình hiển thị trên Google CarPlay thay đổi; GPS, dẫn đường và dữ liệu VietMap thật vẫn giữ nguyên. Mặc định TEST hiển thị đến khi gọi `off` hoặc hết hạn. Sau kiểm thử, dữ liệu thật chưa có vẫn được hiển thị là chưa có.
 
-## Chẩn đoán lỗi · 0.1.15
+## Chẩn đoán lỗi
 
 Sau khi cài, đóng và mở lại Google Maps và VietMap Live. Khi lỗi xuất hiện, vào **Cài đặt → GMapHUD → Chẩn đoán / Xuất log**, bấm **Làm mới**, rồi **Sao chép báo cáo** hoặc **Xuất file…** để chia sẻ file `.txt`. Báo cáo được hiển thị trước khi gửi; GMapHUD không tự gửi dữ liệu.
 
-Báo cáo chứa mẫu thiết bị (không có số sê-ri), iOS, phiên bản app do module ghi nhận, trạng thái hook, kênh nguồn, dữ liệu có còn mới và view CarPlay; giữ tối đa 16 mốc gần nhất cho mỗi app cùng mốc cuối của từng bước. Không thu tọa độ, tuyến đường, tài khoản hoặc nội dung log tùy ý từ ứng dụng. Đây là chẩn đoán có giới hạn, không phải toàn bộ log hệ thống. Trạng thái có thể mất khi tiến trình/dịch vụ thông báo khởi động lại; hãy lấy báo cáo trong lúc tái hiện lỗi. Nếu module chưa nạp, phiên bản app có thể chưa có trong báo cáo. Tự bổ sung phiên bản jailbreak và tên tweak chia màn hình khi gửi hỗ trợ.
+Bản tóm tắt chứa mẫu thiết bị (không có số sê-ri), iOS, trạng thái hook/kênh nguồn, độ mới dữ liệu và các mốc hiển thị CarPlay; giữ tối đa 16 mốc gần nhất mỗi app cùng mốc cuối từng bước. Bản tóm tắt không chứa tọa độ, tuyến đường hoặc tài khoản. Trạng thái có thể mất khi tiến trình/dịch vụ thông báo khởi động lại; hãy lấy báo cáo lúc tái hiện lỗi. Tự bổ sung phiên bản jailbreak và tên tweak chia màn hình.
+
+Bản 0.1.21 còn đọc phiên bản và build Google Maps, VietMap Live đang cài, độc lập với việc module đã nạp hay chưa. Nếu không đọc được sẽ ghi rõ. Làm mới liệt kê tối đa ba crash `.ips`/`.crash` liên quan trong 7 ngày, mỗi file tối đa 2 MB; khi xuất có thể đính kèm file nguyên bản cùng bản tóm tắt. Tắt **Đính kèm crash liên quan** để chỉ xuất báo cáo. Crash có thể chứa thông tin thiết bị/app hoặc dữ liệu cá nhân; kiểm tra trước khi gửi. Không đọc được hoặc không tìm thấy crash sẽ được ghi rõ, không có nghĩa app chưa từng crash.
 
 Bản 0.1.15 đã qua kiểm thử trên máy build, build arm64/arm64e và cài trên iPhone 11. Sao chép/chia sẻ và truyền chẩn đoán giữa app vẫn cần kiểm chứng thực tế; đây là bản bổ sung chẩn đoán, chưa phải bản sửa đã xác nhận cho lỗi thiếu dữ liệu trên iOS 16.
 
 ## Kiến trúc và quyền riêng tư
 
-`provider/vietmap-source.x` quan sát kênh Flutter overlay đang có của VietMap, chuyển tiếp handler/reply gốc không thay đổi. Tốc độ và giới hạn đã được kiểm tra, mỗi trường có thời điểm nhận theo đồng hồ đơn điệu riêng, được truyền qua trạng thái thông báo Darwin cục bộ. Cảnh báo được đọc từ các chuỗi JSON trong `vml_main_channel/updateUpcommingAlerts` và `updateStickyAlerts`, đối chiếu mã băm chính xác với bộ ảnh 3.4.3 và truyền tối đa hai trạng thái dạng mã nguồn/mã biển/khoảng cách. Danh sách rỗng sẽ xóa trạng thái nguồn; dữ liệu tự hết hạn sau 5 giây. Bản 0.1.14 đóng gói 46 ảnh biển VietMap để hiển thị; thông báo chỉ truyền dữ liệu số. Ảnh bên thứ ba không thuộc giấy phép MIT của dự án. Hook CarPlay áp dụng cho cửa sổ bản đồ ngoài màn hình điện thoại. Một lớp hiển thị riêng dùng cùng dữ liệu còn mới trong cửa sổ Google Maps trên iPhone, chỉ khi app ở phía trước và không chặn thao tác chạm.
+`provider/vietmap-source.x` quan sát kênh Flutter overlay đang có của VietMap, chuyển tiếp handler/reply gốc không thay đổi. Tốc độ và giới hạn đã được kiểm tra, mỗi trường có thời điểm nhận theo đồng hồ đơn điệu riêng, được truyền qua trạng thái thông báo Darwin cục bộ. Cảnh báo được đọc từ các chuỗi JSON trong `vml_main_channel/updateUpcommingAlerts` và `updateStickyAlerts`, đối chiếu mã băm chính xác với bộ ảnh 3.4.3 và chuyển qua bộ chuyển đổi VietMap thành tối đa hai cảnh báo có loại chung. Từ 0.1.20, tweak dùng [chuẩn đầu ra chung có phiên bản](docs/source-output-contract.md) cho tốc độ, giới hạn và cảnh báo trên cả hai giao diện Google Maps. Mỗi gói chỉ thuộc một nguồn đang chọn; gói chưa ghi xong hoặc thuộc lượt chọn cũ không được đọc. Hiện chỉ VietMap được kích hoạt. Danh sách rỗng sẽ xóa trạng thái nguồn; dữ liệu tự hết hạn sau 5 giây. Bản 0.1.14 đóng gói 46 ảnh biển VietMap để hiển thị; thông báo chỉ truyền dữ liệu số. Ảnh bên thứ ba không thuộc giấy phép MIT của dự án. Hook CarPlay áp dụng cho cửa sổ bản đồ ngoài màn hình điện thoại. Một lớp hiển thị riêng dùng cùng dữ liệu còn mới trong cửa sổ Google Maps trên iPhone, chỉ khi app ở phía trước và không chặn thao tác chạm.
 
 Tweak không mở dịch vụ mạng, tải dữ liệu đo lường lên máy chủ, tạo daemon xuất bản hay lưu thông tin đăng nhập. `tmp/googlemaps-vietmap-source.log` và `tmp/googlemaps-vietmap.log` trong sandbox ứng dụng ghi giá trị/khả năng có dữ liệu tốc độ và giới hạn cùng trạng thái hook, không ghi tọa độ hay tuyến đường. Trạng thái thông báo cục bộ không được xác thực bằng mật mã và có thể bị phần mềm đặc quyền hoặc phần mềm được chèn khác tác động. Rà soát log trước khi chia sẻ.
 
 ## Giấy phép
 
-Mã do dự án viết được cung cấp theo [MIT](LICENSE). Gói cũng chứa một số ảnh VietMap Live để hiển thị; đây là tài liệu bên thứ ba, không thuộc MIT và vẫn chịu quyền/điều khoản của chủ sở hữu. Dự án không nhận quyền sở hữu hoặc cấp phép phân phối lại các ảnh này. Ứng dụng, bản đồ, dữ liệu giao thông, nhãn hiệu, SDK và phụ thuộc của bên thứ ba vẫn thuộc quyền và điều khoản của chủ sở hữu. Xem [thông báo tiếng Việt](DISCLAIMER.vi.md) và [bản tiếng Anh](DISCLAIMER.md) về sử dụng hợp pháp, an toàn, tương thích và bảo hành. Giấy phép không chứng nhận tính hợp pháp, độ chính xác hay khả năng sử dụng trên đường.
+Mã do dự án viết được cung cấp theo [MIT](LICENSE). Bộ ảnh hiển thị hiện tại do người dùng cung cấp; thay ảnh không xác nhận nguồn gốc hoặc cấp quyền phân phối lại. Ảnh không tự động thuộc giấy phép MIT của mã nguồn. Gói đã công khai trước đây có thể chứa ảnh VietMap nguyên bản. Ứng dụng, bản đồ, dữ liệu giao thông, nhãn hiệu, SDK và phụ thuộc của bên thứ ba vẫn thuộc quyền và điều khoản của chủ sở hữu. Xem [thông báo tiếng Việt](DISCLAIMER.vi.md) và [bản tiếng Anh](DISCLAIMER.md) về sử dụng hợp pháp, an toàn, tương thích và bảo hành. Giấy phép không chứng nhận tính hợp pháp, độ chính xác hay khả năng sử dụng trên đường.
 
 Để chụp ảnh gốc cho Cài đặt, thêm `--photo` ở cuối lệnh để ẩn nhãn trong lượt mẫu có thời hạn đó. `gvm-test-speed position top-left left` đổi tạm vị trí Full Map/Dashboard, không ghi đè tùy chọn đã lưu; trả vị trí cũ sau khi chụp.
 
-## Tự đánh thức VietMap Live · 0.1.17
+## Tự đánh thức VietMap Live
 
-Sau khi cài, respring một lần để nạp phần chạy trong SpringBoard. Bật Dịch vụ định vị, cấp quyền **Luôn luôn** cho VietMap Live, rồi bật **Cài đặt → GMapHUD → Tự đánh thức VietMap Live**. Công tắc mặc định tắt, bị khóa khi chưa xác nhận đủ điều kiện và cập nhật khi đang xem trang. Nếu thu hồi quyền hoặc tắt Dịch vụ định vị, tính năng tự tắt; cấp lại quyền không tự bật lại.
+Sau khi cài, respring một lần để nạp phần chạy trong SpringBoard. Bật Dịch vụ định vị, cấp quyền **Khi dùng ứng dụng** hoặc **Luôn luôn** cho VietMap Live, rồi bật **Cài đặt → GMapHUD → Tự đánh thức VietMap Live**. Công tắc mặc định tắt, bị khóa khi chưa xác nhận đủ điều kiện và cập nhật khi đang xem trang. Nếu thu hồi quyền hoặc tắt Dịch vụ định vị, tính năng tự tắt; cấp lại quyền không tự bật lại.
 
-Khi Google Maps đang hiện trên CarPlay, tweak có thể mở VietMap ở nền và giữ ứng dụng hoạt động mà không đưa lên màn hình iPhone. Cần bật cảnh báo trong VietMap trước; tweak không đăng nhập, kích hoạt thuê bao hay bảo đảm luôn có dữ liệu. Số lần mở lại được giới hạn để tránh vòng lặp. Khi rời Google Maps CarPlay, quyền giữ chạy nền được nhả sau khi tín hiệu hết hạn. Nếu API hệ thống không tương thích, tính năng bị vô hiệu hóa. Đã thử đánh thức nền trên iPhone 11/iOS 18.6.2; phần khóa công tắc mới đã qua kiểm thử mã và build, chưa kiểm chứng đầy đủ chuyển quyền trên từng iOS. Rootful/iOS 14 còn cần kiểm thử thực tế. Bản này chưa tích hợp Waze.
+Khi Google Maps đang hiện trên CarPlay hoặc iPhone, tweak có thể mở VietMap ở nền và giữ ứng dụng hoạt động mà không đưa lên màn hình iPhone. Cần bật cảnh báo trong VietMap trước; tweak không đăng nhập, kích hoạt thuê bao hay bảo đảm luôn có dữ liệu. Số lần mở lại được giới hạn để tránh vòng lặp. Khi rời Google Maps trên cả hai màn hình, phiên chạy nền bổ sung được gỡ sau khi tín hiệu hết hạn; quyền định vị gốc của VietMap được giữ nguyên. Nếu API hệ thống không tương thích, tính năng bị vô hiệu hóa. Đã thử đánh thức nền trên iPhone 11/iOS 18.6.2; phần khóa công tắc mới đã qua kiểm thử mã và build, chưa kiểm chứng đầy đủ chuyển quyền trên từng iOS. Rootful/iOS 14 còn cần kiểm thử thực tế. Bản này chưa tích hợp Waze.
 
 Trạng thái nền ghi cục bộ tại `/var/mobile/Library/Logs/gmaphud-background.log`, giới hạn dung lượng và không ghi tọa độ. Google Maps có thể yêu cầu nguồn đang chạy gửi lại dữ liệu còn mới; dữ liệu cũ không được làm mới thời gian để tiếp tục hiển thị.
 
-## 0.1.18 · kích cỡ và iPhone
+## Cảnh báo vượt tốc
 
-Cài đặt → GMapHUD có ba thanh trượt riêng cho Bản đồ đầy đủ, Dashboard và Google Maps trên iPhone. Mỗi thanh từ 50% đến 150%, mặc định 100%; kích cỡ được giới hạn theo vùng hiển thị để không tràn màn hình. Các giá trị được lưu riêng và áp dụng khi app cập nhật giao diện. Respring một lần sau khi cài để nạp phần khôi phục kích cỡ trong SpringBoard; đóng/mở lại Google Maps và Cài đặt để nạp giao diện mới.
+Trong Cài đặt → GMapHUD → Cảnh báo vượt tốc, chọn Tắt, Bản đồ hoặc Toàn màn hình. Khi tốc độ vượt giới hạn hiện tại và dữ liệu còn mới, shadow đỏ nhấp nháy, mờ dần vào trong. Bản đồ chỉ cảnh báo trong vùng Google Maps; Toàn màn hình bao gồm sidebar và các ô Dashboard. Không áp dụng trên iPhone.
 
-Bubble iPhone chỉ nằm trong Google Maps khi app ở phía trước, mặc định neo ở góc trên phải. Chế độ Tự động chuyển dạng dọc khi khung cao/hẹp và dạng ngang khi khung rộng/xoay ngang; không phải cửa sổ nổi toàn hệ thống và không chặn chạm bản đồ. Dùng dữ liệu VietMap thật với cùng thời hạn hết hiệu lực như CarPlay, hiển thị dấu gạch nếu thiếu dữ liệu. Cần mở VietMap và bật cảnh báo để có nguồn; tính năng tự đánh thức 0.1.17 vẫn chỉ kích hoạt từ Google Maps CarPlay. Waze không có trong bản này. Vị trí, kích cỡ và bố cục dọc/ngang đã được xác nhận trên iPhone thử nghiệm; các thiết bị và iOS khác còn cần kiểm chứng.
+Nhịp cảnh báo tăng theo mức vượt: dưới 5 km/h — 0,75 Hz; từ 5 đến dưới 10 — 1,25 Hz; từ 10 trở lên — 2 Hz. Phạm vi bản đồ bám vùng nhìn thấy sau khi loại trừ sidebar và phần bị cắt ở các cạnh.
 
-Từ 0.1.18, menu **Kích cỡ bong bóng** chỉ chỉnh Bản đồ đầy đủ và Dashboard trên CarPlay. Menu riêng **Google Maps trên iPhone** chứa kích cỡ, bốn góc, bố cục Tự động/Ngang/Dọc và vị trí X/Y từ −100% đến +100%. X tính theo chiều rộng, Y theo chiều cao vùng bản đồ; giá trị dương sang phải/xuống dưới. Vị trí dùng toàn cửa sổ ứng dụng, không chừa safe area; bubble vẫn được giữ trong mép màn hình. Các thanh có khấc giữa ở 0% cho vị trí và 100% cho kích cỡ, kéo gần mốc sẽ về đúng mốc. Khi mở Cài đặt lần đầu, vị trí cũ theo pt được chuyển sang % dựa trên kích thước màn hình lúc đó.
+Độ đậm shadow được tách riêng: phạm vi bản đồ rõ hơn, toàn màn hình nhẹ hơn; nhịp nháy theo mức vượt tốc không thay đổi.
 
-Các lựa chọn góc và bố cục dùng thanh chọn phân đoạn iOS. Số % nằm dưới, căn giữa thanh trượt; mốc giữa có phản hồi rung nhẹ khi kéo về giá trị mặc định.
 
-Trên iPhone, X/Y dùng toàn cửa sổ Google Maps, không chừa thanh công cụ, tai thỏ hay thanh home. Mốc 0% neo sát góc đã chọn; chỉ chặn ở mép cửa sổ để không kéo bubble mất hẳn. Thanh hệ thống/tai thỏ có thể che nội dung nếu đặt ở đó.
+## Thiết lập bong bóng
 
-Trên CarPlay, cùng khung bản đồ, cảnh báo và mức % thì bubble có cùng kích thước ở mọi góc. Bảng dẫn đường và vùng dành cho thanh công cụ chỉ ảnh hưởng vị trí. Khi vùng trống quá hẹp, bubble vẫn giữ kích thước và nằm trong bản đồ; có thể tự giảm bằng thanh trượt nếu che nút điều khiển.
+Trong Cài đặt → GMapHUD, chọn Bản đồ đầy đủ, Dashboard hoặc Trên iPhone. Mỗi trang có công tắc riêng, vị trí, bố cục Ngang/Dọc/Tự động, kích cỡ và kéo thả thứ tự các phần. Hai preview ngang/dọc cập nhật khi đổi thứ tự. iPhone có thêm tinh chỉnh X/Y. Nút Đặt lại chỉ khôi phục phần tương ứng.
+
+Trong **Chạy nền**, có thể bật tự đánh thức VietMap và tùy chọn thoát nguồn sau 20 giây ngắt CarPlay. Quyền định vị gốc được giữ nguyên.

@@ -2,7 +2,7 @@ name: Build GMapHUD Tweak (iOS 15.8 Dopamine + TPMS)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, v0.2.3-mazda-hud ]
   workflow_dispatch:
 
 jobs:

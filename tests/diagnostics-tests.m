@@ -16,7 +16,23 @@ int main(void) { @autoreleasepool {
     assert([GVMDescribeDiagnostic(GVMEncodeDiagnostic(GVMDiagnosticSamples,0,100),110) containsString:@"thiếu/hết hạn"]);
     assert([GVMDescribeDiagnostic(GVMEncodeDiagnostic(GVMDiagnosticLoaded,(26<<16)|(40<<8)|3,100),110) containsString:@"26.40.3"]);
     assert([GVMDescribeDiagnostic(GVMEncodeDiagnostic(GVMDiagnosticCarPlay,4,100),110) containsString:@"mẫu thử"]);
+    NSString *directory=[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
+    NSFileManager *manager=NSFileManager.defaultManager;
+    assert([manager createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil]);
+    NSDictionary *samples=@{@"GoogleMaps-new.ips":@"Google crash",@"Runner-new.ips":@"vn.vietmap.live",@"Preferences-new.ips":@"GMapHUDPrefs",@"Runner-unrelated.ips":@"com.other.app",@"GoogleMaps-old.ips":@"old",@"OtherApp.ips":@"unrelated"};
+    for (NSString *name in samples) assert([samples[name] writeToFile:[directory stringByAppendingPathComponent:name] atomically:YES encoding:NSUTF8StringEncoding error:nil]);
+    NSDate *old=[NSDate dateWithTimeIntervalSinceNow:-8*24*3600];
+    [manager setAttributes:@{NSFileModificationDate:old} ofItemAtPath:[directory stringByAppendingPathComponent:@"GoogleMaps-old.ips"] error:nil];
+    NSString *status=nil;
+    NSArray *crashes=GVMDiagnosticsFindCrashes(@[directory,directory],NSDate.date,&status);
+    assert(crashes.count==3 && [status containsString:@"3 crash"]);
+    for (NSURL *file in crashes) assert(![file.lastPathComponent containsString:@"unrelated"] && ![file.lastPathComponent containsString:@"old"]);
+    assert(GVMDiagnosticsFindCrashes(@[[directory stringByAppendingPathComponent:@"missing"]],NSDate.date,&status).count==0);
+    assert([status containsString:@"Không đọc được"]);
+    [manager removeItemAtPath:directory error:nil];
     NSString *report=GVMDiagnosticsReport();
+    assert([report containsString:@"com.google.Maps"] && [report containsString:@"vn.vietmap.live"]);
+
     assert([report containsString:@"vietmap"] && [report containsString:@"googlemaps"]);
     puts("diagnostics encoding and report tests passed");
 } return 0; }

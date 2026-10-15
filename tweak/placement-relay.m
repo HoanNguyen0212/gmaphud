@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "placement-state.h"
+#import "source-transport.h"
 #include <notify.h>
 
 static int placementToken = -1, sizeChangeToken=-1;
@@ -9,6 +10,7 @@ __attribute__((constructor)) static void GVMRestorePlacement(void) {
             GVMPublishSavedSizes();
         });
         GVMPublishSavedSizes();
+        GVMRestoreOutputSelection();
         CFStringRef domain=CFSTR("com.chou.gmaphud");
         CFPreferencesAppSynchronize(domain);
         NSString *full=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("fullPosition"),domain));

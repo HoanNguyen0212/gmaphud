@@ -1,11 +1,11 @@
 Package: com.chou.googlemaps.vietmap
-Name: GMapHUD (iOS 15.8 Dopamine)
-Version: 0.1.24
+Name: GMapHUD
+Version: 0.2.3
 Architecture: iphoneos-arm
-Description: VietMap speed, alerts, and TPMS in Google Maps for iOS 15.8 Dopamine (iPhone SE).
-Icon: https://hoannguyen0212.github.io/gmaphud/gmaphud-icon.png
-Maintainer: Hoan Nguyen
-Author: Hoan Nguyen
+Description: Selected-source speed and road alerts in Google Maps on CarPlay and iPhone.
+Icon: https://bechou0410.github.io/gmaphud/gmaphud-icon.png
+Maintainer: bechou0410
+Author: chou (AI-assisted with Codex)
 Section: Tweaks
 Recommends: preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe

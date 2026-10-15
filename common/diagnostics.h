@@ -8,3 +8,6 @@ void GVMDiagnosticsRecord(GVMDiagnosticEvent event, NSUInteger detail);
 NSString *GVMDiagnosticsReport(void);
 uint64_t GVMEncodeDiagnostic(NSUInteger event, NSUInteger detail, NSTimeInterval uptime);
 NSString *GVMDescribeDiagnostic(uint64_t state, NSTimeInterval now);
+NSString *GVMDiagnosticsAppVersion(NSString *bundleID);
+NSArray<NSURL *> *GVMDiagnosticsFindCrashes(NSArray<NSString *> *directories,NSDate *now,NSString **status);
+NSArray<NSURL *> *GVMDiagnosticsCrashFiles(NSString **status);

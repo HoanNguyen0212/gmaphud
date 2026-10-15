@@ -6,19 +6,17 @@
 #import <notify.h>
 #import "nav-source.h"
 #import "diagnostics.h"
+#import "background-location.h"
 #ifdef VM_GOOGLE_MAPS_RELAY
 #import "speed-state.h"
-#import "alert-state.h"
-#import "tpms-state.h"
+#import "source-transport.h"
+#import "vietmap-output.h"
 #import "vietmap-alert-assets.h"
-static int speedToken = -1, limitToken = -1, firstAlertToken = -1, secondAlertToken = -1, tpmsToken = -1;
 static int requestToken=-1;
 static NSTimeInterval lastRequestHandled=-1;
-static BOOL relayReady, speedPublished, limitPublished;
-static uint64_t lastSpeed, lastLimit;
+static BOOL forceOutput;
 static NSArray<NSDictionary *> *upcomingAlerts, *stickyAlerts;
 static NSTimeInterval upcomingReceived, stickyReceived;
-static uint64_t lastFirstAlert, lastSecondAlert;
 #endif
 
 @protocol VMFlutterMethodCall
@@ -55,54 +53,20 @@ static void BridgeLog(NSString *message) {
 
 static void Publish(void) {
 #ifdef VM_GOOGLE_MAPS_RELAY
-    if (!relayReady) return;
-    NSDictionary *samples = [source freshSamplesAtUptime:NSProcessInfo.processInfo.systemUptime];
-    GVMDiagnosticsRecord(GVMDiagnosticSamples,(samples[@"speed"] ? 1 : 0) | (samples[@"speedLimit"] ? 2 : 0) | (UIApplication.sharedApplication.applicationState==UIApplicationStateActive ? 4 : 0));
-    uint64_t speed = GVMEncodeSample(samples[@"speed"][@"value"], [samples[@"speed"][@"receivedAt"] doubleValue]);
-    uint64_t limit = GVMEncodeSample(samples[@"speedLimit"][@"value"], [samples[@"speedLimit"][@"receivedAt"] doubleValue]);
-    if (!speedPublished || speed != lastSpeed) {
-        if (notify_set_state(speedToken, speed) == NOTIFY_STATUS_OK) { speedPublished = YES; lastSpeed = speed; notify_post(GVMSpeedStateName); }
-        else { BridgeLog(@"speed publication refused"); GVMDiagnosticsRecord(GVMDiagnosticError,1); }
-    }
-    if (!limitPublished || limit != lastLimit) {
-        if (notify_set_state(limitToken, limit) == NOTIFY_STATUS_OK) { limitPublished = YES; lastLimit = limit; notify_post(GVMLimitStateName); }
-        else { BridgeLog(@"limit publication refused"); GVMDiagnosticsRecord(GVMDiagnosticError,1); }
-    }
+    GVMRefreshLocationSession();
     NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
-    NSMutableArray<NSDictionary *> *entries=[NSMutableArray array];
-    if (now-upcomingReceived<5)
-        for (NSDictionary *alert in upcomingAlerts)
-            [entries addObject:@{@"sample":alert,@"receivedAt":@(upcomingReceived)}];
-    if (now-stickyReceived<5)
-        for (NSDictionary *alert in stickyAlerts)
-            [entries addObject:@{@"sample":alert,@"receivedAt":@(stickyReceived)}];
-    [entries sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
-        id da=a[@"sample"][@"distance"], db=b[@"sample"][@"distance"];
-        if (da==NSNull.null && db==NSNull.null)
-            return [b[@"receivedAt"] compare:a[@"receivedAt"]];
-        if (da==NSNull.null) return NSOrderedDescending;
-        if (db==NSNull.null) return NSOrderedAscending;
-        NSComparisonResult order=[da compare:db];
-        return order==NSOrderedSame ? [b[@"receivedAt"] compare:a[@"receivedAt"]] : order;
-    }];
-    NSMutableArray<NSDictionary *> *selected=[NSMutableArray arrayWithCapacity:2];
-    for (NSDictionary *entry in entries) {
-        BOOL duplicate=NO;
-        for (NSDictionary *prior in selected)
-            if ([prior[@"sample"] isEqual:entry[@"sample"]]) { duplicate=YES; break; }
-        if (!duplicate) [selected addObject:entry];
-        if (selected.count==2) break;
-    }
-    NSDictionary *firstEntry=selected.firstObject;
-    NSDictionary *secondEntry=selected.count>1 ? selected[1] : nil;
-    uint64_t first=GVMEncodeAlert(firstEntry[@"sample"],[firstEntry[@"receivedAt"] doubleValue]);
-    uint64_t second=GVMEncodeAlert(secondEntry[@"sample"],[secondEntry[@"receivedAt"] doubleValue]);
-    if (firstAlertToken>=0 && first!=lastFirstAlert && notify_set_state(firstAlertToken,first)==NOTIFY_STATUS_OK) {
-        lastFirstAlert=first; notify_post(GVMFirstAlertStateName);
-    }
-    if (secondAlertToken>=0 && second!=lastSecondAlert && notify_set_state(secondAlertToken,second)==NOTIFY_STATUS_OK) {
-        lastSecondAlert=second; notify_post(GVMSecondAlertStateName);
-    }
+    NSDictionary *samples=[source freshSamplesAtUptime:now];
+    GVMDiagnosticsRecord(GVMDiagnosticSamples,(samples[@"speed"] ? 1 : 0) | (samples[@"speedLimit"] ? 2 : 0) | (UIApplication.sharedApplication.applicationState==UIApplicationStateActive ? 4 : 0));
+    if (GVMSelectedSourceID()!=GVMSourceVietMap) return;
+    NSMutableArray *entries=[NSMutableArray new];
+    for (NSDictionary *alert in upcomingAlerts)
+        [entries addObject:@{@"sample":alert,@"receivedAt":@(upcomingReceived)}];
+    for (NSDictionary *alert in stickyAlerts)
+        [entries addObject:@{@"sample":alert,@"receivedAt":@(stickyReceived)}];
+    NSDictionary *output=GVMVietMapOutput(samples,entries,now);
+    if (GVMPublishSourceOutput(output,now,forceOutput)) forceOutput=NO;
+    else { BridgeLog(@"common source output publication refused"); GVMDiagnosticsRecord(GVMDiagnosticError,1); }
+
 #else
     NSDictionary *payload = [source payloadAtUptime:NSProcessInfo.processInfo.systemUptime
         timestamp:NSDate.date.timeIntervalSince1970];
@@ -112,124 +76,49 @@ static void Publish(void) {
 #endif
 }
 
-static GVMTPMSData g_liveTPMS;
-
-static void GVMParseTireEntry(NSDictionary *d) {
-    if (!d || ![d isKindOfClass:NSDictionary.class]) return;
-    id codeVal = d[@"code"] ?: d[@"position"] ?: d[@"tireId"] ?: d[@"tire"] ?: d[@"id"] ?: d[@"deviceID"];
-    id pressVal = d[@"pressure"] ?: d[@"press"] ?: d[@"bar"] ?: d[@"kpa"] ?: d[@"p"];
-    id tempVal = d[@"temperature"] ?: d[@"temp"] ?: d[@"t"];
-    id warnVal = d[@"isPressureWarning"] ?: d[@"warning"] ?: d[@"warn"];
-    id xieYaVal = d[@"isXieYa"] ?: d[@"leak"];
-    
-    GVMTPMSTire *target = NULL;
-    NSString *codeStr = [codeVal description].lowercaseString;
-    if ([codeStr isEqualToString:@"0"] || [codeStr containsString:@"fl"] || [codeStr containsString:@"front_left"] || [codeStr containsString:@"frontleft"]) {
-        target = &g_liveTPMS.fl;
-    } else if ([codeStr isEqualToString:@"1"] || [codeStr containsString:@"fr"] || [codeStr containsString:@"front_right"] || [codeStr containsString:@"frontright"]) {
-        target = &g_liveTPMS.fr;
-    } else if ([codeStr isEqualToString:@"2"] || [codeStr containsString:@"rl"] || [codeStr containsString:@"rear_left"] || [codeStr containsString:@"rearleft"]) {
-        target = &g_liveTPMS.rl;
-    } else if ([codeStr isEqualToString:@"3"] || [codeStr containsString:@"rr"] || [codeStr containsString:@"rear_right"] || [codeStr containsString:@"rearright"]) {
-        target = &g_liveTPMS.rr;
+#ifdef VM_GOOGLE_MAPS_RELAY
+static void ObserveAlerts(NSString *method,id payload,NSUInteger accepted,NSTimeInterval received) {
+    NSString *gate=[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-alert-observation.enable"];
+    NSDate *modified=[[NSFileManager.defaultManager attributesOfItemAtPath:gate error:nil] fileModificationDate];
+    NSTimeInterval age=modified ? -modified.timeIntervalSinceNow : -1;
+    if (age<0 || age>180) return;
+    static NSMutableDictionary *last;
+    @synchronized(source) {
+        if (!last) last=[NSMutableDictionary new];
+        if (last[method] && received-[last[method] doubleValue]<2) return;
+        last[method]=@(received);
     }
-    
-    if (!target) {
-        if (d[@"fl"] || d[@"fr"] || d[@"rl"] || d[@"rr"] || d[@"0"] || d[@"1"] || d[@"2"] || d[@"3"]) {
-            if (d[@"fl"] || d[@"0"]) { id sub = d[@"fl"] ?: d[@"0"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseTireEntry(sub); }
-            if (d[@"fr"] || d[@"1"]) { id sub = d[@"fr"] ?: d[@"1"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseTireEntry(sub); }
-            if (d[@"rl"] || d[@"2"]) { id sub = d[@"rl"] ?: d[@"2"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseTireEntry(sub); }
-            if (d[@"rr"] || d[@"3"]) { id sub = d[@"rr"] ?: d[@"3"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseTireEntry(sub); }
-        }
-        return;
-    }
-    
-    float p = 0.0f;
-    if ([pressVal isKindOfClass:NSNumber.class]) p = [pressVal floatValue];
-    else if ([pressVal isKindOfClass:NSString.class]) p = [pressVal floatValue];
-    if (p > 50.0f) p = p / 100.0f;
-    
-    if (p > 0.01f) {
-        target->pressure = p;
-        target->active = YES;
-    }
-    if ([tempVal respondsToSelector:@selector(intValue)]) {
-        target->temperature = [tempVal intValue];
-    }
-    BOOL isWarn = [warnVal respondsToSelector:@selector(boolValue)] && [warnVal boolValue];
-    BOOL isLeak = [xieYaVal respondsToSelector:@selector(boolValue)] && [xieYaVal boolValue];
-    if (isLeak) target->warning = 3;
-    else if (isWarn) target->warning = (target->pressure < 1.8f) ? 1 : 2;
-    else if (target->pressure < 1.8f && target->pressure > 0.1f) target->warning = 1;
-    else if (target->pressure > 2.8f) target->warning = 2;
-    else target->warning = 0;
-}
-
-static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
-    if (!payload) return;
-    if ([payload isKindOfClass:NSString.class]) {
-        NSData *data = [(NSString *)payload dataUsingEncoding:NSUTF8StringEncoding];
-        if (data) {
-            id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-            if (json) payload = json;
+    // Capture one explicitly selected warning image locally, never its payload or coordinates.
+    if ([method isEqualToString:@"updateStickyAlerts"] && [payload isKindOfClass:NSArray.class]) {
+        NSString *imageGate=[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-alert-image.enable"];
+        NSDate *imageModified=[[NSFileManager.defaultManager attributesOfItemAtPath:imageGate error:nil] fileModificationDate];
+        if (imageModified && -imageModified.timeIntervalSinceNow>=0 && -imageModified.timeIntervalSinceNow<=180) {
+            for (__strong id item in [payload subarrayWithRange:NSMakeRange(0,MIN([payload count],8))]) {
+                if ([item isKindOfClass:NSString.class] && [item length]<=262144)
+                    item=[NSJSONSerialization JSONObjectWithData:[item dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
+                id encoded=[item isKindOfClass:NSDictionary.class] ? item[@"image"] : nil;
+                if (![encoded isKindOfClass:NSString.class] || [encoded length]>180000) continue;
+                NSData *bytes=[[NSData alloc] initWithBase64EncodedString:encoded options:0];
+                NSDictionary *observed=GVMVietMapAlertObservation(@[item],0);
+                NSString *hash=[observed[@"items"] firstObject][@"imageSHA256"];
+                if (![hash isEqualToString:@"ee9fc9ee37a92ddfa0d9090d7add3172efdced4efa3ac1cc0bf90c310faf1881"] ||
+                    !bytes.length || bytes.length>131072) continue;
+                NSString *path=[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-alert-image.png"];
+                if ([bytes writeToFile:path options:NSDataWritingAtomic error:nil])
+                    [NSFileManager.defaultManager removeItemAtPath:imageGate error:nil];
+                break;
+            }
         }
     }
-    if ([payload isKindOfClass:NSArray.class]) {
-        for (id item in (NSArray *)payload) {
-            if ([item isKindOfClass:NSDictionary.class]) GVMParseTireEntry(item);
-        }
-    } else if ([payload isKindOfClass:NSDictionary.class]) {
-        GVMParseTireEntry((NSDictionary *)payload);
-    }
-    
-    g_liveTPMS.hasData = (g_liveTPMS.fl.active || g_liveTPMS.fr.active || g_liveTPMS.rl.active || g_liveTPMS.rr.active);
-    if (g_liveTPMS.hasData) {
-        g_liveTPMS.receivedAt = received;
-        uint64_t encoded = GVMEncodeTPMS(&g_liveTPMS, received);
-        if (tpmsToken >= 0 && notify_set_state(tpmsToken, encoded) == NOTIFY_STATUS_OK) {
-            notify_post(GVMTPMSStateName);
-        }
-        BridgeLog([NSString stringWithFormat:@"tpms update fl=%.1f fr=%.1f rl=%.1f rr=%.1f",
-            g_liveTPMS.fl.pressure, g_liveTPMS.fr.pressure, g_liveTPMS.rl.pressure, g_liveTPMS.rr.pressure]);
-    }
+    NSDictionary *summary=[method isEqualToString:@"updateMapOverlayData"] ?
+        GVMVietMapOverlayObservation(payload) : GVMVietMapAlertObservation(payload,accepted);
+    NSData *data=[NSJSONSerialization dataWithJSONObject:summary options:0 error:nil];
+    NSString *json=data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+    if (json) dispatch_async(dispatch_get_main_queue(), ^{
+        BridgeLog([NSString stringWithFormat:@"alert-observation method=%@ %@",method,json]);
+    });
 }
-
-static GVMTPMSData GVMParseTPMSPayload(id args) {
-    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-    GVMProcessTirePayload(args, now);
-    return g_liveTPMS;
-}
-
-static void (*originalEventSetHandler)(id, SEL, id);
-static Ivar eventChannelNameIvar = NULL;
-
-static void SetEventStreamHandler(id channel, SEL selector, id handler) {
-    id name = object_getIvar(channel, eventChannelNameIvar);
-    if (!handler || ![name isKindOfClass:NSString.class] ||
-        ([name rangeOfString:@"tpms" options:NSCaseInsensitiveSearch].location == NSNotFound &&
-         [name rangeOfString:@"tire" options:NSCaseInsensitiveSearch].location == NSNotFound)) {
-        originalEventSetHandler(channel, selector, handler);
-        return;
-    }
-    BridgeLog([NSString stringWithFormat:@"Hooking TPMS EventChannel: %@", name]);
-    Class handlerClass = [handler class];
-    SEL onListenSel = NSSelectorFromString(@"onListenWithArguments:eventSink:");
-    Method m = class_getInstanceMethod(handlerClass, onListenSel);
-    if (m) {
-        __block id (*origOnListen)(id, SEL, id, id) = (id (*)(id, SEL, id, id))method_getImplementation(m);
-        id newImp = ^(id selfHandler, id args, id eventSink) {
-            BridgeLog(@"TPMS event sink registered");
-            id wrappedSink = ^(id event) {
-                NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-                GVMProcessTirePayload(event, now);
-                if (eventSink) ((void (^)(id))eventSink)(event);
-            };
-            return origOnListen(selfHandler, onListenSel, args, wrappedSink);
-        };
-        class_replaceMethod(handlerClass, onListenSel, imp_implementationWithBlock(newImp), method_getTypeEncoding(m));
-    }
-    originalEventSetHandler(channel, selector, handler);
-}
+#endif
 
 static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler handler) {
     id name = object_getIvar(channel, channelNameIvar);
@@ -243,6 +132,9 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
     dispatch_async(dispatch_get_main_queue(), ^{ BridgeLog(@"VietMap overlay handler registered"); GVMDiagnosticsRecord(GVMDiagnosticChannel,1); });
     VMFlutterHandler wrapped = ^(id<VMFlutterMethodCall> call, VMFlutterResult result) {
         NSArray *update = nil;
+#ifdef VM_GOOGLE_MAPS_RELAY
+        NSArray *overlaySticky=nil;
+#endif
         id mainLimit=nil; BOOL hasMainLimit=NO;
         NSTimeInterval received = NSProcessInfo.processInfo.systemUptime;
         @try {
@@ -268,9 +160,10 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
                 BOOL sticky=[[call method] isEqualToString:@"updateStickyAlerts"];
                 id alertPayload=[call arguments];
                 NSArray<NSDictionary *> *alerts=GVMVietMapAlertsFromPayload(alertPayload);
+                ObserveAlerts([call method],alertPayload,alerts.count,received);
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    if (sticky) { stickyAlerts=alerts; stickyReceived=received; }
-                    else { upcomingAlerts=alerts; upcomingReceived=received; }
+                    if (sticky && received>=stickyReceived) { stickyAlerts=alerts; stickyReceived=received; }
+                    else if (!sticky && received>=upcomingReceived) { upcomingAlerts=alerts; upcomingReceived=received; }
                     Publish();
                 });
             }
@@ -316,6 +209,10 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
             }
             if ([name isEqualToString:@"vietmap_car_method_channel"] && [[call method] isEqualToString:@"updateMapOverlayData"])
             {
+                #ifdef VM_GOOGLE_MAPS_RELAY
+                overlaySticky=GVMVietMapOverlayStickyAlerts([call arguments]);
+                ObserveAlerts(@"updateMapOverlayData",[call arguments],overlaySticky.count,received);
+#endif
                 update = VMNavCopyOverlayArguments([call arguments]);
                 BOOL valid=update!=nil;
                 if (valid) {
@@ -336,6 +233,11 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
         }
         if (!update) return;
         dispatch_async(dispatch_get_main_queue(), ^{
+#ifdef VM_GOOGLE_MAPS_RELAY
+            if (overlaySticky && received>=stickyReceived) {
+                stickyAlerts=overlaySticky; stickyReceived=received;
+            }
+#endif
             [source applyArguments:update receivedAt:received];
             static NSTimeInterval lastLog;
             if (received - lastLog >= 5) {
@@ -412,32 +314,17 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
 %ctor {
     @autoreleasepool {
         GVMDiagnosticsStart(@"vietmap");
-#ifdef VM_GOOGLE_MAPS_RELAY
-        relayReady = notify_register_check(GVMSpeedStateName, &speedToken) == NOTIFY_STATUS_OK &&
-            notify_register_check(GVMLimitStateName, &limitToken) == NOTIFY_STATUS_OK;
-        notify_register_check(GVMTPMSStateName, &tpmsToken);
-#endif
-#ifdef VM_GOOGLE_MAPS_RELAY
-        if (notify_register_check(GVMFirstAlertStateName,&firstAlertToken)==NOTIFY_STATUS_OK) {
-            notify_set_state(firstAlertToken,0); notify_post(GVMFirstAlertStateName);
-        }
-        if (notify_register_check(GVMSecondAlertStateName,&secondAlertToken)==NOTIFY_STATUS_OK) {
-            notify_set_state(secondAlertToken,0); notify_post(GVMSecondAlertStateName);
-        }
-#endif
-#ifdef VM_GOOGLE_MAPS_RELAY
-        if (!relayReady) GVMDiagnosticsRecord(GVMDiagnosticError,1);
-#endif
         source = [VMNavSource new];
 #ifdef VM_GOOGLE_MAPS_RELAY
-        notify_register_dispatch(GVMSourceRequestName,&requestToken,dispatch_get_main_queue(), ^(__unused int token) {
+        notify_register_dispatch(GVMOutputRequestName(GVMSourceVietMap).UTF8String,&requestToken,dispatch_get_main_queue(), ^(__unused int token) {
+            if (GVMSelectedSourceID()!=GVMSourceVietMap) return;
             NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
             if (lastRequestHandled>=0 && now-lastRequestHandled<2) return;
             lastRequestHandled=now;
             NSDictionary *samples=[source freshSamplesAtUptime:now];
             GVMDiagnosticsRecord(GVMDiagnosticResponse,(samples[@"speed"] ? 1 : 0)|(samples[@"speedLimit"] ? 2 : 0));
             // Republish only fresh values with original timestamps. No undocumented Flutter calls.
-            speedPublished=NO; limitPublished=NO;
+            forceOutput=YES;
             Publish();
         });
 #endif
@@ -462,9 +349,7 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
             [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationWillTerminateNotification
                 object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
 #ifdef VM_GOOGLE_MAPS_RELAY
-                    if (firstAlertToken>=0) { notify_set_state(firstAlertToken,0); notify_post(GVMFirstAlertStateName); }
-                    if (secondAlertToken>=0) { notify_set_state(secondAlertToken,0); notify_post(GVMSecondAlertStateName); }
-                    if (tpmsToken>=0) { notify_set_state(tpmsToken,0); notify_post(GVMTPMSStateName); }
+                    upcomingAlerts=@[]; stickyAlerts=@[]; forceOutput=YES;
 #endif
                     source = [VMNavSource new]; Publish();
                 }];

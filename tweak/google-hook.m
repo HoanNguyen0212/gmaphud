@@ -11,13 +11,17 @@
 #import "placement-state.h"
 #import "diagnostics.h"
 #import "background-policy.h"
-#import "tpms-state.h"
+#import "refresh-loop.h"
+#import "source-transport.h"
+#import "vietmap-output.h"
+#import "cmu-hud-relay.h"
 #include <notify.h>
 
 static NSHashTable *views;
-static NSMapTable *models, *statuses;
-static int speedToken = -1, limitToken = -1, testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1, firstAlertToken = -1, secondAlertToken = -1;
-static int placementToken = -1, tpmsToken = -1;
+static NSMapTable *models, *statuses, *nativeInputs, *nativeChildren;
+static id applyingNativeModel;
+static int testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1;
+static int placementToken = -1;
 static BOOL installed;
 static int backgroundToken=-1;
 static double lastBackgroundHeartbeat=-1;
@@ -60,22 +64,6 @@ static void PublishBackgroundHeartbeat(UIView *view, BOOL test, double now) {
     lastBackgroundHeartbeat=now;
     notify_set_state(backgroundToken,(uint64_t)(now*1000));
 }
-static NSNumber *Value(int token, BOOL zero) {
-    uint64_t state = 0;
-    if (token < 0 || notify_get_state(token, &state) != NOTIFY_STATUS_OK) return nil;
-    return GVMDecodeSample(state, NSProcessInfo.processInfo.systemUptime, zero);
-}
-static NSDictionary *Alert(int token) {
-    uint64_t state=0;
-    if (token<0 || notify_get_state(token,&state)!=NOTIFY_STATUS_OK) return nil;
-    return GVMDecodeAlert(state,NSProcessInfo.processInfo.systemUptime);
-}
-static NSArray<NSDictionary *> *Alerts(void) {
-    NSDictionary *first=Alert(firstAlertToken);
-    NSDictionary *second=Alert(secondAlertToken);
-    if (!first) return @[];
-    return second ? @[first,second] : @[first];
-}
 static id Read(id object, NSString *name) { return ((id (*)(id, SEL))objc_msgSend)(object, NSSelectorFromString(name)); }
 static void SetBool(id object, NSString *name, BOOL value) { ((void (*)(id, SEL, BOOL))objc_msgSend)(object, NSSelectorFromString(name), value); }
 
@@ -90,24 +78,19 @@ static BOOL PhotoSample(void) {
     return photoToken>=0 && testToken>=0 && notify_get_state(photoToken,&photo)==NOTIFY_STATUS_OK &&
         notify_get_state(testToken,&current)==NOTIFY_STATUS_OK && photo && photo==current && TestSample();
 }
-static NSArray<NSDictionary *> *TestAlerts(void) {
+static NSArray<NSDictionary *> *TestAlerts(NSTimeInterval now) {
     NSMutableArray<NSDictionary *> *alerts=[NSMutableArray arrayWithCapacity:2];
     for (int tokenIndex=0;tokenIndex<2;tokenIndex++) {
         int token=tokenIndex==0 ? testFirstAlertToken : testSecondAlertToken;
         uint64_t state=0;
         if (token<0 || notify_get_state(token,&state)!=NOTIFY_STATUS_OK) continue;
-        NSDictionary *alert=GVMDecodeAlertWithin(state,NSProcessInfo.processInfo.systemUptime,300);
-        if (alert) [alerts addObject:alert];
+        NSDictionary *alert=GVMDecodeAlertWithin(state,now,300);
+        NSDictionary *normalized=alert ? GVMVietMapOutputAlert(alert,now) : nil;
+        if (normalized) [alerts addObject:normalized];
     }
     return alerts;
 }
-static id ModelFor(id view) {
-    NSDictionary *test = TestSample();
-    NSNumber *speed = test ? test[@"speed"] : Value(speedToken, YES);
-    NSNumber *limit = test ? test[@"limit"] : Value(limitToken, NO);
-    id prior = [models objectForKey:view];
-    NSUInteger style = prior ? ((NSUInteger (*)(id, SEL))objc_msgSend)(prior, NSSelectorFromString(@"style")) : 1;
-    NSInteger unit = prior ? ((NSInteger (*)(id, SEL))objc_msgSend)(prior, NSSelectorFromString(@"distanceUnit")) : 1;
+static id ModelFor(NSNumber *speed, NSNumber *limit, NSUInteger style, NSInteger unit) {
     // Preserve Google's m/s model units for the VietMap display-value feed.
     double speedMS = speed ? speed.doubleValue / 3.6 : -1;
     double limitMS = limit ? limit.doubleValue / 3.6 : -1;
@@ -126,52 +109,66 @@ static id ModelFor(id view) {
     }
     return nil;
 }
-static void (*originalMapMoveToWindow)(id, SEL);
-
-static void Apply(UIView *view) {
+static void Apply(UIView *view, BOOL forceNative) {
     if (!NSThread.isMainThread || !External(view)) return;
-    if (originalSupports) originalSupports(view, NSSelectorFromString(@"setSupportsSpeedLimitView:"), YES);
-    if (originalDisplay) originalDisplay(view, NSSelectorFromString(@"setShouldDisplaySpeedLimitView:"), YES);
-    if ([view respondsToSelector:NSSelectorFromString(@"setSupportsHeadingView:")]) SetBool(view, @"setSupportsHeadingView:", NO);
-    if ([view respondsToSelector:NSSelectorFromString(@"setShouldDisplayHeadingView:")]) SetBool(view, @"setShouldDisplayHeadingView:", NO);
-    BOOL prior = applyingCarPlay; applyingCarPlay = YES;
+    // Decode each field once so all consumers see the same update.
+    NSDictionary *test = TestSample();
+    NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
+    NSDictionary *output=test ? GVMSourceOutput(GVMSourceVietMap,
+        @{@"speed":@{@"value":test[@"speed"],@"receivedAt":@(now)},
+          @"speedLimit":@{@"value":test[@"limit"],@"receivedAt":@(now)}},TestAlerts(now),now) : GVMReadSourceOutput(now);
+    NSNumber *speed=output[@"speed"][@"value"], *limit=output[@"speedLimit"][@"value"];
+    // Relay the current speed limit to Mazda CMU HUD via UDP.
+    GVMCMURelaySetLimit(limit ? limit.unsignedIntegerValue : 0);
+    id googleModel=[models objectForKey:view];
+    NSUInteger style=googleModel ? ((NSUInteger (*)(id,SEL))objc_msgSend)(googleModel,NSSelectorFromString(@"style")) : 1;
+    NSInteger unit=googleModel ? ((NSInteger (*)(id,SEL))objc_msgSend)(googleModel,NSSelectorFromString(@"distanceUnit")) : 1;
+    NSArray *inputs=@[speed ?: NSNull.null,limit ?: NSNull.null,@(style),@(unit)];
+    id child=Read(view,@"speedLimitView");
+    BOOL nativeChanged=forceNative || !child || [nativeChildren objectForKey:view]!=child ||
+        ![[nativeInputs objectForKey:view] isEqual:inputs];
+    BOOL prior=applyingCarPlay; id priorModel=applyingNativeModel;
+    applyingCarPlay=YES;
     @try {
-        if (originalModel) originalModel(view, NSSelectorFromString(@"setSpeedLimitInfo:"), ModelFor(view));
-        id child = [view respondsToSelector:NSSelectorFromString(@"speedLimitView")] ? Read(view, @"speedLimitView") : nil;
+        // Google may change these flags without replacing its model.
+        SetBool(view,@"setSupportsHeadingView:",NO);
+        SetBool(view,@"setShouldDisplayHeadingView:",NO);
+        if (nativeChanged) {
+            originalSupports(view,NSSelectorFromString(@"setSupportsSpeedLimitView:"),YES);
+            originalDisplay(view,NSSelectorFromString(@"setShouldDisplaySpeedLimitView:"),YES);
+            applyingNativeModel=ModelFor(speed,limit,style,unit);
+            originalModel(view,NSSelectorFromString(@"setSpeedLimitInfo:"),applyingNativeModel);
+            child=Read(view,@"speedLimitView");
+            if (child) {
+                [nativeInputs setObject:inputs forKey:view];
+                [nativeChildren setObject:child forKey:view];
+            }
+        }
         if (child) {
-            if ([child respondsToSelector:NSSelectorFromString(@"setSpeedometerEnabled:")]) SetBool(child, @"setSpeedometerEnabled:", YES);
+            SetBool(child,@"setSpeedometerEnabled:",YES);
             GVMStyleNativeSpeedView(child);
         }
-        NSDictionary *test = TestSample();
-        NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
         PublishBackgroundHeartbeat(view,test!=nil,now);
         if (GVMShouldRequestSource(now,lastSourceRequest,!view.hidden && view.alpha>0, test!=nil,
-                                  !Value(speedToken,YES) || !Value(limitToken,NO))) {
+                                  !speed || !limit)) {
             lastSourceRequest=now;
-            if (notify_post(GVMSourceRequestName)==NOTIFY_STATUS_OK) GVMDiagnosticsRecord(GVMDiagnosticRequest,1);
+            if (GVMRequestSelectedSource()) GVMDiagnosticsRecord(GVMDiagnosticRequest,1);
         }
-        uint64_t tpmsRaw = 0;
-        if (tpmsToken >= 0) notify_get_state(tpmsToken, &tpmsRaw);
-        GVMTPMSData tpmsData = GVMDecodeTPMS(tpmsRaw, now);
-        GVMUpdateSpeedCard(view, test ? test[@"speed"] : Value(speedToken, YES),
-            test ? test[@"limit"] : Value(limitToken, NO),
-            test ? TestAlerts() : Alerts(),
-            &tpmsData,
-            [view respondsToSelector:NSSelectorFromString(@"nightModeMap")] ? ((BOOL (*)(id, SEL))objc_msgSend)(view, NSSelectorFromString(@"nightModeMap")) : NO);
-        GVMDiagnosticsRecord(GVMDiagnosticCarPlay,((test ? test[@"speed"] : Value(speedToken,YES)) ? 1 : 0) | ((test ? test[@"limit"] : Value(limitToken,NO)) ? 2 : 0) | (test ? 4 : 0));
-        NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@ bounds=%@ tpms=%d",
+        GVMUpdateSpeedCard(view,output,
+            ((BOOL (*)(id, SEL))objc_msgSend)(view, NSSelectorFromString(@"nightModeMap")));
+        GVMDiagnosticsRecord(GVMDiagnosticCarPlay,(speed ? 1 : 0) | (limit ? 2 : 0) | (test ? 4 : 0));
+        NSString *status = [NSString stringWithFormat:@"CarPlay mode=%@ speed=%@ limit=%@ window=%@ child=%@ bounds=%@ safe=%@ windowSafe=%@ screen=%@",
             test ? @"TEST" : @"live",
-            (test ? test[@"speed"] : Value(speedToken, YES)) ?: @"unavailable",
-            (test ? test[@"limit"] : Value(limitToken, NO)) ?: @"unavailable",
+            speed ?: @"unavailable",limit ?: @"unavailable",
             NSStringFromClass(view.window.class), child ? NSStringFromClass([child class]) : @"none",
             NSStringFromCGRect(view.bounds), tpmsData.hasData];
         if (![[statuses objectForKey:view] isEqual:status]) {
             Log(status); [statuses setObject:status forKey:view];
         }
-    } @finally { applyingCarPlay = prior; }
+    } @finally { applyingCarPlay = prior; applyingNativeModel=priorModel; }
     static const void *testLabelKey = &testLabelKey;
     UILabel *label = objc_getAssociatedObject(view, testLabelKey);
-    if (TestSample() && !label) {
+    if (test && !label) {
         label = [[UILabel alloc] initWithFrame:CGRectZero];
         label.text = @"TEST"; label.font = [UIFont boldSystemFontOfSize:9];
         label.textColor = UIColor.blackColor; label.backgroundColor = UIColor.systemYellowColor;
@@ -179,24 +176,22 @@ static void Apply(UIView *view) {
         label.userInteractionEnabled = NO;
         [view addSubview:label]; objc_setAssociatedObject(view, testLabelKey, label, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    label.hidden = !TestSample() || PhotoSample();
+    label.hidden = !test || PhotoSample() || !GVMBubbleEnabledForHost(view);
     CGRect cardFrame = GVMLayoutSpeedCard(view);
     label.frame = CGRectMake(CGRectGetMaxX(cardFrame)-36, CGRectGetMaxY(cardFrame)+3, 36, 13);
     if (!label.hidden) [view bringSubviewToFront:label];
-    [view setNeedsLayout];
+    if (nativeChanged) [view setNeedsLayout];
 }
 static void SetModel(id self, SEL selector, id info) {
     if (!NSThread.isMainThread) { originalModel(self, selector, info); return; }
     [views addObject:self];
     if ([info isKindOfClass:NSClassFromString(@"GMSNSpeedLimitInfo")]) [models setObject:info forKey:self];
-    if (External(self)) Apply(self); else originalModel(self, selector, info);
+    if (External(self)) Apply(self,YES); else originalModel(self, selector, info);
 }
 static void SetChildModel(id self, SEL selector, id info) {
-    if (applyingCarPlay) {
-        UIView *owner = self;
-        while (owner && ![owner isKindOfClass:NSClassFromString(@"AZCarPlayView")]) owner = owner.superview;
-        if (owner) info = ModelFor(owner);
-    }
+    // The native CarPlay setter can strip speed when a Google feature flag is off.
+    // Replace at its existing child model boundary only during our CarPlay update.
+    if (applyingCarPlay && applyingNativeModel) info=applyingNativeModel;
     originalChildModel(self, selector, info);
 }
 static void SetSupports(id self, SEL selector, BOOL value) {
@@ -254,10 +249,27 @@ static void ScanForCarPlayViews(UIView *root, NSHashTable *targetViews) {
 static void Install(void) {
     if (installed) return;
     Class map = NSClassFromString(@"AZCarPlayView"), child = NSClassFromString(@"GMSNSpeedLimitView");
-    if (!map) { GVMDiagnosticsRecord(GVMDiagnosticHook,2); return; }
-    if (notify_register_check(GVMSpeedStateName, &speedToken) != NOTIFY_STATUS_OK ||
-        notify_register_check(GVMLimitStateName, &limitToken) != NOTIFY_STATUS_OK) {
-        GVMDiagnosticsRecord(GVMDiagnosticHook,4); Log(@"speed transport unavailable; replacement inactive"); return;
+    Class info = NSClassFromString(@"GMSNSpeedLimitInfo"), configuration = NSClassFromString(@"GMSNSpeedLimitViewConfiguration");
+    if (!map || !child || !info || !configuration) { GVMDiagnosticsRecord(GVMDiagnosticHook,2); return; }
+    if (!MethodMatches(map, @"setSpeedLimitInfo:", "v24@0:8@16") ||
+        !MethodMatches(map, @"setSupportsSpeedLimitView:", "v20@0:8B16") ||
+        !MethodMatches(map, @"setShouldDisplaySpeedLimitView:", "v20@0:8B16") ||
+        !MethodMatches(map, @"setSupportsHeadingView:", "v20@0:8B16") ||
+        !MethodMatches(map, @"setShouldDisplayHeadingView:", "v20@0:8B16") ||
+        !MethodMatches(map, @"setupSpeedLimitViewIfNeeded", "v16@0:8") ||
+        !MethodMatches(map, @"supportsSpeedLimitView", "B16@0:8") ||
+        !MethodMatches(map, @"shouldDisplaySpeedLimitView", "B16@0:8") ||
+        !MethodMatches(map, @"layoutSubviews", "v16@0:8") ||
+        !MethodMatches(map, @"nightModeMap", "B16@0:8") ||
+        !MethodMatches(map, @"speedLimitView", "@16@0:8") ||
+        !MethodMatches(child, @"setSpeedLimitInfo:", "v24@0:8@16") ||
+        !MethodMatches(child, @"setSpeedometerEnabled:", "v20@0:8B16") ||
+        !MethodMatches(child, @"initWithConfiguration:", "@24@0:8@16") ||
+        !MethodMatches(child, @"layoutSubviews", "v16@0:8") ||
+        !MethodMatches(configuration, @"setSpeedometerCapable:", "v20@0:8B16") ||
+        !MethodMatches(info, @"initWithSpeedLimit:speed:style:distanceUnit:speedingType:", "@56@0:8d16d24Q32q40Q48") ||
+        !MethodMatches(info, @"style", "Q16@0:8") || !MethodMatches(info, @"distanceUnit", "q16@0:8")) {
+        GVMDiagnosticsRecord(GVMDiagnosticHook,3); Log(@"unsupported Google Maps ABI; replacement inactive"); return;
     }
     notify_register_check(GVM_BACKGROUND_SIGNAL,&backgroundToken);
     notify_register_check(GVMTPMSStateName, &tpmsToken);
@@ -265,15 +277,15 @@ static void Install(void) {
     notify_register_check("com.chou.googlemaps.vietmap.test.photo", &photoToken);
     notify_register_check(GVMTestFirstAlertStateName, &testFirstAlertToken);
     notify_register_check(GVMTestSecondAlertStateName, &testSecondAlertToken);
-    notify_register_check(GVMFirstAlertStateName, &firstAlertToken);
-    notify_register_check(GVMSecondAlertStateName, &secondAlertToken);
     views = [NSHashTable weakObjectsHashTable]; models = [NSMapTable weakToStrongObjectsMapTable];
     statuses = [NSMapTable weakToStrongObjectsMapTable];
+    nativeInputs=[NSMapTable weakToStrongObjectsMapTable];
+    nativeChildren=[NSMapTable weakToWeakObjectsMapTable];
     notify_register_dispatch(GVMPlacementStateName, &placementToken,
         dispatch_get_main_queue(), ^(int token) {
             uint64_t state=0;
             if (notify_get_state(token,&state)==NOTIFY_STATUS_OK) GVMSetPlacementState(state);
-            for (UIView *view in views.allObjects) Apply(view);
+            for (UIView *view in views.allObjects) Apply(view,NO);
         });
     uint64_t placementState=0;
     if (placementToken>=0 && notify_get_state(placementToken,&placementState)==NOTIFY_STATUS_OK)
@@ -305,20 +317,14 @@ static void Install(void) {
         MSHookMessageEx(child, @selector(layoutSubviews), (IMP)LayoutChild, (IMP *)&originalChildLayout);
     }
     installed = YES;
+    GVMCMURelayStart();
     GVMDiagnosticsRecord(GVMDiagnosticHook,1);
-    [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
-        (void)timer;
-        @try {
-            for (UIWindow *win in UIApplication.sharedApplication.windows) {
-                ScanForCarPlayViews(win, views);
-            }
-            for (UIView *view in views.allObjects) {
-                if (External(view)) Apply(view);
-            }
-        }
-        @catch (NSException *exception) { GVMDiagnosticsRecord(GVMDiagnosticError,1); Log([@"refresh refused: " stringByAppendingString:exception.name]); }
-    }];
-    Log(@"native CarPlay replacement loaded 0.1.24; awaiting fresh VietMap samples");
+    Log(@"native CarPlay replacement loaded 0.1.8; awaiting fresh VietMap samples");
+}
+void GVMRefreshCarPlayViews(void) {
+    if (!installed) return;
+    @try { for (UIView *view in views.allObjects) Apply(view,NO); }
+    @catch (NSException *exception) { GVMDiagnosticsRecord(GVMDiagnosticError,1); Log([@"refresh refused: " stringByAppendingString:exception.name]); }
 }
 static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
     (void)header; (void)slide;

@@ -13,7 +13,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live trong Google Maps trên CarPlay và iPhone. Google Maps tiếp tục đảm nhiệm việc dẫn đường."
+          "markdown": "Hiển thị tốc độ hiện tại, giới hạn và cảnh báo đường nhận diện được từ VietMap Live, Waze hoặc GOFA trong Google Maps trên CarPlay và iPhone. Google Maps tiếp tục đảm nhiệm việc dẫn đường."
         },
         {
           "class": "DepictionSubheaderView",
@@ -64,7 +64,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "Ảnh dùng tuyến giả lập; không chứng minh độ chính xác ngoài đường thực tế. Dữ liệu có thể sai, trễ hoặc thiếu. Chỉ dùng để nghiên cứu/kiểm thử khi xe đã đỗ an toàn; tuân thủ biển báo thực tế. Không phải thiết bị hỗ trợ lái xe được chứng nhận.\n\nHiển thị tốc độ, giới hạn và tối đa hai cảnh báo đường đã nhận diện; không có cảnh báo âm thanh, giả lập GPS hay vượt thuê bao/DRM. Mã do dự án viết theo giấy phép MIT; ảnh VietMap Live vẫn thuộc quyền của chủ sở hữu. Dự án độc lập, không được VietMap, Google hay Apple bảo trợ."
+          "markdown": "Ảnh dùng tuyến giả lập; không chứng minh độ chính xác ngoài đường thực tế. Dữ liệu có thể sai, trễ hoặc thiếu. Chỉ dùng để nghiên cứu/kiểm thử khi xe đã đỗ an toàn; tuân thủ biển báo thực tế. Không phải thiết bị hỗ trợ lái xe được chứng nhận.\n\nHiển thị tốc độ, giới hạn và tối đa hai cảnh báo đường đã nhận diện; không có cảnh báo âm thanh, giả lập GPS hay vượt thuê bao/DRM. Mã do dự án viết theo giấy phép MIT; quyền với ứng dụng, dữ liệu và hình ảnh bên thứ ba vẫn thuộc chủ sở hữu. Dự án độc lập, không được VietMap, Google hay Apple bảo trợ."
         },
         {
           "class": "DepictionSubheaderView",
@@ -137,7 +137,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "Screenshots use a simulated route; they do not establish real-road accuracy. Readings may be wrong, delayed, or missing. For research and stationary testing only; follow actual signs. This is not a certified driving aid.\n\nSpeed, limits, and up to two recognized road alerts; no audible alerts, GPS simulation, or subscription/DRM bypass. Project-authored code is MIT-licensed; VietMap Live images remain their owner’s property. Independent project, not endorsed by VietMap, Google, or Apple."
+          "markdown": "Screenshots use a simulated route; they do not establish real-road accuracy. Readings may be wrong, delayed, or missing. For research and stationary testing only; follow actual signs. This is not a certified driving aid.\n\nSpeed, limits, and up to two recognized road alerts; no audible alerts, GPS simulation, or subscription/DRM bypass. Project-authored code is MIT-licensed; third-party apps, data and artwork retain their owners’ rights. Independent project, not endorsed by VietMap, Google, or Apple."
         },
         {
           "class": "DepictionSubheaderView",
@@ -159,19 +159,67 @@
         },
         {
           "class": "DepictionSubheaderView",
-          "title": "0.1.24"
+          "title": "0.2.3"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "**Tiếng Việt:** Khắc phục triệt để lỗi không hiện HUD trên CarPlay: tự động phát hiện và gắn cụm HUD vào `AZCarPlayView` mà không phụ thuộc vào dữ liệu tốc độ gốc của Google Maps (do Google Maps VN không có sẵn giới hạn tốc độ); tích hợp hiển thị 4 lốp xe TPMS VietMap Live và tự động mở rộng kích thước thẻ trên CarPlay.\n\n**English:** Actively discovers and attaches HUD to CarPlay without relying on native Google Maps speed limits. Integrates 4-tire TPMS display with auto-expanding CarPlay card."
+          "markdown": "**Tiếng Việt:** Đánh thức và duy trì nguồn cảnh báo khi chỉ dùng Google Maps trên iPhone, kể cả sau khi vừa ngắt CarPlay. Banner hay Trung tâm điều khiển không còn làm ngắt nguồn.\n\n**English:** Wakes and keeps the warning source when using Google Maps on iPhone only, including right after CarPlay disconnects. Banners or Control Center no longer end the source session."
         },
         {
           "class": "DepictionSubheaderView",
-          "title": "0.1.23"
+          "title": "0.2.2"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "**Tiếng Việt:** Bổ sung hiển thị áp suất lốp xe TPMS từ VietMap Live (MethodChannel/EventChannel & TPMSData native), mở rộng bố cục CarPlay.\n\n**English:** Adds VietMap Live TPMS tire pressure monitoring and auto-scaling CarPlay HUD layout."
+          "markdown": "**Tiếng Việt:** Giữ giới hạn tốc độ của Waze và GOFA ổn định khi điện thoại đứng yên; GOFA không còn mất giới hạn khi chạy nền. Cải thiện độ ổn định định vị nền.\n\n**English:** Keeps Waze and GOFA speed limits steady while the phone is stationary; GOFA no longer loses the limit in the background. Improves background location stability."
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.2.1"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Thêm nguồn cảnh báo Waze và GOFA, bổ sung bộ icon cảnh báo. Cải thiện chạy nền và độ ổn định tốc độ, giới hạn và cảnh báo đường.\n\n**English:** Adds Waze and GOFA warning sources and new warning icons. Improves background operation and stability of speed, limits and road alerts."
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.2"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Làm gọn Cài đặt, thêm kéo thả và xem trước bố cục. Bổ sung tùy chọn thoát nguồn khi ngắt CarPlay; sửa cảnh báo vượt tốc chặn thao tác. Hiện hỗ trợ VietMap Live.\n\n**English:** Simplifies Settings with drag ordering and layout previews. Adds optional source exit after CarPlay disconnect and fixes overspeed warnings blocking controls. VietMap Live is currently supported."
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.1.22"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Cập nhật bộ icon biển báo; đồng bộ font số trên biển giới hạn tốc độ chính.\n\n**English:** Updates road-sign icons and aligns the main speed-limit digits with the new artwork."
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.1.21"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Tùy chỉnh bố cục ngang/dọc và kéo đổi thứ tự các phần trong bong bóng. Làm mới Cài đặt, thêm công tắc từng màn hình và nút đặt lại. Cập nhật bộ icon biển báo, giữ kích cỡ Dashboard ổn định khi đổi bố cục hoặc thêm/bớt cảnh báo. Báo cáo hỗ trợ có thêm phiên bản ứng dụng và tùy chọn đính kèm crash.\n\n**English:** Customize horizontal/vertical layouts and drag to reorder bubble sections. Refreshes Settings with per-screen switches and reset controls. Updates road-sign icons and keeps Dashboard content sizes stable when changing layouts or adding/removing alerts. Support reports now include app versions and optional crash attachments."
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.1.20"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Cải thiện tính ổn định\n\n**English:** Improved stability"
+        },
+        {
+          "class": "DepictionSubheaderView",
+          "title": "0.1.19"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Tối ưu cập nhật bong bóng và giảm dung lượng gói cài. Tự đánh thức VietMap Live hỗ trợ cả Google Maps trên CarPlay và iPhone, với quyền định vị Khi dùng ứng dụng hoặc Luôn luôn. Cải thiện tự nhận lại dữ liệu khi VietMap chưa chạy; làm gọn mô tả trong Cài đặt.\n\n**English:** Optimizes bubble updates and reduces package size. Automatic VietMap Live wake now supports Google Maps on both CarPlay and iPhone with When In Use or Always location access. Improves data recovery when VietMap is not running and simplifies Settings descriptions."
         },
         {
           "class": "DepictionSubheaderView",

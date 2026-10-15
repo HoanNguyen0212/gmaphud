@@ -2,11 +2,15 @@
 
 **English** · [Tiếng Việt](README.vi.md)
 
-Experimental rootful/rootless iOS tweak that displays fresh **VietMap Live speed and speed-limit data in Google Maps on CarPlay and iPhone**. Inspired by the traffic bubble feature in DuoDash and TrueDash. Google Maps continues to handle navigation.
+Rootful/rootless iOS tweak that displays **speed, limits and road alerts from VietMap Live, Waze or GOFA in Google Maps on CarPlay and iPhone**. Inspired by the traffic bubble feature in DuoDash and TrueDash. Google Maps continues to handle navigation.
 
 **Author: chou · AI-assisted with Codex.** chou leads, tests and publishes this independent community project; Codex provided AI development assistance. This credit does not imply that OpenAI is the publisher, copyright holder, maintainer or support provider. Not affiliated with or endorsed by VietMap, Google, Apple or OpenAI.
 
 > Experimental software for stationary testing and research. It is not a certified driving aid. Displayed information may be wrong, unavailable or delayed. Follow actual signs, road conditions and applicable law. Read [DISCLAIMER.md](DISCLAIMER.md) before use; a disclaimer does not guarantee legal protection.
+
+## Warning sources
+
+Select **VietMap Live**, **Waze** or **GOFA**. Only one source is used at a time. Waze targets5.25.0; GOFA targets4.2.1 build3.
 
 ## Bubble placement previews
 
@@ -26,18 +30,16 @@ These are the same CarPlay preview images shown in Settings. They illustrate all
 
 ## Features
 
-The horizontal CarPlay bubble places speed on the left, the limit sign on the right, and a VietMap Live label above. Dashboard uses a vertical bubble with the limit above current speed. Recognized VietMap road alerts use the corresponding VietMap Live artwork and source distance in a shaded VietMap region: up to two side by side on full map, two stacked below speed on Dashboard. Input recognition matches observed image digests from VietMap Live 3.4.3. Bubble size adapts uniformly to the viewport and the user’s size setting. Navigation controls affect placement only, so each corner keeps the same dimensions. Full-map and Dashboard layouts are selected relative to screen width. The preview images above illustrate each supported placement.
+The bubble uses shared road-sign artwork, supports horizontal/vertical layouts and lets you reorder modules. Adjust size and placement separately for Full Map, Dashboard and iPhone. Recognized source alerts include distance and use up to two warning modules. Optional overspeed warnings illuminate the map or entire CarPlay screen.
 
-In iPhone Settings → GMapHUD, choose any of the four corners for the full map and the left or right edge for Dashboard. The images above show each option. Top-right is the default in both layouts. The alert-source row shows VietMap Live but remains disabled until another source is supported. Placement changes update an open Google Maps CarPlay view; a SpringBoard relay restores saved placement after the phone interface restarts.
 
 - Full-map speed pill and compact vertical Dashboard card; light/dark map colors.
 - Current speed remains visible, with `--` when unavailable. Missing limits show a dashed sign.
 - Amber from 5 km/h below the limit through the limit; red above it. Visual cues only, no audible alert system.
 - Card placement follows the map toolbar's safe area. The Google CarPlay heading/compass control is hidden.
-- Speed and limit expire independently after five seconds. A heartbeat does not make old data fresh.
+- Speed and limit expire independently after five seconds. A heartbeat does not make old data fresh; Waze and GOFA re-assert only their app's current native limit while the phone is stationary.
 - Optional stationary display test with a TEST badge and automatic expiry.
 
-Published 0.1.13 does not port road alerts. Release 0.1.14 recognizes 46 known alert-image digests from VietMap Live 3.4.3; unknown or changed artwork stays hidden. VietMap's upcoming speed-limit message may omit its image, so supported numeric limits use the matching bundled VietMap Live sign. Camera and upcoming 80 km/h delivery were observed live; other sign categories are mapped from observed app artwork but have not yet been observed in live payloads. Navigation instructions and Live Activities remain unsupported. It includes no GPS spoofing, location replay, DRM bypass or subscription bypass.
 
 ## Compatibility
 
@@ -46,9 +48,9 @@ Published 0.1.13 does not port road alerts. Release 0.1.14 recognizes 46 known a
 | Device / OS | iPhone 11, iOS 18.6.2, rootless jailbreak |
 | Google Maps | 26.40.3 |
 | VietMap Live | 3.4.3 |
-| Package | `com.chou.googlemaps.vietmap` 0.1.18, arm64/arm64e |
+| Package | `com.chou.googlemaps.vietmap` 0.2.3, arm64/arm64e |
 
-From 0.1.13, Google Maps is not restricted by version or executable UUID. Required private classes and method signatures are still checked; passing these checks does not guarantee compatibility with every release. Package and notification identifiers retain their original namespace for compatibility with existing installations.
+From 0.1.13, Google Maps is not restricted by version or executable UUID. Required private classes and method signatures are still checked; passing these checks does not guarantee compatibility with every release. The package identifier remains unchanged. Release 0.1.20 introduces a versioned production notification namespace; bounded display-test channels retain their original names.
 
 From 0.1.13, the VietMap source also has no version restriction. Flutter channel structure and incoming data validation remain enabled. New app versions still require on-device verification.
 
@@ -57,17 +59,17 @@ UI states were checked using a real phone connected to Apple's CarPlay Simulator
 ## Install and remove
 
 1. Use a compatible jailbreak and legitimately installed apps with any required VietMap entitlement/subscription. These are not supplied here.
-2. Copy **https://bechou0410.github.io/gmaphud/** into **Sileo → Sources → +** or **Zebra → Sources → +**, refresh, then search for **GMapHUD**. The [source page](https://bechou0410.github.io/gmaphud/) has quick-add buttons for both. Alternatively, download the `.deb` from [Releases](https://github.com/bechou0410/gmaphud/releases), and verify its SHA-256 against `SHA256SUMS`.
+2. Copy **https://gmaphud.caidat.app/** into **Sileo → Sources → +** or **Zebra → Sources → +**, refresh, then search for **GMapHUD**. The [source page](https://gmaphud.caidat.app/) has quick-add buttons for both. Alternatively, download the `.deb` from [Releases](https://github.com/bechou0410/gmaphud/releases), and verify its SHA-256 against `SHA256SUMS`. The [original GitHub Pages source](https://bechou0410.github.io/gmaphud/) remains available as a fallback; downloads through it are not counted.
 3. Install through your jailbreak's package manager. Review removal prompts for old bridge/probe packages listed in [tweak/control](tweak/control). This package does not uninstall vendor TrueDash. The source includes rootless (`iphoneos-arm64`) and rootful (`iphoneos-arm`) packages. Rootful still requires device testing on iOS 14; older app builds may need additional integration changes.
 4. Close and reopen VietMap and Google Maps, then open Google Maps in CarPlay. Keep VietMap's background alerts running. A Live Activity alone does not prove fresh speed samples.
 
-No default SSH password is provided or required. After updating to 0.1.18, respring once to load the saved size/placement restoration component, then reopen Google Maps and Settings.
+No default SSH password is provided or required. After updating, respring once to load the background component, then reopen Google Maps and Settings. Optional automatic wake supports When In Use or Always location access; enable VietMap alerts first.
 
 To remove: uninstall `com.chou.googlemaps.vietmap` through the package manager, then close and reopen both apps. Removing files does not unload an injected library from an already-running process.
 
 ## Build and test
 
-Requires macOS with Xcode command-line tools, Theos, a rootless-capable toolchain and an iPhoneOS 16.5 SDK obtained under its applicable license. SDKs and dependencies are not bundled.
+Requires macOS with Python 3.9+, Xcode command-line tools, Theos, a rootless-capable toolchain and an iPhoneOS 16.5 SDK obtained under its applicable license. SDKs and dependencies are not bundled.
 
 ```sh
 git clone https://github.com/bechou0410/gmaphud.git
@@ -78,17 +80,21 @@ THEOS="$HOME/theos" sh build-tweak.sh all
 
 Packages appear in `packages/`. Both scripts use disposable directories and support spaces in the checkout path. The tested toolchain emits a pre-existing `-multiply_defined is obsolete` linker warning.
 
+Build/test commands keep full logs locally and return a compact result with fixed diagnostic labels, preserving the command's exit code. No AI or external API is called. See [build/test reports](docs/build-triage.md) for local reports and the `GMAPHUD_CHECK_RAW=1` option.
+
 ## Maintain the Sileo source
 
 Version policy: keep one next version throughout each unpublished development cycle, including every edit, build, and test installation. If the published version is `0.1.13`, all trial builds use `0.1.14`, and the release publishes that same `0.1.14`. Only after publication does the next development cycle use `0.1.15`. Do not increment the version for each trial. Use a commit hash or checksum to distinguish internal builds sharing a version; never overwrite a published package.
 
-The [static source](https://bechou0410.github.io/gmaphud/) is published by GitHub Pages from `main` → `/docs`. [build-repo.py](build-repo.py) owns package/index/site generation, including the bilingual native Sileo depiction, CarPlay screenshot carousel, and changelog tab; [repo-template.html](repo-template.html) owns the shared landing-page layout and [repo-locales.json](repo-locales.json) owns its Vietnamese/English copy. The default page is Vietnamese; [en.html](https://bechou0410.github.io/gmaphud/en.html) is English. GitHub repository Settings → Pages owns this publishing configuration. Check deployment logs in the repository's Actions tab or `gh api repos/bechou0410/gmaphud/pages/builds/latest`.
+The [static source](https://bechou0410.github.io/gmaphud/) is published by GitHub Pages from `main` → `/docs`. [build-repo.py](build-repo.py) owns package/index/site generation, including the bilingual native Sileo depiction, CarPlay screenshot carousel, and changelog tab; [repo-template.html](repo-template.html) owns the shared landing-page layout and [repo-locales.json](repo-locales.json) owns its Vietnamese/English copy. The default page is Vietnamese; [en.html](https://gmaphud.caidat.app/en.html) is English. GitHub repository Settings → Pages owns this publishing configuration. Check deployment logs in the repository's Actions tab or `gh api repos/bechou0410/gmaphud/pages/builds/latest`.
+
+The primary [installation source](https://gmaphud.caidat.app/) uses a Cloudflare Pages proxy to count full package-download starts by day, version and architecture. Existing GitHub Pages clients keep working through the fallback source. See [download statistics](docs/download-statistics.md) for the proxy source, aggregate queries, deployment and fallback behavior.
 
 `docs/CydiaIcon*.png` are the repository icons Sileo fetches from the source root. The `Icon` field in [tweak/control](tweak/control) is the separate package icon; `docs/gmaphud-icon.svg/png` serve the website favicon and branding.
 
 To publish an audited package, run `python3 build-repo.py packages/<rootless>.deb packages/<rootful>.deb` with Python 3 and `dpkg-deb` installed, review the resulting `docs/` changes, then commit and push. The index advertises the supplied version; previous package files remain available for existing downloads. Published filenames are immutable: bump the version before changing package bytes. Only audited production GMapHUD packages belong in this source. Never put logs, keys, app dumps or other local files in `docs/`; the entire directory becomes public.
 
-This is a flat HTTPS APT source (`deb https://bechou0410.github.io/gmaphud/ ./`) with package/index checksums. Release metadata is not PGP-signed; checksums alone do not authenticate the publisher. No global APT trust/security overrides are supplied. To roll back a source publication, revert its commit and push, retaining any already published package files. Confirm that the Pages build succeeded and public indexes match the intended package before announcing an update.
+This is a flat HTTPS APT source (`deb https://gmaphud.caidat.app/ ./`) with package/index checksums. Release metadata is not PGP-signed; checksums alone do not authenticate the publisher. No global APT trust/security overrides are supplied. To roll back a source publication, revert its commit and push, retaining any already published package files. Confirm that the Pages build succeeded and public indexes match the intended package before announcing an update.
 
 Rollback through a new higher package version if clients have already upgraded; reverting the source index alone does not downgrade installed packages.
 
@@ -106,44 +112,46 @@ Run on the phone in a shell with access to the installed tool while Google Maps 
 
 Arguments: current speed (0–400 km/h), limit (1–400 km/h), duration (1–300 seconds), and optionally two VietMap asset names with distances (0–10000 m each), as `SIGN:METERS`, for trial 0.1.14. Bare distance numbers remain accepted as camera signs. Only the Google CarPlay display model changes; GPS, navigation and real VietMap data remain unchanged. By default, TEST remains visible until `off` or expiry. Missing live values remain missing after testing.
 
-## Diagnostics · 0.1.15
+## Diagnostics
 
 After installing, close and reopen both Google Maps and VietMap Live. Reproduce the issue, then open **Settings → GMapHUD → Chẩn đoán / Xuất log**. Tap **Làm mới** (Refresh), then **Sao chép báo cáo** (Copy report) or **Xuất file…** (Export file) to share a `.txt` report. Review the visible report first; nothing is uploaded automatically.
 
-The report includes hardware model (no serial number), OS, app versions observed by the modules, hook/channel status, sample freshness and CarPlay rendering checkpoints. It retains up to 16 recent checkpoints per app plus the last checkpoint for each stage. It excludes coordinates, routes, accounts and arbitrary app log text. This is bounded diagnostic telemetry, not a full system log. Notification state may disappear when processes or the notification service restart; collect it while reproducing the issue. App versions may be unavailable if a module never loaded. Add the jailbreak version and split-screen tweak name manually when requesting support.
+The summary includes hardware model (no serial number), OS, hook/channel status, sample freshness and CarPlay rendering checkpoints. It retains up to 16 recent checkpoints per app plus the last checkpoint for each stage. The summary excludes coordinates, routes and accounts. Notification state may disappear when processes or the notification service restart; collect it while reproducing the issue. Add the jailbreak version and split-screen tweak name manually when requesting support.
 
-0.1.15 has passed host tests, built for arm64/arm64e, and installed on iPhone 11. Clipboard/sharing and cross-app diagnostic transport still need device validation; this release adds diagnostics, not a confirmed fix for missing data on iOS 16.
+Version 0.1.21 also reads installed Google Maps and VietMap Live version and build metadata independently of module checkpoints. Unsupported metadata access is reported as unavailable. Refresh lists up to three readable related `.ips`/`.crash` files from the last seven days (at most 2 MB each); exporting can include these original files beside the summary. Disable **Đính kèm crash liên quan** to export only the summary. Crash files can contain device/app identifiers or other personal information; inspect attachments before sharing. Inaccessible or missing crash logs are reported explicitly, not treated as proof that no crash occurred.
+
 
 ## Architecture and privacy
 
-`provider/vietmap-source.x` observes the existing VietMap Flutter overlay channel and forwards its original handler/reply unchanged. Validated speed and limit, each with their own monotonic receive time, travel through local Darwin notification state. Road alerts are decoded from JSON-string items in `vml_main_channel/updateUpcommingAlerts` and `updateStickyAlerts`, matched against exact 3.4.3 asset digests, and relayed as up to two provider-coded kind/distance states. Empty lists clear their source; original timestamps expire after five seconds. Release 0.1.14 bundles the 46 VietMap sign images for display; notifications remain numeric only. Those third-party images are excluded from the project MIT license. CarPlay hooks apply them to external map windows. A separate foreground-only overlay displays the same fresh data in the Google Maps iPhone window without intercepting touches.
+`provider/vietmap-source.x` observes the existing VietMap Flutter overlay channel and forwards its original handler/reply unchanged. Validated speed and limit, each with their own monotonic receive time, travel through local Darwin notification state. Road alerts are decoded from JSON-string items in `vml_main_channel/updateUpcommingAlerts` and `updateStickyAlerts`, matched against exact 3.4.3 asset digests, and converted by a VietMap adapter into up to two semantic road alerts. The tweak uses a [versioned common source output](docs/source-output-contract.md) for speed, limit and alerts on both Google Maps surfaces. Each frame belongs to one selected source; partial frames and old source selections are refused. Empty lists clear their source; original timestamps expire after five seconds. The package includes redesigned display artwork supplied for GMapHUD, separately from source image recognition; notifications remain numeric only. CarPlay hooks apply them to external map windows. A separate foreground-only overlay displays the same fresh data in the Google Maps iPhone window without intercepting touches.
 
 The tweak creates no network listener, telemetry upload, publisher daemon or saved credentials. App-sandbox `tmp/googlemaps-vietmap-source.log` and `tmp/googlemaps-vietmap.log` record numeric speed/limit availability and hook status, not coordinates or routes. Local notification state is not cryptographically authenticated and can be affected by other privileged/injected software. Review device logs before sharing.
 
 ## License
 
-Project-authored code is offered under [MIT](LICENSE). The package also contains selected VietMap Live artwork for display; these images are third-party material, are not covered by MIT, and remain subject to their rights holders' terms. The project does not claim ownership or grant permission to redistribute them. Third-party apps, maps, traffic/sign data, trademarks, SDKs and dependencies retain their owners' rights and terms. See [DISCLAIMER.md](DISCLAIMER.md) for lawful-use, safety, compatibility and warranty notices. Licensing does not certify legality, accuracy or roadworthiness.
+Project-authored code is offered under [MIT](LICENSE). Current display artwork is supplied by the user; replacing images does not establish their provenance or grant redistribution rights. Artwork is not automatically covered by the code’s MIT license. Older published packages may contain original VietMap images. Third-party apps, maps, traffic/sign data, trademarks, SDKs and dependencies retain their owners' rights and terms. See [DISCLAIMER.md](DISCLAIMER.md) for lawful-use, safety, compatibility and warranty notices. Licensing does not certify legality, accuracy or roadworthiness.
 
 For unedited Settings screenshots, append `--photo` to hide the badge for that bounded sample only. `gvm-test-speed position top-left left` changes Full Map/Dashboard placement temporarily without writing user preferences; restore the previous placement after capture.
 
-## Automatic VietMap wake · 0.1.17
+## Automatic VietMap wake
 
-After installation, respring once to load the SpringBoard component. In iOS Settings, enable Location Services and grant VietMap Live **Always** location access, then enable **Settings → GMapHUD → Tự đánh thức VietMap Live**. The switch defaults to off and stays disabled until these conditions are confirmed. It refreshes while the page is visible. Revoking permission or disabling Location Services turns the feature off; restoring permission does not automatically turn it on again.
+After installation, respring once to load the SpringBoard component. In iOS Settings, enable Location Services and grant VietMap Live **When In Use** or **Always** location access, then enable **Settings → GMapHUD → Tự đánh thức VietMap Live**. The switch defaults to off and stays disabled until these conditions are confirmed. It refreshes while the page is visible. Revoking permission or disabling Location Services turns the feature off; restoring permission does not automatically turn it on again.
 
-While Google Maps is visible on CarPlay, GMapHUD can launch VietMap in the background and keep it active without bringing it to the foreground. Enable alerts in VietMap first; the tweak cannot sign in, activate a subscription or guarantee fresh data. Relaunch attempts are bounded to avoid a restart loop. Leaving Google Maps CarPlay releases the background assertion after the heartbeat expires. Private system APIs can vary by iOS version; if unavailable, automatic wake remains disabled. Runtime wake was tested on iPhone 11/iOS 18.6.2; the new switch gating has host/build validation, not complete on-device permission-transition validation on every supported OS. Rootful/iOS 14 behavior remains unverified. Waze is not included in this release.
+While Google Maps is visible on CarPlay or iPhone, GMapHUD can launch VietMap in the background and keep it active without bringing it to the foreground. Enable alerts in VietMap first; the tweak cannot sign in, activate a subscription or guarantee fresh data. Relaunch attempts are bounded to avoid a restart loop. Leaving Google Maps on both screens releases the added background session after the heartbeat expires; VietMap retains its real location permission. Private system APIs can vary by iOS version; if unavailable, automatic wake remains disabled. Runtime wake was tested on iPhone 11/iOS 18.6.2; the new switch gating has host/build validation, not complete on-device permission-transition validation on every supported OS. Rootful/iOS 14 behavior remains unverified. Automatic wake applies to the selected VietMap Live, Waze or GOFA source.
 
 Background state is recorded locally in `/var/mobile/Library/Logs/gmaphud-background.log` (bounded, no coordinates). Google Maps can request a fresh retransmission from the running source; cached values retain their original timestamps and expire normally.
 
-## 0.1.18 · size controls and iPhone
+## Overspeed warning
 
-Settings → GMapHUD provides independent sliders for Full Map, Dashboard and Google Maps on iPhone. Each ranges from 50% to 150%, default 100%, and uniform scaling is capped to fit the available area. Values persist independently. Respring once after installation to load size restoration in SpringBoard; reopen Google Maps and Settings to load the new UI.
+Settings → GMapHUD → Cảnh báo vượt tốc offers Off, Map or Entire screen. Fresh speed above the current limit triggers a pulsing red inward glow. Map scope covers only the Google Maps viewport; Entire screen includes the sidebar and Dashboard tiles. This warning does not apply on iPhone.
 
-The phone bubble appears only within foreground Google Maps, defaulting to the top-right corner. Auto layout switches to a vertical card in a tall/narrow app window and a horizontal card in a wide/landscape window. It is not a system-wide overlay and does not intercept map touches. It consumes real VietMap values with the same expiry as CarPlay, showing placeholders for missing data. Open VietMap and enable alerts first; automatic wake remains triggered only by Google Maps CarPlay. Waze is excluded. Phone placement, sizing and portrait/landscape layout were confirmed on the test iPhone; other devices and OS versions remain unverified.
+Pulse frequency follows excess speed: below 5 km/h — 0.75 Hz; 5 to below 10 — 1.25 Hz; 10 or more — 2 Hz. Map scope follows the visible viewport after sidebar and ancestor clipping are excluded.
 
-The **Kích cỡ bong bóng** (Bubble size) menu controls CarPlay Full Map and Dashboard. The separate **Google Maps trên iPhone** menu contains phone size, four corners, Auto/Horizontal/Vertical layout, and X/Y offsets from −100% to +100%. X uses map width and Y uses map height; positive values move right/down, clamped to the full app window without safe-area exclusions. Sliders mark and snap near their midpoint: 0% for position and 100% for size. Opening Settings migrates legacy point offsets to percentages using the current screen dimensions.
+Glow intensity is scoped separately: map warning is stronger, whole-screen warning is softer; excess-speed pulse rates are unchanged.
 
-Corner and layout choices use native iOS segmented controls. Percentage values are centered below the sliders, with selection feedback when dragging back to the neutral midpoint.
 
-On iPhone, X/Y placement spans the entire Google Maps window with no toolbar, notch or home-indicator reserve. Zero anchors directly to the selected corner. The card stays within the window bounds; system UI or the physical notch may cover content placed there.
+## Bubble settings
 
-On CarPlay, the same viewport, alerts and size percentage produce the same bubble dimensions at every corner. Guidance panels and toolbar safe areas affect placement only. If the reserved area is too small, the bubble stays within the map without shrinking; use the size slider if it overlaps a control.
+In Settings → GMapHUD, choose Full Map, Dashboard or iPhone. Each page includes its own switch, position, Auto/Horizontal/Vertical layout, size and drag-to-reorder controls. Both previews update with the order. iPhone also has X/Y positioning. Reset restores only its associated setting.
+
+In **Background**, enable automatic VietMap wake or optional source exit 20 seconds after CarPlay disconnect. Existing location permissions are preserved.
