@@ -29,6 +29,7 @@ static NSTimeInterval sLastSend;  // mach_absolute_time based
 static NSUInteger sNavIcon;
 static NSUInteger sNavDist;
 static NSString *sNavRoad;
+static NSTimeInterval sLastNavSend;
 
 static NSString *sLastDatagram;   // Test-only capture
 
@@ -73,17 +74,24 @@ static void SendNav(NSUInteger iconID, NSUInteger distM, NSString *road) {
                      safe.UTF8String ?: "");
     if (n > 0 && (size_t)n < sizeof(buf)) {
         SendDatagram(buf, (size_t)n);
+        sLastNavSend = MonotonicNow();
     }
 }
 
 static void HeartbeatTick(void) {
     @synchronized(sLock) {
         if (sSock < 0) return;
+        NSTimeInterval now = MonotonicNow();
         // Heartbeat: resend current limit every 2.5s if it's active (> 0).
         if (sCurrentLimit > 0) {
-            NSTimeInterval now = MonotonicNow();
             if (now - sLastSend >= kHeartbeatInterval) {
                 SendLimit(sCurrentLimit);
+            }
+        }
+        // Heartbeat: resend current navigation maneuver every 2.5s if active.
+        if (sNavIcon > 0) {
+            if (now - sLastNavSend >= kHeartbeatInterval) {
+                SendNav(sNavIcon, sNavDist, sNavRoad);
             }
         }
     }
@@ -158,9 +166,10 @@ void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *r
 
         if (iconID > 0) {
             SendNav(iconID, distanceMeters, sNavRoad);
+        } else {
+            // Immediate clear on navigation end
+            SendNav(0, 0, @"");
         }
-        // iconID == 0 means navigation ended; cmu_splim_listener handles
-        // expiry via the 10-second timestamp mechanism.
     }
 }
 
@@ -171,13 +180,17 @@ void GVMCMURelayStop(void) {
             sTimer = nil;
         }
         if (sSock >= 0) {
-            // Send final "LIMIT 0" to clear the CMU display
+            // Send final "LIMIT 0" and "NAV 0 0" to clear the CMU display
             SendLimit(0);
+            SendNav(0, 0, @"");
             close(sSock);
             sSock = -1;
         }
         sCurrentLimit = 0;
         sLimitSentOnce = NO;
+        sNavIcon = 0;
+        sNavDist = 0;
+        sNavRoad = nil;
     }
 }
 

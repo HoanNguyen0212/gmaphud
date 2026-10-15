@@ -1,0 +1,11 @@
+#import <Foundation/Foundation.h>
+#include <stdint.h>
+
+// Installs CarPlay navigation hooks inside Google Maps
+void GVMInstallCarPlayNavHook(void);
+
+// Helper for mapping Apple CarPlay maneuverType to Mazda HUD turn icon code (exposed for tests)
+uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger maneuverType);
+
+// Helper for stripping Vietnamese diacritics for Mazda CMU HUD font compatibility (exposed for tests)
+NSString *GVMStripVietnameseDiacritics(NSString *str);

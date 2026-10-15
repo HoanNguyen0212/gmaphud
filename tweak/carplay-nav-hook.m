@@ -1,0 +1,224 @@
+#import "carplay-nav-hook.h"
+#import "cmu-hud-relay.h"
+#import <objc/runtime.h>
+#import <objc/message.h>
+#import <dlfcn.h>
+#include <substrate.h>
+#include <math.h>
+
+// ── Vietnamese Diacritics Stripper for Mazda CMU HUD ────────────────────────
+
+NSString *GVMStripVietnameseDiacritics(NSString *str) {
+    if (!str || !str.length) return @"";
+    NSMutableString *ms = [str mutableCopy];
+    CFStringTransform((__bridge CFMutableStringRef)ms, NULL, kCFStringTransformStripCombiningMarks, NO);
+    [ms replaceOccurrencesOfString:@"đ" withString:@"d" options:NSLiteralSearch range:NSMakeRange(0, ms.length)];
+    [ms replaceOccurrencesOfString:@"Đ" withString:@"D" options:NSLiteralSearch range:NSMakeRange(0, ms.length)];
+    [ms replaceOccurrencesOfString:@"\n" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, ms.length)];
+    [ms replaceOccurrencesOfString:@"\r" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, ms.length)];
+    return [ms stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+// ── Apple CarPlay CPManeuverType to Mazda CMU HUD Icon Mapping ───────────────
+
+uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger type) {
+    switch (type) {
+        case 0:  return 0;  // No turn / clear
+        case 1:  return 2;  // TurnLeft -> HUD 2
+        case 2:  return 3;  // TurnRight -> HUD 3
+        case 3:  return 1;  // StraightAhead -> HUD 1
+        case 4:             // UTurn
+        case 26: return 13; // UTurnLeft/WhenPossible -> HUD 13
+        case 5:  return 1;  // FollowRoad -> HUD 1
+        case 6:             // EnterRoundabout generic
+        case 7:  return 37; // ExitRoundabout generic -> HUD 37
+        case 8:  return 7;  // OffRamp (Right exit in RHT) -> HUD 7
+        case 9:  return 16; // OnRamp (Merge left in RHT) -> HUD 16
+        case 10:            // ArriveAtDestination
+        case 11:            // ArriveAtEndOfSearch
+        case 12:            // ArriveAtDestinationLeft
+        case 13:            // ArriveAtDestinationRight
+        case 24:            // ArriveAtDestinationLeft
+        case 25:            // ArriveAtDestinationRight
+        case 27: return 8;  // Arrive -> HUD 8
+        case 14: return 14; // KeepRight -> HUD 14
+        case 15: return 15; // KeepLeft -> HUD 15
+        case 20: return 31; // LeftTurnAtEnd (T-junction left) -> HUD 31
+        case 21: return 32; // RightTurnAtEnd (T-junction right) -> HUD 32
+        case 22: return 30; // HighwayOffRampLeft -> HUD 30
+        case 23: return 7;  // HighwayOffRampRight -> HUD 7
+        case 47: return 11; // SharpLeftTurn -> HUD 11
+        case 48: return 9;  // SharpRightTurn -> HUD 9
+        case 49: return 4;  // SlightLeftTurn -> HUD 4
+        case 50: return 5;  // SlightRightTurn -> HUD 5
+        case 51: return 1;  // ChangeHighway -> HUD 1
+        case 52: return 15; // ChangeHighwayLeft -> HUD 15
+        case 53: return 14; // ChangeHighwayRight -> HUD 14
+        default:
+            // Roundabout exits 1 through 19 (types 28..46 map to HUD 37..55)
+            if (type >= 28 && type <= 46) {
+                return (uint16_t)(37 + (type - 28));
+            }
+            return (type > 0) ? 1 : 0;
+    }
+}
+
+// ── Maneuver Extraction & UDP Relay Dispatcher ──────────────────────────────
+
+static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
+    if (!maneuver) {
+        GVMCMURelaySetNav(0, 0, @"");
+        return;
+    }
+
+    NSUInteger mType = 0;
+    if ([maneuver respondsToSelector:@selector(maneuverType)]) {
+        mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(maneuver, @selector(maneuverType));
+    }
+
+    double distMeters = 0.0;
+    if (estimates && [estimates respondsToSelector:@selector(distanceRemaining)]) {
+        id distObj = ((id (*)(id, SEL))objc_msgSend)(estimates, @selector(distanceRemaining));
+        if ([distObj isKindOfClass:[NSMeasurement class]]) {
+            NSMeasurement *meas = (NSMeasurement *)distObj;
+            if ([meas canBeConvertedToUnit:NSUnitLength.meters]) {
+                distMeters = [meas measurementByConvertingToUnit:NSUnitLength.meters].doubleValue;
+            } else {
+                distMeters = meas.doubleValue;
+            }
+        } else if ([distObj respondsToSelector:@selector(doubleValue)]) {
+            distMeters = [distObj doubleValue];
+        }
+    } else if ([maneuver respondsToSelector:@selector(initialTravelEstimates)]) {
+        id initEst = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(initialTravelEstimates));
+        if (initEst && [initEst respondsToSelector:@selector(distanceRemaining)]) {
+            id distObj = ((id (*)(id, SEL))objc_msgSend)(initEst, @selector(distanceRemaining));
+            if ([distObj isKindOfClass:[NSMeasurement class]]) {
+                NSMeasurement *meas = (NSMeasurement *)distObj;
+                if ([meas canBeConvertedToUnit:NSUnitLength.meters]) {
+                    distMeters = [meas measurementByConvertingToUnit:NSUnitLength.meters].doubleValue;
+                } else {
+                    distMeters = meas.doubleValue;
+                }
+            } else if ([distObj respondsToSelector:@selector(doubleValue)]) {
+                distMeters = [distObj doubleValue];
+            }
+        }
+    }
+
+    NSString *road = @"";
+    if ([maneuver respondsToSelector:@selector(instructionVariants)]) {
+        NSArray *variants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(instructionVariants));
+        if ([variants isKindOfClass:[NSArray class]] && variants.count > 0) {
+            road = variants.firstObject;
+        }
+    }
+
+    uint16_t hudIcon = GVMMapCarPlayManeuverToMazdaHUD(mType);
+    NSString *cleanRoad = GVMStripVietnameseDiacritics(road);
+    NSUInteger finalDist = (NSUInteger)fmax(0.0, round(distMeters));
+
+    GVMCMURelaySetNav(hudIcon, finalDist, cleanRoad);
+}
+
+// ── Hook Implementations for CPNavigationSession ────────────────────────────
+
+static void (*orig_updateTravelEstimates)(id self, SEL _cmd, id estimates, id maneuver) = NULL;
+static void hook_updateTravelEstimates(id self, SEL _cmd, id estimates, id maneuver) {
+    if (orig_updateTravelEstimates) {
+        orig_updateTravelEstimates(self, _cmd, estimates, maneuver);
+    }
+    @try {
+        ProcessManeuverAndEstimates(maneuver, estimates);
+    } @catch (__unused NSException *e) {
+        // Safe fail-safe: never disrupt CarPlay host application
+    }
+}
+
+static void (*orig_setManeuvers)(id self, SEL _cmd, id maneuvers) = NULL;
+static void hook_setManeuvers(id self, SEL _cmd, id maneuvers) {
+    if (orig_setManeuvers) {
+        orig_setManeuvers(self, _cmd, maneuvers);
+    }
+    @try {
+        if ([maneuvers isKindOfClass:[NSArray class]] && [maneuvers count] > 0) {
+            id targetManeuver = maneuvers.firstObject;
+            // If the first maneuver is start route (14), pick the immediate next action if available
+            NSUInteger mType = 0;
+            if ([targetManeuver respondsToSelector:@selector(maneuverType)]) {
+                mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(targetManeuver, @selector(maneuverType));
+            }
+            if (mType == 14 && [maneuvers count] > 1) {
+                targetManeuver = maneuvers[1];
+            }
+            ProcessManeuverAndEstimates(targetManeuver, nil);
+        }
+    } @catch (__unused NSException *e) {}
+}
+
+static void (*orig_pauseTrip)(id self, SEL _cmd, NSUInteger reason, id description) = NULL;
+static void hook_pauseTrip(id self, SEL _cmd, NSUInteger reason, id description) {
+    if (orig_pauseTrip) {
+        orig_pauseTrip(self, _cmd, reason, description);
+    }
+    GVMCMURelaySetNav(0, 0, @"");
+}
+
+static void (*orig_finishTrip)(id self, SEL _cmd) = NULL;
+static void hook_finishTrip(id self, SEL _cmd) {
+    if (orig_finishTrip) {
+        orig_finishTrip(self, _cmd);
+    }
+    GVMCMURelaySetNav(0, 0, @"");
+}
+
+static void (*orig_cancelTrip)(id self, SEL _cmd) = NULL;
+static void hook_cancelTrip(id self, SEL _cmd) {
+    if (orig_cancelTrip) {
+        orig_cancelTrip(self, _cmd);
+    }
+    GVMCMURelaySetNav(0, 0, @"");
+}
+
+// ── Public Installer ────────────────────────────────────────────────────────
+
+void GVMInstallCarPlayNavHook(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        // Ensure CarPlay framework is loaded into Google Maps process
+        dlopen("/System/Library/Frameworks/CarPlay.framework/CarPlay", RTLD_NOW);
+
+        Class navSession = NSClassFromString(@"CPNavigationSession");
+        if (!navSession) {
+            return;
+        }
+
+        // Hook maneuver & estimates update
+        SEL selUpdate = NSSelectorFromString(@"updateTravelEstimates:forManeuver:");
+        if ([navSession instancesRespondToSelector:selUpdate]) {
+            MSHookMessageEx(navSession, selUpdate, (IMP)hook_updateTravelEstimates, (IMP *)&orig_updateTravelEstimates);
+        }
+
+        // Hook upcoming maneuvers list
+        SEL selManeuvers = NSSelectorFromString(@"setManeuvers:");
+        if ([navSession instancesRespondToSelector:selManeuvers]) {
+            MSHookMessageEx(navSession, selManeuvers, (IMP)hook_setManeuvers, (IMP *)&orig_setManeuvers);
+        }
+
+        // Hook trip pause, finish, and cancel
+        SEL selPause = NSSelectorFromString(@"pauseTripForReason:description:");
+        if ([navSession instancesRespondToSelector:selPause]) {
+            MSHookMessageEx(navSession, selPause, (IMP)hook_pauseTrip, (IMP *)&orig_pauseTrip);
+        }
+
+        SEL selFinish = NSSelectorFromString(@"finishTrip");
+        if ([navSession instancesRespondToSelector:selFinish]) {
+            MSHookMessageEx(navSession, selFinish, (IMP)hook_finishTrip, (IMP *)&orig_finishTrip);
+        }
+
+        SEL selCancel = NSSelectorFromString(@"cancelTrip");
+        if ([navSession instancesRespondToSelector:selCancel]) {
+            MSHookMessageEx(navSession, selCancel, (IMP)hook_cancelTrip, (IMP *)&orig_cancelTrip);
+        }
+    });
+}

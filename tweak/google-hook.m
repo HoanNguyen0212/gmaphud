@@ -15,6 +15,7 @@
 #import "source-transport.h"
 #import "vietmap-output.h"
 #import "cmu-hud-relay.h"
+#import "carplay-nav-hook.h"
 #include <notify.h>
 
 static NSHashTable *views;
@@ -273,6 +274,7 @@ static void Install(void) {
     MSHookMessageEx(child, @selector(layoutSubviews), (IMP)LayoutChild, (IMP *)&originalChildLayout);
     installed = YES;
     GVMCMURelayStart();
+    GVMInstallCarPlayNavHook();
     GVMDiagnosticsRecord(GVMDiagnosticHook,1);
     Log(@"native CarPlay replacement loaded 0.1.8; awaiting fresh VietMap samples");
 }
