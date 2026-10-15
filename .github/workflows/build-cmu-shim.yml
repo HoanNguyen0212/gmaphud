@@ -1,0 +1,27 @@
+name: Build Mazda CMU Shim
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-cmu-shim.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build CMU Shim with m3-toolchain
+        run: |
+          git clone --depth 1 --recurse-submodules https://github.com/KidMixer/mazda-carplay-hud.git cphud
+          cd cphud/mazda
+          # Enable speed limits: remove -DCARPLAY_NO_SPLIM
+          sed -i 's/-DCARPLAY_NO_SPLIM//g' Makefile
+          make
+          ls -lh build/release/libpatch-blmjcicarplay.so
+          readelf -V build/release/libpatch-blmjcicarplay.so | grep -E "GLIBC"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libpatch-blmjcicarplay
+          path: cphud/mazda/build/release/libpatch-blmjcicarplay.so
