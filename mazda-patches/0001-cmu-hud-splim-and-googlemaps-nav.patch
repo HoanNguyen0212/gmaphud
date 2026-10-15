@@ -12,10 +12,40 @@ index d5bb60c..608a02d 100644
  # -D_GLIBCXX_USE_CXX11_ABI=0 selects the pre-C++11 (COW) std::string/std::list ABI:
  # the device ships libstdc++.so.6.0.14 (GCC 4.6 era) which only knows that ABI.
 diff --git a/mazda/patches/blmjcicarplay/hud/hud_send.cpp b/mazda/patches/blmjcicarplay/hud/hud_send.cpp
-index 87777f7..8c7e92e 100644
+index 87777f7..398f1a1 100644
 --- a/mazda/patches/blmjcicarplay/hud/hud_send.cpp
 +++ b/mazda/patches/blmjcicarplay/hud/hud_send.cpp
-@@ -431,6 +431,34 @@ static bool read_over()
+@@ -51,6 +51,7 @@
+ #include <cstdio>
+ #include <cstdlib>
+ #include <ctime>
++#include <sys/stat.h>
+ 
+ // [2026-06-13 #3] Defined in nav.cpp — flags the nav-side selection/emit state for reset on the
+ // next maneuver (msgrcv thread) so the HUD repaints when a route is re-started after a nav-off.
+@@ -404,10 +405,20 @@ static uint16_t read_splim()
+     if (!f) return 0;
+     int limit = 0; long ts = 0;
+     int n = std::fscanf(f, "%d %ld", &limit, &ts);
++    struct stat st;
++    bool has_stat = (fstat(fileno(f), &st) == 0);
+     std::fclose(f);
+     if (n < 2) return 0;
++    if (limit < 5 || limit > 200) return 0;   // stale or implausible
++
+     long now = static_cast<long>(std::time(nullptr));
+-    if (now - ts > 8 || limit < 5 || limit > 200) return 0;   // stale or implausible
++    long diff = (now >= ts) ? (now - ts) : (ts - now);
++    if (has_stat) {
++        long file_age = (now >= st.st_mtime) ? (now - st.st_mtime) : (st.st_mtime - now);
++        if (diff > 15 && file_age > 15 && diff < 86400) return 0;
++    } else {
++        if (diff > 15 && diff < 86400) return 0;
++    }
+     return static_cast<uint16_t>(limit);
+ #endif
+ }
+@@ -431,6 +442,43 @@ static bool read_over()
  #endif
  }
  
@@ -31,10 +61,19 @@ index 87777f7..8c7e92e 100644
 +    long ts = 0;
 +    char road[sizeof(outSnap.road_name)] = {0};
 +    int n = std::fscanf(f, "%u %u %ld %127[^\n]", &icon, &dist, &ts, road);
++    struct stat st;
++    bool has_stat = (fstat(fileno(f), &st) == 0);
 +    std::fclose(f);
-+    if (n < 3) return false;
++    if (n < 3 || icon == 0) return false;
++
 +    long now = static_cast<long>(std::time(nullptr));
-+    if (now - ts > 8 || icon == 0) return false;  // Stale (>8s) or navigation ended
++    long diff = (now >= ts) ? (now - ts) : (ts - now);
++    if (has_stat) {
++        long file_age = (now >= st.st_mtime) ? (now - st.st_mtime) : (st.st_mtime - now);
++        if (diff > 15 && file_age > 15 && diff < 86400) return false;
++    } else {
++        if (diff > 15 && diff < 86400) return false;
++    }
 +
 +    std::memset(&outSnap, 0, sizeof(outSnap));
 +    outSnap.turn_number  = icon;                  // Carries direct Mazda HUD icon ID (1..60)
@@ -50,7 +89,7 @@ index 87777f7..8c7e92e 100644
  // Helper: snap vs prev → which OEM HUD calls to make. sender_main owns the
  // prev/sync_bit state and threads them through. Returns false on a send
  // error so the caller can log; the periodic re-assert retries next tick.
-@@ -516,7 +544,9 @@ bool send_one(const NaviSnapshot &cur,
+@@ -516,7 +564,9 @@ bool send_one(const NaviSnapshot &cur,
  
      if (distance_changed || splim_changed || force) {
          uint32_t icon = 0;
@@ -61,20 +100,17 @@ index 87777f7..8c7e92e 100644
              int32_t side_lr = (cur.turn_side == 1) ? 0 : 1;
              icon = roundabout_icon(cur.turn_angle, side_lr);
          } else if (cur.turn_event < 20) {
-@@ -770,18 +800,31 @@ void *sender_main(void *)
+@@ -770,18 +820,28 @@ void *sender_main(void *)
          // GATED OUT of no_splim (read_splim()==0 -> splim_changed never re-fires here, so it was
          // already correct) -> that build path is unchanged.
  #ifndef CARPLAY_NO_SPLIM
 +        NaviSnapshot extSnap = {};
-+        bool have_ext_nav = false;
-+        if (!g_have_guidance.load(std::memory_order_relaxed)) {
-+            have_ext_nav = read_external_nav(extSnap);
-+        }
++        bool have_ext_nav = read_external_nav(extSnap);
          const NaviSnapshot blankSnap = {};
          const NaviSnapshot &curSnap =
 -            g_have_guidance.load(std::memory_order_relaxed) ? snap : blankSnap;
-+            g_have_guidance.load(std::memory_order_relaxed) ? snap :
-+            (have_ext_nav ? extSnap : blankSnap);
++            have_ext_nav ? extSnap :
++            (g_have_guidance.load(std::memory_order_relaxed) ? snap : blankSnap);
 +        bool ext_nav_changed = have_ext_nav ? (
 +            extSnap.turn_number != prev.turn_number ||
 +            extSnap.distance_dec != prev.distance_dec ||
