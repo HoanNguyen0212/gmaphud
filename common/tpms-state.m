@@ -7,8 +7,8 @@ static uint32_t EncodeTire(const GVMTPMSTire *tire) {
     if (!tire || !tire->active) return 0;
     // Pressure 0.0 - 5.0 bar -> 0 to 250 (8 bits)
     float p = tire->pressure;
-    if (p < 0.0f) p = 0.0f;
-    if (p > 5.0f) p = 5.0f;
+    if (!isfinite(p) || p < 0.0f) p = 0.0f;
+    else if (p > 5.0f) p = 5.0f;
     uint32_t pInt = (uint32_t)roundf(p * 50.0f) & 0xFF;
     uint32_t warn = tire->warning & 0x03;
     uint32_t active = 1;

@@ -10,6 +10,7 @@
 #import "source-output.h"
 #import "placement-state.h"
 #import "source-transport.h"
+#import "tpms-state.h"
 #import <objc/runtime.h>
 #include <notify.h>
 
@@ -142,6 +143,15 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     // Size belongs to the viewport and user preference, never to the chosen
     // corner or the space left by Google's navigation controls.
     if (phone) size=GVMScaleCardSize(size,SizePercent(surface),MAX(0,right-left),MAX(0,bottom-top));
+    if (card && card.tpms.hasData) {
+        if (compact) {
+            CGFloat baseH = card.alerts.count >= 2 ? 350.0 : card.alerts.count == 1 ? 260.0 : 160.0;
+            size.height = size.height * ((baseH + 65.0) / baseH);
+        } else {
+            CGFloat baseW = card.alerts.count >= 2 ? 296.0 : card.alerts.count == 1 ? 240.0 : 208.0;
+            size.width = size.width * ((baseW + 80.0) / baseW);
+        }
+    }
     CGFloat viewportLeft=left, viewportRight=right, viewportTop=top, viewportBottom=bottom;
     if (!phone) {
         top+=insets.top;
@@ -305,12 +315,34 @@ void GVMUpdateSpeedCard(UIView *map, NSDictionary *output, BOOL night) {
     NSArray *previousAlerts=objc_getAssociatedObject(map,alertsKey);
     BOOL alertsChanged=!((previousAlerts==alerts)||[previousAlerts isEqual:alerts]);
     objc_setAssociatedObject(map,alertsKey,alerts,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+    static int tpmsToken = -1;
+    if (tpmsToken < 0) notify_register_check(GVMTPMSStateName, &tpmsToken);
+    uint64_t tpmsState = 0;
+    if (tpmsToken >= 0) notify_get_state(tpmsToken, &tpmsState);
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    GVMTPMSData tpmsData = GVMDecodeTPMS(tpmsState, now);
+    BOOL tpmsChanged = (card.tpms.hasData != tpmsData.hasData) ||
+        fabsf(card.tpms.fl.pressure - tpmsData.fl.pressure) > 0.05f ||
+        fabsf(card.tpms.fr.pressure - tpmsData.fr.pressure) > 0.05f ||
+        fabsf(card.tpms.rl.pressure - tpmsData.rl.pressure) > 0.05f ||
+        fabsf(card.tpms.rr.pressure - tpmsData.rr.pressure) > 0.05f ||
+        card.tpms.fl.warning != tpmsData.fl.warning ||
+        card.tpms.fr.warning != tpmsData.fr.warning ||
+        card.tpms.rl.warning != tpmsData.rl.warning ||
+        card.tpms.rr.warning != tpmsData.rr.warning;
+    card.tpms = tpmsData;
+
     CGRect frame = GVMLayoutSpeedCard(map);
-    BOOL changed = card.sourceID!=sourceID || alertsChanged || !CGRectEqualToRect(card.frame,frame) || card.night!=night ||
+    BOOL changed = card.sourceID!=sourceID || alertsChanged || tpmsChanged || !CGRectEqualToRect(card.frame,frame) || card.night!=night ||
         !((card.speed==speed)||[card.speed isEqual:speed]) || !((card.limit==limit)||[card.limit isEqual:limit]);
     card.sourceID=sourceID; card.frame=frame; card.speed=speed; card.limit=limit; card.night=night;
     if (changed) [card setNeedsDisplay];
     card.accessibilityLabel=[NSString stringWithFormat:@"Speed %@ km/h, limit %@ km/h", speed ?: @"unavailable",limit ?: @"unavailable"];
+    if (card.tpms.hasData) {
+        card.accessibilityLabel = [card.accessibilityLabel stringByAppendingFormat:@", TPMS FL:%.1f FR:%.1f RL:%.1f RR:%.1f",
+            card.tpms.fl.pressure, card.tpms.fr.pressure, card.tpms.rl.pressure, card.tpms.rr.pressure];
+    }
     for (NSDictionary *alert in alerts) {
         NSString *name=GVMRoadAlertName([alert[@"type"] unsignedIntegerValue]) ?: @"road warning";
         id meters=alert[@"distance"];

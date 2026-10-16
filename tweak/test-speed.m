@@ -2,6 +2,7 @@
 #import "test-state.h"
 #import "placement-state.h"
 #import "alert-state.h"
+#import "tpms-state.h"
 #import "vietmap-alert-assets.h"
 #include <notify.h>
 #include <errno.h>
@@ -52,6 +53,34 @@ int main(int argc, char **argv) {
             notify_cancel(token);
             return result==NOTIFY_STATUS_OK ? 0 : 3;
         }
+        if (argc >= 6 && strcmp(argv[1], "tpms") == 0) {
+            float fl = (float)atof(argv[2]);
+            float fr = (float)atof(argv[3]);
+            float rl = (float)atof(argv[4]);
+            float rr = (float)atof(argv[5]);
+            GVMTPMSData tpmsData = {0};
+            tpmsData.fl.pressure = fl; tpmsData.fl.active = fl > 0;
+            tpmsData.fr.pressure = fr; tpmsData.fr.active = fr > 0;
+            tpmsData.rl.pressure = rl; tpmsData.rl.active = rl > 0;
+            tpmsData.rr.pressure = rr; tpmsData.rr.active = rr > 0;
+            if (fl < 1.8f && fl > 0.1f) tpmsData.fl.warning = 1; else if (fl > 2.8f) tpmsData.fl.warning = 2;
+            if (fr < 1.8f && fr > 0.1f) tpmsData.fr.warning = 1; else if (fr > 2.8f) tpmsData.fr.warning = 2;
+            if (rl < 1.8f && rl > 0.1f) tpmsData.rl.warning = 1; else if (rl > 2.8f) tpmsData.rl.warning = 2;
+            if (rr < 1.8f && rr > 0.1f) tpmsData.rr.warning = 1; else if (rr > 2.8f) tpmsData.rr.warning = 2;
+            tpmsData.hasData = (tpmsData.fl.active || tpmsData.fr.active || tpmsData.rl.active || tpmsData.rr.active);
+
+            NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+            uint64_t encoded = GVMEncodeTPMS(&tpmsData, now);
+            int tpmsTok = -1;
+            if (notify_register_check(GVMTPMSStateName, &tpmsTok) == NOTIFY_STATUS_OK) {
+                notify_set_state(tpmsTok, encoded);
+                notify_post(GVMTPMSStateName);
+                notify_cancel(tpmsTok);
+                printf("TPMS test published: FL=%.1f FR=%.1f RL=%.1f RR=%.1f\n", fl, fr, rl, rr);
+                return 0;
+            }
+            return 3;
+        }
         // Optional test lanes, anywhere after the values: lanes=1,1,1,5,4@127.
         uint64_t laneState=0;
         for (int i=1;i<argc;i++) {
@@ -88,7 +117,15 @@ int main(int argc, char **argv) {
         uint32_t photoResult=notify_set_state(photoToken,photo ? state : 0);
         notify_cancel(photoToken);
         if (photoResult!=NOTIFY_STATUS_OK) return 3;
-        if (!state) laneState=0;
+        if (!state) {
+            laneState=0;
+            int tpmsTok = -1;
+            if (notify_register_check(GVMTPMSStateName, &tpmsTok) == NOTIFY_STATUS_OK) {
+                notify_set_state(tpmsTok, 0);
+                notify_post(GVMTPMSStateName);
+                notify_cancel(tpmsTok);
+            }
+        }
         int laneToken=-1;
         if (notify_register_check(GVMTestLaneStateName,&laneToken)!=NOTIFY_STATUS_OK) return 3;
         uint32_t laneResult=notify_set_state(laneToken,laneState);

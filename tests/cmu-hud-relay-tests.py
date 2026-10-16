@@ -163,5 +163,48 @@ class GoogleHookIntegrationTests(unittest.TestCase):
         self.assertIn("limit ? limit.unsignedIntegerValue : 0", self.source)
 
 
+class TPMSIntegrationFullTests(unittest.TestCase):
+    """Verify TPMS end-to-end integration across provider, card rendering, and CLI test tool."""
+
+    def test_provider_hooks_tpms(self):
+        source = (root / "provider/vietmap-source.x").read_text()
+        self.assertIn("GVMProcessTirePayload", source)
+        self.assertIn("GVMTPMSStateName", source)
+        self.assertIn("SetEventStreamHandler", source)
+        self.assertIn("FlutterEventChannel", source)
+        self.assertIn("notify_register_check(GVMTPMSStateName, &tpmsToken)", source)
+
+    def test_speed_card_view_protocol_has_tpms(self):
+        header = (root / "tweak/speed-card.h").read_text()
+        self.assertIn("GVMTPMSData tpms;", header)
+
+    def test_classic_card_renders_tpms(self):
+        classic = (root / "tweak/classic-card.m").read_text()
+        self.assertIn("@synthesize speed=_speed, limit=_limit, alerts=_alerts, night=_night, compact=_compact, sourceID=_sourceID, moduleOrder=_moduleOrder, tpms=_tpms;", classic)
+        self.assertIn("DrawTire", classic)
+        self.assertIn("self.tpms.hasData", classic)
+        self.assertIn('DrawTire(@"FL"', classic)
+
+    def test_halo_card_renders_tpms(self):
+        halo = (root / "tweak/halo-card.m").read_text()
+        self.assertIn("tpms=_tpms", halo)
+        self.assertIn("DrawTire", halo)
+        self.assertIn("self.tpms.hasData", halo)
+        self.assertIn('DrawTire(@"FL"', halo)
+
+    def test_carplay_style_reads_tpms_state(self):
+        style = (root / "tweak/carplay-style.m").read_text()
+        self.assertIn("GVMTPMSStateName", style)
+        self.assertIn("GVMDecodeTPMS", style)
+        self.assertIn("card.tpms = tpmsData;", style)
+        self.assertIn("card.tpms.hasData", style)
+
+    def test_cli_test_speed_supports_tpms(self):
+        cli = (root / "tweak/test-speed.m").read_text()
+        self.assertIn('strcmp(argv[1], "tpms") == 0', cli)
+        self.assertIn("GVMEncodeTPMS", cli)
+        self.assertIn("GVMTPMSStateName", cli)
+
+
 if __name__ == "__main__":
     unittest.main()
