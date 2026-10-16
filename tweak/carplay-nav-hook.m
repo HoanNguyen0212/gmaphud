@@ -21,57 +21,57 @@ NSString *GVMStripVietnameseDiacritics(NSString *str) {
 
 // ── Apple CarPlay CPManeuverType to Mazda CMU HUD Icon Mapping ───────────────
 
-uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger type, NSString *instruction) {
-    // 1. Text-based semantic parsing (Highest accuracy for Google Maps in Vietnam)
-    if (instruction && instruction.length > 0) {
-        NSString *clean = GVMStripVietnameseDiacritics(instruction).lowercaseString;
-        if ([clean containsString:@"quay dau"] || [clean containsString:@"u-turn"]) {
-            return 13; // HUD_U_TURN_LEFT
-        }
-        if ([clean containsString:@"re trai"] || [clean containsString:@"queo trai"] ||
-            [clean containsString:@"ngoat trai"] || [clean containsString:@"turn left"]) {
-            if ([clean containsString:@"chech"] || [clean containsString:@"slight"]) {
-                return 4; // HUD_SLIGHT_LEFT
-            }
-            if ([clean containsString:@"gat"] || [clean containsString:@"sharp"]) {
-                return 11; // HUD_SHARP_LEFT
-            }
-            return 2; // HUD_LEFT
-        }
-        if ([clean containsString:@"re phai"] || [clean containsString:@"queo phai"] ||
-            [clean containsString:@"ngoat phai"] || [clean containsString:@"turn right"]) {
-            if ([clean containsString:@"chech"] || [clean containsString:@"slight"]) {
-                return 5; // HUD_SLIGHT_RIGHT
-            }
-            if ([clean containsString:@"gat"] || [clean containsString:@"sharp"]) {
-                return 9; // HUD_SHARP_RIGHT
-            }
-            return 3; // HUD_RIGHT
-        }
-        if ([clean containsString:@"chech sang trai"] || [clean containsString:@"slight left"]) {
+uint16_t GVMMapInstructionTextToMazdaHUD(NSString *instruction) {
+    if (!instruction || instruction.length == 0) return 0;
+    NSString *clean = GVMStripVietnameseDiacritics(instruction).lowercaseString;
+    if ([clean containsString:@"quay dau"] || [clean containsString:@"u-turn"]) {
+        return 13; // HUD_U_TURN_LEFT
+    }
+    if ([clean containsString:@"re trai"] || [clean containsString:@"queo trai"] ||
+        [clean containsString:@"ngoat trai"] || [clean containsString:@"turn left"]) {
+        if ([clean containsString:@"chech"] || [clean containsString:@"slight"]) {
             return 4; // HUD_SLIGHT_LEFT
         }
-        if ([clean containsString:@"chech sang phai"] || [clean containsString:@"slight right"]) {
+        if ([clean containsString:@"gat"] || [clean containsString:@"sharp"]) {
+            return 11; // HUD_SHARP_LEFT
+        }
+        return 2; // HUD_LEFT
+    }
+    if ([clean containsString:@"re phai"] || [clean containsString:@"queo phai"] ||
+        [clean containsString:@"ngoat phai"] || [clean containsString:@"turn right"]) {
+        if ([clean containsString:@"chech"] || [clean containsString:@"slight"]) {
             return 5; // HUD_SLIGHT_RIGHT
         }
-        if ([clean containsString:@"loi ra"] || [clean containsString:@"exit"] || [clean containsString:@"off-ramp"]) {
-            return 7; // HUD_OFF_RAMP_RIGHT
+        if ([clean containsString:@"gat"] || [clean containsString:@"sharp"]) {
+            return 9; // HUD_SHARP_RIGHT
         }
-        if ([clean containsString:@"nhap lan"] || [clean containsString:@"merge"]) {
-            return 16; // HUD_MERGE_LEFT
-        }
-        if ([clean containsString:@"vong xuyen"] || [clean containsString:@"bung binh"] || [clean containsString:@"roundabout"]) {
-            return 37; // HUD_ROUNDABOUT
-        }
-        if ([clean containsString:@"den noi"] || [clean containsString:@"diem den"] || [clean containsString:@"arrive"]) {
-            return 8; // HUD_DESTINATION
-        }
-        if ([clean containsString:@"di thang"] || [clean containsString:@"tiep tuc"] || [clean containsString:@"straight"]) {
-            return 1; // HUD_STRAIGHT
-        }
+        return 3; // HUD_RIGHT
     }
+    if ([clean containsString:@"chech sang trai"] || [clean containsString:@"slight left"]) {
+        return 4; // HUD_SLIGHT_LEFT
+    }
+    if ([clean containsString:@"chech sang phai"] || [clean containsString:@"slight right"]) {
+        return 5; // HUD_SLIGHT_RIGHT
+    }
+    if ([clean containsString:@"loi ra"] || [clean containsString:@"exit"] || [clean containsString:@"off-ramp"]) {
+        return 7; // HUD_OFF_RAMP_RIGHT
+    }
+    if ([clean containsString:@"nhap lan"] || [clean containsString:@"merge"]) {
+        return 16; // HUD_MERGE_LEFT
+    }
+    if ([clean containsString:@"vong xuyen"] || [clean containsString:@"bung binh"] || [clean containsString:@"roundabout"]) {
+        return 37; // HUD_ROUNDABOUT
+    }
+    if ([clean containsString:@"den noi"] || [clean containsString:@"diem den"] || [clean containsString:@"arrive"]) {
+        return 8; // HUD_DESTINATION
+    }
+    if ([clean containsString:@"di thang"] || [clean containsString:@"tiep tuc"] || [clean containsString:@"straight"]) {
+        return 1; // HUD_STRAIGHT
+    }
+    return 0;
+}
 
-    // 2. Apple CarPlay CPManeuverType enum mapping
+uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger type) {
     switch (type) {
         case 0:  return 0;  // No turn / clear
         case 1:  return 2;  // LeftTurn -> HUD 2
@@ -180,7 +180,10 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
         }
     }
 
-    uint16_t hudIcon = GVMMapCarPlayManeuverToMazdaHUD(mType, road);
+    uint16_t hudIcon = GVMMapInstructionTextToMazdaHUD(road);
+    if (hudIcon == 0) {
+        hudIcon = GVMMapCarPlayManeuverToMazdaHUD(mType);
+    }
     NSString *cleanRoad = GVMStripVietnameseDiacritics(road);
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(distMeters));
 
