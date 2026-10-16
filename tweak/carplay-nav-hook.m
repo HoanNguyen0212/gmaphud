@@ -90,10 +90,10 @@ uint16_t GVMMapInstructionTextToMazdaHUD(NSString *instruction) {
     if ([clean containsString:@"vong xuyen"] || [clean containsString:@"bung binh"] || [clean containsString:@"roundabout"]) {
         return 37; // HUD_ROUNDABOUT
     }
-    if ([clean containsString:@"gat trai"] || [clean containsString:@"sharp left"]) {
+    if ([clean containsString:@"gat sang trai"] || [clean containsString:@"gat trai"] || [clean containsString:@"sharp left"]) {
         return 11; // HUD_SHARP_LEFT
     }
-    if ([clean containsString:@"gat phai"] || [clean containsString:@"sharp right"]) {
+    if ([clean containsString:@"gat sang phai"] || [clean containsString:@"gat phai"] || [clean containsString:@"sharp right"]) {
         return 9; // HUD_SHARP_RIGHT
     }
     if ([clean containsString:@"chech sang trai"] || [clean containsString:@"chech trai"] || [clean containsString:@"slight left"]) {
@@ -102,12 +102,20 @@ uint16_t GVMMapInstructionTextToMazdaHUD(NSString *instruction) {
     if ([clean containsString:@"chech sang phai"] || [clean containsString:@"chech phai"] || [clean containsString:@"slight right"]) {
         return 5; // HUD_SLIGHT_RIGHT
     }
-    if ([clean containsString:@"re trai"] || [clean containsString:@"queo trai"] ||
-        [clean containsString:@"ngoat trai"] || [clean containsString:@"turn left"]) {
+    if ([clean containsString:@"re sang trai"] || [clean containsString:@"re trai"] ||
+        [clean containsString:@"queo sang trai"] || [clean containsString:@"queo trai"] ||
+        [clean containsString:@"ngoat sang trai"] || [clean containsString:@"ngoat trai"] ||
+        [clean containsString:@"sang trai"] || [clean containsString:@"qua trai"] ||
+        [clean containsString:@"giu ben trai"] || [clean containsString:@"turn left"] ||
+        [clean containsString:@"keep left"]) {
         return 2; // HUD_LEFT
     }
-    if ([clean containsString:@"re phai"] || [clean containsString:@"queo phai"] ||
-        [clean containsString:@"ngoat phai"] || [clean containsString:@"turn right"]) {
+    if ([clean containsString:@"re sang phai"] || [clean containsString:@"re phai"] ||
+        [clean containsString:@"queo sang phai"] || [clean containsString:@"queo phai"] ||
+        [clean containsString:@"ngoat sang phai"] || [clean containsString:@"ngoat phai"] ||
+        [clean containsString:@"sang phai"] || [clean containsString:@"qua phai"] ||
+        [clean containsString:@"giu ben phai"] || [clean containsString:@"turn right"] ||
+        [clean containsString:@"keep right"]) {
         return 3; // HUD_RIGHT
     }
     if ([clean containsString:@"loi ra"] || [clean containsString:@"exit"] || [clean containsString:@"off-ramp"]) {
@@ -166,27 +174,6 @@ uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger type) {
                 return (uint16_t)(37 + (type - 28));
             }
             return (type > 0) ? 1 : 0;
-    }
-}
-
-static uint16_t GVMMapGMSManeuverToMazdaHUD(NSUInteger gms) {
-    switch (gms) {
-        case 5: return 1;  // Straight -> HUD 1
-        case 6: return 2;  // TurnLeft -> HUD 2
-        case 7: return 3;  // TurnRight -> HUD 3
-        case 8: return 15; // TurnKeepLeft -> HUD 15
-        case 9: return 14; // TurnKeepRight -> HUD 14
-        case 10: return 4; // TurnSlightLeft -> HUD 4
-        case 11: return 5; // TurnSlightRight -> HUD 5
-        case 12: return 11; // TurnSharpLeft -> HUD 11
-        case 13: return 9;  // TurnSharpRight -> HUD 9
-        case 14: case 15: return 13; // TurnUTurn -> HUD 13
-        case 17: return 16; // MergeLeft -> HUD 16
-        case 18: return 17; // MergeRight -> HUD 17
-        case 19: return 15; // ForkLeft -> HUD 15
-        case 20: return 14; // ForkRight -> HUD 14
-        case 2: case 3: case 4: return 8; // Destination -> HUD 8
-        default: return 0;
     }
 }
 
@@ -268,33 +255,17 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
         }
     }
 
-    // 3. Direct Google Maps GMSNavigationManeuver enum extraction via userInfo.stepInfo
-    NSUInteger gmsManeuver = 0;
-    if ([maneuver respondsToSelector:@selector(userInfo)]) {
-        id uInfo = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(userInfo));
-        if (uInfo && [uInfo respondsToSelector:@selector(stepInfo)]) {
-            id sInfo = ((id (*)(id, SEL))objc_msgSend)(uInfo, @selector(stepInfo));
-            if (sInfo && [sInfo respondsToSelector:@selector(maneuver)]) {
-                gmsManeuver = ((NSUInteger (*)(id, SEL))objc_msgSend)(sInfo, @selector(maneuver));
-            }
-        }
-    }
-
     // Multi-tier icon resolution:
-    // Tier 1: Semantic text analysis from instruction ("Rẽ trái", "Quẹo phải"...)
+    // Tier 1: Semantic text analysis from instruction ("Rẽ trái", "Quẹo phải"...) - Most reliable
     uint16_t hudIcon = GVMMapInstructionTextToMazdaHUD(road);
-    // Tier 2: Internal Google Maps maneuver enum (GMSNavigationManeuver: 6=Left, 7=Right...)
-    if (hudIcon == 0 && gmsManeuver > 0) {
-        hudIcon = GVMMapGMSManeuverToMazdaHUD(gmsManeuver);
-    }
-    // Tier 3: Apple CarPlay CPManeuverType enum
+    // Tier 2: Apple CarPlay CPManeuverType enum
     if (hudIcon == 0) {
         hudIcon = GVMMapCarPlayManeuverToMazdaHUD(mType);
     }
     
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(distMeters));
     
-    // Tier 4: Fallback to Straight (1) when navigating with valid distance so HUD is never blank
+    // Tier 3: Fallback to Straight (1) when navigating with valid distance so HUD is never blank
     if (hudIcon == 0 && finalDist > 0) {
         hudIcon = 1; // HUD_STRAIGHT
     }
@@ -309,8 +280,8 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     struct tm *tm_info = localtime(&now);
     char timeStr[32];
     strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
-    snprintf(navLog, sizeof(navLog), "[%s] [NAV_INTERCEPT] mType=%lu gms=%lu hudIcon=%u dist=%lu road=\"%s\"\n",
-             timeStr, (unsigned long)mType, (unsigned long)gmsManeuver, (unsigned int)hudIcon, (unsigned long)finalDist, cleanRoad.UTF8String ?: "");
+    snprintf(navLog, sizeof(navLog), "[%s] [NAV_INTERCEPT] mType=%lu hudIcon=%u dist=%lu road=\"%s\"\n",
+             timeStr, (unsigned long)mType, (unsigned int)hudIcon, (unsigned long)finalDist, cleanRoad.UTF8String ?: "");
     NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-relay.log"];
     FILE *f = fopen(path.UTF8String, "a");
     if (f) {
@@ -329,22 +300,8 @@ static void hook_updateTravelEstimates(id self, SEL _cmd, id estimates, id maneu
         orig_updateTravelEstimates(self, _cmd, estimates, maneuver);
     }
     @try {
-        id target = maneuver;
-        NSUInteger mType = 0;
-        if ([target respondsToSelector:@selector(maneuverType)]) {
-            mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(target, @selector(maneuverType));
-        }
-        // If current maneuver is heading/context (StartRoute=11, FollowRoad=5, NoTurn=0),
-        // look ahead into upcomingManeuvers to see the actionable turn
-        if (mType == 11 || mType == 5 || mType == 0) {
-            if ([self respondsToSelector:@selector(upcomingManeuvers)]) {
-                NSArray *upcoming = ((id (*)(id, SEL))objc_msgSend)(self, @selector(upcomingManeuvers));
-                if ([upcoming isKindOfClass:[NSArray class]] && [upcoming count] > 1) {
-                    target = [upcoming objectAtIndex:1];
-                }
-            }
-        }
-        ProcessManeuverAndEstimates(target, estimates);
+        // Direct processing of active maneuver - NO buggy lookahead skipping to upcoming[1]
+        ProcessManeuverAndEstimates(maneuver, estimates);
     } @catch (__unused NSException *e) {
         // Safe fail-safe: never disrupt CarPlay host application
     }
@@ -358,14 +315,8 @@ static void hook_setManeuvers(id self, SEL _cmd, id maneuvers) {
     @try {
         if ([maneuvers isKindOfClass:[NSArray class]] && [(NSArray *)maneuvers count] > 0) {
             NSArray *arr = (NSArray *)maneuvers;
+            // Immediate active maneuver is ALWAYS the first object in the array
             id targetManeuver = [arr firstObject];
-            NSUInteger mType = 0;
-            if ([targetManeuver respondsToSelector:@selector(maneuverType)]) {
-                mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(targetManeuver, @selector(maneuverType));
-            }
-            if ((mType == 11 || mType == 5 || mType == 0) && [arr count] > 1) {
-                targetManeuver = [arr objectAtIndex:1];
-            }
             ProcessManeuverAndEstimates(targetManeuver, nil);
         }
     } @catch (__unused NSException *e) {}
