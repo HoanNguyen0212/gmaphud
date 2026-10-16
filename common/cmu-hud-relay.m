@@ -73,13 +73,31 @@ static void LogRelay(const char *buf, size_t len, ssize_t sent, int err) {
     }
 }
 
+static void EnsureSocketOpen(void) {
+    if (sSock >= 0) return;
+    sSock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sSock < 0) return;
+    int flags = fcntl(sSock, F_GETFL, 0);
+    if (flags >= 0) fcntl(sSock, F_SETFL, flags | O_NONBLOCK);
+    int opt = 1;
+    setsockopt(sSock, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
+    memset(&sTarget, 0, sizeof(sTarget));
+    sTarget.sin_family = AF_INET;
+    sTarget.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
+    inet_pton(AF_INET, GVM_CMU_HUD_TARGET_IP, &sTarget.sin_addr);
+}
+
 static BOOL SendDatagram(const char *buf, size_t len) {
+    EnsureSocketOpen();
     if (sSock < 0 || len == 0) return NO;
     ssize_t sent = sendto(sSock, buf, len, 0,
                           (struct sockaddr *)&sTarget, sizeof(sTarget));
     int err = (sent < 0) ? errno : 0;
     LogRelay(buf, len, sent, err);
-    if (sent >= 0) {
+    if (sent < 0 && (err == EHOSTUNREACH || err == ENETUNREACH || err == EPIPE || err == EADDRNOTAVAIL)) {
+        close(sSock);
+        sSock = -1;
+    } else if (sent >= 0) {
         @synchronized(sLock) {
             sLastDatagram = [[NSString alloc] initWithBytes:buf length:len
                                                   encoding:NSUTF8StringEncoding];
@@ -179,7 +197,7 @@ void GVMCMURelayStart(void) {
 
 void GVMCMURelaySetLimit(NSUInteger limitKmh) {
     @synchronized(sLock) {
-        if (sSock < 0) return;
+        EnsureSocketOpen();
 
         BOOL changed = (sCurrentLimit != limitKmh);
         sCurrentLimit = limitKmh;
@@ -193,7 +211,7 @@ void GVMCMURelaySetLimit(NSUInteger limitKmh) {
 
 void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *roadName) {
     @synchronized(sLock) {
-        if (sSock < 0) return;
+        EnsureSocketOpen();
 
         BOOL changed = (sNavIcon != iconID) || (sNavDist != distanceMeters) ||
                         ![sNavRoad isEqualToString:roadName ?: @""];
