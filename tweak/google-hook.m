@@ -19,7 +19,7 @@
 static NSHashTable *views;
 static NSMapTable *models, *statuses, *nativeInputs, *nativeChildren;
 static id applyingNativeModel;
-static int testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1;
+static int testToken = -1, testFirstAlertToken = -1, testSecondAlertToken = -1, testLaneToken = -1;
 static int placementToken = -1;
 static BOOL installed;
 static int backgroundToken=-1;
@@ -89,6 +89,14 @@ static NSArray<NSDictionary *> *TestAlerts(NSTimeInterval now) {
     }
     return alerts;
 }
+static NSDictionary *TestSamples(NSDictionary *test, NSTimeInterval now) {
+    NSMutableDictionary *samples=[@{@"speed":@{@"value":test[@"speed"],@"receivedAt":@(now)},
+        @"speedLimit":@{@"value":test[@"limit"],@"receivedAt":@(now)}} mutableCopy];
+    uint64_t state=0;
+    NSDictionary *lanes=testLaneToken>=0 && notify_get_state(testLaneToken,&state)==NOTIFY_STATUS_OK ? GVMDecodeTestLanes(state) : nil;
+    if (lanes) samples[@"lanes"]=@{@"distance":lanes[@"distance"],@"items":lanes[@"items"],@"receivedAt":@(now)};
+    return samples;
+}
 static id ModelFor(NSNumber *speed, NSNumber *limit, NSUInteger style, NSInteger unit) {
     // Preserve Google's m/s model units for the VietMap display-value feed.
     double speedMS = speed ? speed.doubleValue / 3.6 : -1;
@@ -105,9 +113,7 @@ static void Apply(UIView *view, BOOL forceNative) {
     // Decode each field once so all consumers see the same update.
     NSDictionary *test = TestSample();
     NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
-    NSDictionary *output=test ? GVMSourceOutput(GVMSourceVietMap,
-        @{@"speed":@{@"value":test[@"speed"],@"receivedAt":@(now)},
-          @"speedLimit":@{@"value":test[@"limit"],@"receivedAt":@(now)}},TestAlerts(now),now) : GVMReadSourceOutput(now);
+    NSDictionary *output=test ? GVMSourceOutput(GVMSourceVietMap,TestSamples(test,now),TestAlerts(now),now) : GVMReadSourceOutput(now);
     NSNumber *speed=output[@"speed"][@"value"], *limit=output[@"speedLimit"][@"value"];
     id googleModel=[models objectForKey:view];
     NSUInteger style=googleModel ? ((NSUInteger (*)(id,SEL))objc_msgSend)(googleModel,NSSelectorFromString(@"style")) : 1;
@@ -156,20 +162,7 @@ static void Apply(UIView *view, BOOL forceNative) {
             Log(status); [statuses setObject:status forKey:view];
         }
     } @finally { applyingCarPlay = prior; applyingNativeModel=priorModel; }
-    static const void *testLabelKey = &testLabelKey;
-    UILabel *label = objc_getAssociatedObject(view, testLabelKey);
-    if (test && !label) {
-        label = [[UILabel alloc] initWithFrame:CGRectZero];
-        label.text = @"TEST"; label.font = [UIFont boldSystemFontOfSize:9];
-        label.textColor = UIColor.blackColor; label.backgroundColor = UIColor.systemYellowColor;
-        label.textAlignment = NSTextAlignmentCenter; label.layer.cornerRadius = 4; label.clipsToBounds = YES;
-        label.userInteractionEnabled = NO;
-        [view addSubview:label]; objc_setAssociatedObject(view, testLabelKey, label, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    label.hidden = !test || PhotoSample() || !GVMBubbleEnabledForHost(view);
-    CGRect cardFrame = GVMLayoutSpeedCard(view);
-    label.frame = CGRectMake(CGRectGetMaxX(cardFrame)-36, CGRectGetMaxY(cardFrame)+3, 36, 13);
-    if (!label.hidden) [view bringSubviewToFront:label];
+    GVMSetSpeedCardTest(view, test && !PhotoSample());
     if (nativeChanged) [view setNeedsLayout];
 }
 static void SetModel(id self, SEL selector, id info) {
@@ -246,6 +239,7 @@ static void Install(void) {
     notify_register_check("com.chou.googlemaps.vietmap.test.photo", &photoToken);
     notify_register_check(GVMTestFirstAlertStateName, &testFirstAlertToken);
     notify_register_check(GVMTestSecondAlertStateName, &testSecondAlertToken);
+    notify_register_check(GVMTestLaneStateName, &testLaneToken);
     views = [NSHashTable weakObjectsHashTable]; models = [NSMapTable weakToStrongObjectsMapTable];
     statuses = [NSMapTable weakToStrongObjectsMapTable];
     nativeInputs=[NSMapTable weakToStrongObjectsMapTable];

@@ -43,6 +43,10 @@ int main(int argc,char **argv) { @autoreleasepool {
     Require(!GVMReadSourceOutput(now+5)[@"speed"],@"expiry checked by reader without publisher");
     Require(GVMPublishSourceOutput(Output(1,now),now+5,YES) && !GVMReadSourceOutput(now+5)[@"speedLimit"],@"forced reply cannot revive expired values");
     Require(GVMPublishSourceOutput(GVMSourceOutput(1,nil,@[],now),now,YES) && !GVMReadSourceOutput(now)[@"speed"],@"explicit empty output clears");
+    NSDictionary *lanes=@{@"distance":@84,@"items":@[@{@"code":@1,@"enabled":@YES},@{@"code":@5,@"enabled":@NO}],@"receivedAt":@(now)};
+    Require(GVMPublishSourceOutput(GVMSourceOutput(1,@{@"lanes":lanes},@[],now),now,YES) &&
+        [GVMReadSourceOutput(now)[@"lanes"][@"items"] isEqual:lanes[@"items"]] && [GVMReadSourceOutput(now)[@"lanes"][@"distance"] isEqual:@84],@"lanes travel in the committed frame");
+    Require(GVMPublishSourceOutput(GVMSourceOutput(1,nil,@[],now),now,YES) && !GVMReadSourceOutput(now)[@"lanes"],@"a frame without lanes clears them");
 
     NSString *commit=[@GVM_OUTPUT_NAMESPACE stringByAppendingString:@".output.v1.1.commit"];
     int token=-1; uint64_t header=0;

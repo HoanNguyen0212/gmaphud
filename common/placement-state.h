@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "speed-presentation.h"
 
 extern const char *GVMPlacementStateName;
 uint64_t GVMEncodePlacement(NSString *full, NSString *dashboard);
@@ -10,6 +11,8 @@ extern const char *GVMBubbleVisibilityStateName;
 uint64_t GVMEncodeBubbleVisibility(id enabled,id full,id dashboard,id phone);
 BOOL GVMDecodeBubbleVisibility(uint64_t state,NSUInteger surface);
 BOOL GVMBubbleEnabled(NSUInteger surface);
+// Bubble size per screen, in percent of its default size.
+static const NSUInteger GVMSizePercentMin=50, GVMSizePercentMax=250;
 NSUInteger GVMSizePercent(id value);
 uint64_t GVMEncodeSizes(id full, id dashboard, id phone);
 NSUInteger GVMDecodeSize(uint64_t state, NSUInteger surface);
@@ -28,6 +31,12 @@ NSArray<NSString *> *GVMNormalizeModuleOrder(id value,BOOL vertical);
 uint64_t GVMEncodeBubbleConfiguration(NSArray *layouts,NSArray *orders);
 NSUInteger GVMDecodeBubbleLayout(uint64_t state,NSUInteger surface);
 NSArray<NSString *> *GVMDecodeModuleOrder(uint64_t state,NSUInteger surface,BOOL vertical);
+
+// Preference interfaceStyle: "halo" selects New UI (beta); anything else, or no value, is Classic.
+extern const char *GVMInterfaceStyleName;
+uint64_t GVMEncodeInterfaceStyle(id value);
+GVMInterfaceStyle GVMDecodeInterfaceStyle(uint64_t state);
+GVMInterfaceStyle GVMCurrentInterfaceStyle(void);
 
 extern const char *GVMOverspeedModeName, *GVMOverspeedLeaseName;
 NSUInteger GVMOverspeedMode(void);

@@ -11,6 +11,9 @@ static BOOL Integer(id value, double minimum, double maximum) {
     double number=[value doubleValue];
     return isfinite(number) && number>=minimum && number<=maximum && floor(number)==number;
 }
+static BOOL BooleanValue(id value) {
+    return [value isKindOfClass:NSNumber.class] && CFGetTypeID((__bridge CFTypeRef)value)==CFBooleanGetTypeID();
+}
 static BOOL Fresh(id received, double now) {
     if (![received isKindOfClass:NSNumber.class] ||
         CFGetTypeID((__bridge CFTypeRef)received)==CFBooleanGetTypeID()) return NO;
@@ -56,6 +59,30 @@ static NSDictionary *Sample(id sample, BOOL allowZero, double now) {
         !Integer(sample[@"value"],allowZero ? 0 : 1,400) ||
         !GVMEncodeSample(sample[@"value"],[sample[@"receivedAt"] doubleValue])) return nil;
     return @{@"value":sample[@"value"],@"receivedAt":sample[@"receivedAt"]};
+}
+// One lane set for the next junction. All lanes or none: a malformed lane rejects the set.
+static NSDictionary *Lanes(id lanes, double now) {
+    if (![lanes isKindOfClass:NSDictionary.class] || !Fresh(lanes[@"receivedAt"],now) ||
+        [lanes[@"receivedAt"] doubleValue]>=(double)(UINT64_MAX>>24)/1000) return nil;
+    id items=lanes[@"items"], distance=lanes[@"distance"] ?: NSNull.null;
+    if (![items isKindOfClass:NSArray.class] || ![items count] || [items count]>GVMMaximumLanes ||
+        (distance!=NSNull.null && !Integer(distance,0,10000))) return nil;
+    NSMutableArray *normalized=[NSMutableArray new];
+    for (id item in items) {
+        if (![item isKindOfClass:NSDictionary.class] || !Integer(item[@"code"],0,511)) return nil;
+        id enabled=item[@"enabled"] ?: @YES;
+        if (!BooleanValue(enabled)) return nil;
+        [normalized addObject:@{@"code":@([item[@"code"] unsignedIntegerValue]&GVMLaneKnownDirections),
+            @"enabled":@([enabled boolValue])}];
+    }
+    return @{@"distance":distance,@"items":[normalized copy],@"receivedAt":lanes[@"receivedAt"]};
+}
+// Five direction bits per lane on the wire, in bitmask order.
+static uint64_t LaneBits(NSUInteger code) {
+    return (code&1) | ((code>>1)&2) | ((code>>2)&4) | ((code>>3)&8) | ((code>>4)&16);
+}
+static NSUInteger LaneCode(uint64_t bits) {
+    return (NSUInteger)((bits&1) | ((bits&2)<<1) | ((bits&4)<<2) | ((bits&8)<<3) | ((bits&16)<<4));
 }
 static NSDictionary *Alert(id alert, NSUInteger sourceID, double now) {
     if (![alert isKindOfClass:NSDictionary.class] ||
@@ -104,12 +131,14 @@ NSDictionary *GVMNormalizeSourceOutput(id output, NSTimeInterval now) {
         if (selected.count==2) break;
     }
     normalized[@"alerts"]=[selected copy];
+    NSDictionary *lanes=Lanes(output[@"lanes"],now);
+    if (lanes) normalized[@"lanes"]=lanes;
     return [normalized copy];
 }
 NSDictionary *GVMSourceOutput(NSUInteger sourceID, NSDictionary *samples, NSArray *alerts, NSTimeInterval now) {
     if (samples && ![samples isKindOfClass:NSDictionary.class]) return nil;
     NSMutableDictionary *output=[@{@"schemaVersion":@1,@"sourceID":@(sourceID),@"alerts":alerts ?: @[]} mutableCopy];
-    for (NSString *key in @[@"speed",@"speedLimit"]) if (samples[key]) output[key]=samples[key];
+    for (NSString *key in @[@"speed",@"speedLimit",@"lanes"]) if (samples[key]) output[key]=samples[key];
     return GVMNormalizeSourceOutput(output,now);
 }
 BOOL GVMEncodeSourceOutput(NSDictionary *output, NSTimeInterval now, GVMOutputWords *words) {
@@ -130,6 +159,18 @@ BOOL GVMEncodeSourceOutput(NSDictionary *output, NSTimeInterval now, GVMOutputWo
         words->words[3+2*i]=([alert[@"artworkID"] unsignedLongLongValue]<<10) |
             (value==NSNull.null ? 0 : 512 | [value unsignedLongLongValue]);
     }
+    // Lanes: receive time, count and distance (16383 when unknown), then one byte per lane:
+    // five direction bits and the enabled bit, eight lanes to a word.
+    NSDictionary *lanes=normalized[@"lanes"];
+    if (lanes) {
+        NSArray *items=lanes[@"items"];
+        id meters=lanes[@"distance"];
+        words->words[6]=((uint64_t)floor([lanes[@"receivedAt"] doubleValue]*1000)<<24) |
+            ((uint64_t)items.count<<14) | (meters==NSNull.null ? 16383 : [meters unsignedLongLongValue]);
+        for (NSUInteger i=0;i<items.count;i++)
+            words->words[7+i/8]|=(LaneBits([items[i][@"code"] unsignedIntegerValue]) |
+                ([items[i][@"enabled"] boolValue] ? 32 : 0))<<(8*(i%8));
+    }
     return YES;
 }
 NSDictionary *GVMDecodeSourceOutput(NSUInteger sourceID, GVMOutputWords words, NSTimeInterval now) {
@@ -149,6 +190,18 @@ NSDictionary *GVMDecodeSourceOutput(NSUInteger sourceID, GVMOutputWords words, N
             @"value":parameter&512 ? @(parameter&511) : NSNull.null,
             @"artworkID":@(parameter>>10),@"receivedAt":@((double)(state>>24)/1000)}];
     }
+    uint64_t header=words.words[6];
+    NSUInteger count=(header>>14)&1023, meters=header&16383;
+    BOOL lanesValid=header && count>=1 && count<=GVMMaximumLanes && (meters<=10000 || meters==16383);
+    NSMutableArray *items=[NSMutableArray new];
+    for (NSUInteger i=0;lanesValid && i<16;i++) {
+        uint64_t lane=(words.words[7+i/8]>>(8*(i%8)))&255;
+        if (i>=count) { if (lane) lanesValid=NO; continue; }
+        if (lane&192) { lanesValid=NO; continue; }
+        [items addObject:@{@"code":@(LaneCode(lane&31)),@"enabled":@((BOOL)((lane&32)!=0))}];
+    }
+    if (lanesValid) samples[@"lanes"]=@{@"distance":meters==16383 ? NSNull.null : @(meters),@"items":items,
+        @"receivedAt":@((double)(header>>24)/1000)};
     return GVMSourceOutput(sourceID,samples,alerts,now);
 }
 NSUInteger GVMSourceIDForSelection(uint64_t selection) { return selection ? selection&7 : GVMSourceVietMap; }

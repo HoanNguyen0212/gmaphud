@@ -85,7 +85,7 @@ static BOOL GVMStorePlacement(NSString *key,id value) {
     NSArray *values=[self.settingSpecifier propertyForKey:@"values"];
     if (picker.selectedSegmentIndex<0 || (NSUInteger)picker.selectedSegmentIndex>=values.count) return;
     NSString *key=[self.settingSpecifier propertyForKey:@"key"];
-    if (![@[@"overspeedScope",@"fullLayout",@"dashboardLayout",@"phoneLayout"] containsObject:key]) return;
+    if (![@[@"interfaceStyle",@"overspeedScope",@"fullLayout",@"dashboardLayout",@"phoneLayout"] containsObject:key]) return;
     CFPreferencesSetAppValue((__bridge CFStringRef)key,(__bridge CFPropertyListRef)values[picker.selectedSegmentIndex],CFSTR("com.chou.gmaphud"));
     if (CFPreferencesAppSynchronize(CFSTR("com.chou.gmaphud"))) { GVMPublishSavedSizes(); notify_post(GVMSizeChangedName); [NSNotificationCenter.defaultCenter postNotificationName:GVMPreferencesValueChanged object:key]; }
 }
@@ -120,7 +120,7 @@ static BOOL GVMStorePlacement(NSString *key,id value) {
     [reset.heightAnchor constraintEqualToConstant:44].active=YES;
     UIStackView *header=[[UIStackView alloc] initWithArrangedSubviews:@[label,self.valueLabel]];
     header.axis=UILayoutConstraintAxisHorizontal; header.alignment=UIStackViewAlignmentCenter; header.spacing=8;
-    self.sizeSlider=[UISlider new]; self.sizeSlider.minimumValue=self.offset ? -100 : 50; self.sizeSlider.maximumValue=self.offset ? 100 : 150;
+    self.sizeSlider=[UISlider new]; self.sizeSlider.minimumValue=self.offset ? -100 : GVMSizePercentMin; self.sizeSlider.maximumValue=self.offset ? 100 : GVMSizePercentMax;
     self.sizeSlider.accessibilityLabel=specifier.name;
     self.sizeSlider.accessibilityHint=self.offset ? @"0 phần trăm giữ nguyên góc đã chọn" : @"100 phần trăm là kích cỡ mặc định";
     CFPreferencesAppSynchronize(CFSTR("com.chou.gmaphud"));
@@ -201,6 +201,9 @@ static BOOL GVMStorePlacement(NSString *key,id value) {
     PSSpecifier *master=[PSSpecifier preferenceSpecifierNamed:@"Hiển thị bong bóng" target:self
         set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:Nil cell:PSSwitchCell edit:Nil];
     [master setProperty:@"bubbleEnabled" forKey:@"key"]; [master setProperty:@YES forKey:@"default"]; [items addObject:master];
+    [items addObject:GVMGroup(@"Giao diện",@"Classic là bong bóng quen thuộc. New UI (beta) là bong bóng mới đang thử nghiệm. Cả hai dùng chung bộ biển báo, kích thước và vị trí.")];
+    PSSpecifier *style=GVMMenu(@"Kiểu bong bóng",self,@"interfaceStyle",@[@"classic",@"halo"],@[@"Classic",@"New UI (beta)"],@"classic");
+    [style setProperty:GVMSegmentedCell.class forKey:@"cellClass"]; [style setProperty:@(GVMChoiceHeight()) forKey:@"height"]; [items addObject:style];
     [items addObject:GVMGroup(@"Nguồn cảnh báo",@"Chỉ nhận dữ liệu từ một nguồn.")];
     self.sourceSpecifier=GVMMenu(@"Nguồn",self,@"sourceID",@[@1,@3,@2],@[@"VietMap Live",@"GOFA",@"Waze"],@1);
     [items addObject:self.sourceSpecifier];

@@ -3,6 +3,11 @@
 
 // IDs and enum values are wire contracts; append new values rather than reorder.
 enum { GVMOutputSchemaVersion=1, GVMSourceVietMap=1, GVMSourceWaze=2, GVMSourceGofa=3, GVMMaximumSourceID=7 };
+// Lane directions use VietMap's bitmask; only these five bits are known (odd bits never seen).
+typedef NS_OPTIONS(NSUInteger, GVMLaneDirection) {
+    GVMLaneStraight=1, GVMLaneRight=4, GVMLaneUTurnLeft=16, GVMLaneLeft=64, GVMLaneUTurnRight=256
+};
+enum { GVMLaneKnownDirections=0x155, GVMMaximumLanes=12 };
 typedef NS_ENUM(NSUInteger, GVMRoadAlertType) {
     GVMRoadAlertCameraAI=1, GVMRoadAlertRestArea=2,
     GVMRoadAlertResidentialStart=3, GVMRoadAlertSpeedLimit=4,
@@ -81,6 +86,9 @@ typedef NS_ENUM(NSUInteger, GVMRoadAlertType) {
 // speed/speedLimit: {value: integer km/h, receivedAt: monotonic seconds}.
 // alerts: {type, value: limit or null, distance: metres or null,
 //          artworkID: legacy optional decoration (renderers use type/value), receivedAt}.
+// lanes (optional): {distance: metres to the junction or null,
+//          items: 1-12 lanes left to right, each {code: GVMLaneDirection bits, enabled: BOOL},
+//          receivedAt}. Unknown direction bits are dropped; a lane may keep no known direction.
 NSDictionary *GVMNormalizeSourceOutput(id output, NSTimeInterval now);
 NSDictionary *GVMSourceOutput(NSUInteger sourceID, NSDictionary *samples,
     NSArray<NSDictionary *> *alerts, NSTimeInterval now);
@@ -89,7 +97,8 @@ NSString *GVMSourceDisplayName(NSUInteger sourceID);
 NSString *GVMRoadAlertName(NSUInteger type);
 NSString *GVMRoadAlertIconName(NSUInteger type, NSNumber *value);
 
-enum { GVMOutputWordCount=6 };
+// Speed, limit, two alerts with their values, then the lane header and two words of lanes.
+enum { GVMOutputWordCount=9 };
 typedef struct { uint64_t words[GVMOutputWordCount]; } GVMOutputWords;
 BOOL GVMEncodeSourceOutput(NSDictionary *output, NSTimeInterval now, GVMOutputWords *words);
 NSDictionary *GVMDecodeSourceOutput(NSUInteger sourceID, GVMOutputWords words, NSTimeInterval now);

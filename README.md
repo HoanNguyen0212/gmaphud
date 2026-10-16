@@ -30,7 +30,7 @@ These are the same CarPlay preview images shown in Settings. They illustrate all
 
 ## Features
 
-The bubble uses shared road-sign artwork, supports horizontal/vertical layouts and lets you reorder modules. Adjust size and placement separately for Full Map, Dashboard and iPhone. Recognized source alerts include distance and use up to two warning modules. Optional overspeed warnings illuminate the map or entire CarPlay screen.
+Choose the bubble style in Settings → GMapHUD → Giao diện. **Classic** (default) keeps the familiar bubble. **New UI (beta)** combines speed and the limit badge in one dial whose ring fills toward the limit and turns amber near it and red above it, with a source tag under the dial and large alert signs whose distance tag fills as you approach. Both styles share the road-sign artwork: QCVN 41:2024 shapes and colours in a flat cartoon style; camera and traffic-police alerts use a white sign with the red ring of the speed limit and a corner badge for the camera type; other app-only reports use round tokens. The bubble supports horizontal/vertical layouts and lets you reorder modules. Sizes run from 50% to 250%; on New UI (beta), when the chosen layout has no room for the alerts at a large size, they move into a row under the dial so the dial keeps its size and place. New UI (beta) also shows the lane sign VietMap Live shows, for as long as it shows it: one arrow per lane, left to right, under or over the bubble in a horizontal layout and beside the dial in a vertical one. Like a sign in effect, it has no distance. While Google Maps navigates on the CarPlay full map, signs in effect and the lanes move under CarPlay's maneuver card, between it and the arrival times, and the bubble keeps the dial and the signs ahead; whatever does not fit there stays in the bubble. GMapHUDGuidanceRelay, loaded into CarPlayTemplateUIHost, only reads where CarPlay draws that column. Reopen VietMap Live after installing an update so its lanes reach Google Maps. Adjust size and placement separately for Full Map, Dashboard and iPhone. Recognized source alerts include distance and use up to two warning modules. Optional overspeed warnings illuminate the map or entire CarPlay screen.
 
 
 - Full-map speed pill and compact vertical Dashboard card; light/dark map colors.
@@ -107,10 +107,11 @@ Run on the phone in a shell with access to the installed tool while Google Maps 
 /var/jb/usr/bin/gvm-test-speed 48 50 60
 /var/jb/usr/bin/gvm-test-speed 62 50 60
 /var/jb/usr/bin/gvm-test-speed 42 60 60 speed_limit_80:200 no_passing_in:400
+/var/jb/usr/bin/gvm-test-speed 42 60 60 lanes=1,1,1,5,4@127
 /var/jb/usr/bin/gvm-test-speed off
 ```
 
-Arguments: current speed (0–400 km/h), limit (1–400 km/h), duration (1–300 seconds), and optionally two VietMap asset names with distances (0–10000 m each), as `SIGN:METERS`, for trial 0.1.14. Bare distance numbers remain accepted as camera signs. Only the Google CarPlay display model changes; GPS, navigation and real VietMap data remain unchanged. By default, TEST remains visible until `off` or expiry. Missing live values remain missing after testing.
+Arguments: current speed (0–400 km/h), limit (1–400 km/h), duration (1–300 seconds), and optionally two VietMap asset names with distances (0–10000 m each), as `SIGN:METERS`, for trial 0.1.14. Bare distance numbers remain accepted as camera signs; `SIGN:-` shows a sign in effect, without a distance. `lanes=CODES@METERS` adds up to seven test lanes in VietMap's lane codes (1 straight, 4 right, 5 straight or right, 16 U-turn, 64 left, and their sums), left to right; prefix a code with `x` for a lane not to use, and leave out `@METERS` for no distance. Lanes show on New UI (beta). Only the Google CarPlay display model changes; GPS, navigation and real VietMap data remain unchanged. By default, TEST remains visible until `off` or expiry. Missing live values remain missing after testing.
 
 ## Diagnostics
 
@@ -152,6 +153,6 @@ Glow intensity is scoped separately: map warning is stronger, whole-screen warni
 
 ## Bubble settings
 
-In Settings → GMapHUD, choose Full Map, Dashboard or iPhone. Each page includes its own switch, position, Auto/Horizontal/Vertical layout, size and drag-to-reorder controls. Both previews update with the order. iPhone also has X/Y positioning. Reset restores only its associated setting.
+In Settings → GMapHUD, pick Classic or New UI (beta) under Giao diện; the change applies to every screen without reopening Google Maps. Then choose Full Map, Dashboard or iPhone. Each page includes its own switch, position, Auto/Horizontal/Vertical layout, size and drag-to-reorder controls. Both previews update with the order. iPhone also has X/Y positioning. Reset restores only its associated setting.
 
 In **Background**, enable automatic VietMap wake or optional source exit 20 seconds after CarPlay disconnect. Existing location permissions are preserved.

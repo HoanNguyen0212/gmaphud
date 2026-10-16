@@ -17,6 +17,10 @@ static NSTimeInterval lastRequestHandled=-1;
 static BOOL forceOutput;
 static NSArray<NSDictionary *> *upcomingAlerts, *stickyAlerts;
 static NSTimeInterval upcomingReceived, stickyReceived;
+// The lanes VietMap Live shows (its overlay's laneInfo): in effect on the stretch being driven, kept
+// until VietMap changes or clears them. updateLaneInfo, its advance countdown, is only observed.
+static NSArray<NSNumber *> *laneCodes;
+static NSTimeInterval laneCodesReceived=-1;
 #endif
 
 @protocol VMFlutterMethodCall
@@ -55,14 +59,16 @@ static void Publish(void) {
 #ifdef VM_GOOGLE_MAPS_RELAY
     GVMRefreshLocationSession();
     NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
-    NSDictionary *samples=[source freshSamplesAtUptime:now];
+    NSMutableDictionary *samples=[[source freshSamplesAtUptime:now] mutableCopy] ?: [NSMutableDictionary new];
     GVMDiagnosticsRecord(GVMDiagnosticSamples,(samples[@"speed"] ? 1 : 0) | (samples[@"speedLimit"] ? 2 : 0) | (UIApplication.sharedApplication.applicationState==UIApplicationStateActive ? 4 : 0));
     if (GVMSelectedSourceID()!=GVMSourceVietMap) return;
+    NSDictionary *lanes=GVMVietMapLaneSample(laneCodes,now);
+    if (lanes) samples[@"lanes"]=lanes;
     NSMutableArray *entries=[NSMutableArray new];
     for (NSDictionary *alert in upcomingAlerts)
         [entries addObject:@{@"sample":alert,@"receivedAt":@(upcomingReceived)}];
     for (NSDictionary *alert in stickyAlerts)
-        [entries addObject:@{@"sample":alert,@"receivedAt":@(stickyReceived)}];
+        [entries addObject:@{@"sample":alert,@"receivedAt":@(stickyReceived),@"active":@YES}];
     NSDictionary *output=GVMVietMapOutput(samples,entries,now);
     if (GVMPublishSourceOutput(output,now,forceOutput)) forceOutput=NO;
     else { BridgeLog(@"common source output publication refused"); GVMDiagnosticsRecord(GVMDiagnosticError,1); }
@@ -77,6 +83,26 @@ static void Publish(void) {
 }
 
 #ifdef VM_GOOGLE_MAPS_RELAY
+// While observing, keep a copy of each image VietMap registers for its CarPlay views (its own
+// lane and maneuver icons), named by key, so the keys used in laneInfo can be matched to icons.
+static NSUInteger SaveNavigationImages(id payload,NSString *path,NSUInteger saved) {
+    if (saved>=32) return saved;
+    NSData *data=GVMVietMapDataValue(payload);
+    if (data) {
+        if (data.length>131072) return saved;
+        NSCharacterSet *unsafe=[[NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"] invertedSet];
+        NSString *name=[[path componentsSeparatedByCharactersInSet:unsafe] componentsJoinedByString:@"_"];
+        name=[name substringToIndex:MIN(name.length,48)];
+        [data writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"gmaphud-navimage-%@.png",name.length ? name : @"value"]] atomically:YES];
+        return saved+1;
+    }
+    if ([payload isKindOfClass:NSDictionary.class])
+        for (id key in [[(NSDictionary *)payload allKeys] sortedArrayUsingSelector:@selector(compare:)])
+            if ([key isKindOfClass:NSString.class]) saved=SaveNavigationImages(payload[key],[path stringByAppendingFormat:@"%@%@",path.length ? @"." : @"",key],saved);
+    if ([payload isKindOfClass:NSArray.class])
+        for (NSUInteger i=0;i<MIN([payload count],32);i++) saved=SaveNavigationImages(payload[i],[path stringByAppendingFormat:@"%@%lu",path.length ? @"." : @"",(unsigned long)i],saved);
+    return saved;
+}
 static void ObserveAlerts(NSString *method,id payload,NSUInteger accepted,NSTimeInterval received) {
     NSString *gate=[NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-alert-observation.enable"];
     NSDate *modified=[[NSFileManager.defaultManager attributesOfItemAtPath:gate error:nil] fileModificationDate];
@@ -85,7 +111,10 @@ static void ObserveAlerts(NSString *method,id payload,NSUInteger accepted,NSTime
     static NSMutableDictionary *last;
     @synchronized(source) {
         if (!last) last=[NSMutableDictionary new];
-        if (last[method] && received-[last[method] doubleValue]<2) return;
+        // Image registrations come in bursts and each one matters; repeated status updates are sampled.
+        BOOL burst=[method isEqualToString:@"setNavigationImage"] || [method isEqualToString:@"cacheImage"] ||
+            ([method isEqualToString:@"updateMapOverlayData"] && GVMVietMapOverlayCarriesImages(payload));
+        if (!burst && last[method] && received-[last[method] doubleValue]<2) return;
         last[method]=@(received);
     }
     // Capture one explicitly selected warning image locally, never its payload or coordinates.
@@ -110,8 +139,15 @@ static void ObserveAlerts(NSString *method,id payload,NSUInteger accepted,NSTime
             }
         }
     }
-    NSDictionary *summary=[method isEqualToString:@"updateMapOverlayData"] ?
-        GVMVietMapOverlayObservation(payload) : GVMVietMapAlertObservation(payload,accepted);
+    BOOL value=[@[@"updateLaneInfo",@"setNavigationImage",@"cacheImage"] containsObject:method];
+    NSDictionary *summary=[method isEqualToString:@"updateMapOverlayData"] ? GVMVietMapOverlayObservation(payload) :
+        value ? GVMVietMapValueObservation(payload) : GVMVietMapAlertObservation(payload,accepted);
+    if ([method isEqualToString:@"setNavigationImage"]) SaveNavigationImages(payload,@"",0);
+    if ([method isEqualToString:@"updateMapOverlayData"] && GVMVietMapOverlayCarriesImages(payload)) {
+        NSUInteger saved=0;
+        NSDictionary *patch=GVMVietMapOverlayPatch(payload);
+        for (NSString *key in patch) if (GVMVietMapDataValue(patch[key])) saved=SaveNavigationImages(patch[key],key,saved);
+    }
     NSData *data=[NSJSONSerialization dataWithJSONObject:summary options:0 error:nil];
     NSString *json=data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
     if (json) dispatch_async(dispatch_get_main_queue(), ^{
@@ -131,11 +167,17 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
         NSArray *update = nil;
 #ifdef VM_GOOGLE_MAPS_RELAY
         NSArray *overlaySticky=nil;
+        NSArray<NSNumber *> *overlayLanes=nil;
 #endif
         id mainLimit=nil; BOOL hasMainLimit=NO;
         NSTimeInterval received = NSProcessInfo.processInfo.systemUptime;
         @try {
     #ifdef VM_GOOGLE_MAPS_RELAY
+            if ([name isEqualToString:@"vml_main_channel"] && ([[call method] isEqualToString:@"updateLaneInfo"] ||
+                [[call method] isEqualToString:@"cacheImage"]))
+                ObserveAlerts([call method],[call arguments],0,received);
+            if ([name isEqualToString:@"vietmap_car_method_channel"] && [[call method] isEqualToString:@"setNavigationImage"])
+                ObserveAlerts(@"setNavigationImage",[call arguments],0,received);
             if ([name isEqualToString:@"vml_main_channel"] &&
                 ([[call method] isEqualToString:@"updateUpcommingAlerts"] ||
                  [[call method] isEqualToString:@"updateStickyAlerts"])) {
@@ -193,6 +235,7 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
             {
                 #ifdef VM_GOOGLE_MAPS_RELAY
                 overlaySticky=GVMVietMapOverlayStickyAlerts([call arguments]);
+                overlayLanes=GVMVietMapOverlayLaneCodes([call arguments]);
                 ObserveAlerts(@"updateMapOverlayData",[call arguments],overlaySticky.count,received);
 #endif
                 update = VMNavCopyOverlayArguments([call arguments]);
@@ -219,6 +262,7 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
             if (overlaySticky && received>=stickyReceived) {
                 stickyAlerts=overlaySticky; stickyReceived=received;
             }
+            if (overlayLanes && received>=laneCodesReceived) { laneCodes=overlayLanes; laneCodesReceived=received; }
 #endif
             [source applyArguments:update receivedAt:received];
             static NSTimeInterval lastLog;
@@ -299,7 +343,7 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
             [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationWillTerminateNotification
                 object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
 #ifdef VM_GOOGLE_MAPS_RELAY
-                    upcomingAlerts=@[]; stickyAlerts=@[]; forceOutput=YES;
+                    upcomingAlerts=@[]; stickyAlerts=@[]; laneCodes=nil; forceOutput=YES;
 #endif
                     source = [VMNavSource new]; Publish();
                 }];
