@@ -20,6 +20,8 @@ void GVMPublishSavedSizes(void);
 
 extern const char *GVMPhonePlacementStateName;
 NSInteger GVMOffsetPercent(id value);
+// The value a settings slider shows for a saved offset (signed) or size, as a float-safe double.
+double GVMSliderPercent(id value,BOOL offset);
 uint64_t GVMEncodePhonePlacement(NSString *corner,id x,id y,NSString *layout);
 void GVMDecodePhonePlacement(uint64_t state,NSUInteger *corner,NSInteger *x,NSInteger *y,NSUInteger *layout);
 

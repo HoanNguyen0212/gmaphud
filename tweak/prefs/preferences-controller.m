@@ -126,7 +126,7 @@ static BOOL GVMStorePlacement(NSString *key,id value) {
     self.sizeSlider.accessibilityHint=self.offset ? @"0 phần trăm giữ nguyên góc đã chọn" : @"100 phần trăm là kích cỡ mặc định";
     CFPreferencesAppSynchronize(CFSTR("com.chou.gmaphud"));
     id saved=CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)self.sizeKey,CFSTR("com.chou.gmaphud")));
-    self.sizeSlider.value=self.offset ? GVMOffsetPercent(saved) : GVMSizePercent(saved);
+    self.sizeSlider.value=GVMSliderPercent(saved,self.offset);
     [self.sizeSlider addTarget:self action:@selector(sizeChanged:) forControlEvents:UIControlEventValueChanged];
     [self.sizeSlider.heightAnchor constraintEqualToConstant:44].active=YES;
     UIView *separator=[UIView new]; separator.backgroundColor=UIColor.separatorColor;

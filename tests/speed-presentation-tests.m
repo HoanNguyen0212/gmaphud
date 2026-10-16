@@ -455,6 +455,7 @@ int main(void) {
     assert(GVMOffsetPercentFromPoints(@(-200),800)==-25);
     assert(GVMOffsetPercentFromPoints(@100,0)==0);
     assert(GVMOffsetPercent(@YES)==0);
+    assert(GVMSliderPercent(@(-18),YES)==-18 && GVMSliderPercent(@(-27),YES)==-27 && GVMSliderPercent(@140,NO)==140);
     for (NSUInteger mode=0;mode<3;mode++) {
         NSUInteger decoded=99;
         GVMDecodePhonePlacement(GVMEncodePhonePlacement(@"bottom-right",@100,@(-100),@[@"auto",@"horizontal",@"vertical"][mode]),NULL,&fallbackX,&fallbackY,&decoded);

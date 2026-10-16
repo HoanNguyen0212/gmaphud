@@ -124,6 +124,9 @@ NSInteger GVMOffsetPercent(id value) {
     double number=[value doubleValue];
     return isfinite(number) ? (NSInteger)lround(MAX(-100,MIN(100,number))) : 0;
 }
+// Each branch converts on its own: a shared ternary of NSInteger and NSUInteger is unsigned, so
+// a negative offset would turn huge and the slider would pin at its maximum.
+double GVMSliderPercent(id value,BOOL offset) { return offset ? (double)GVMOffsetPercent(value) : (double)GVMSizePercent(value); }
 uint64_t GVMEncodePhonePlacement(NSString *corner,id x,id y,NSString *layout) {
     if (![corner isKindOfClass:NSString.class]) corner=nil;
     NSUInteger mode=[layout isKindOfClass:NSString.class] ? ([layout isEqual:@"horizontal"] ? 1 : [layout isEqual:@"vertical"] ? 2 : 0) : 0;
