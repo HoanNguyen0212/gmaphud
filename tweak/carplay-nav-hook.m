@@ -115,6 +115,27 @@ uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger type) {
     }
 }
 
+static uint16_t GVMMapGMSManeuverToMazdaHUD(NSUInteger gms) {
+    switch (gms) {
+        case 5: return 1;  // Straight -> HUD 1
+        case 6: return 2;  // TurnLeft -> HUD 2
+        case 7: return 3;  // TurnRight -> HUD 3
+        case 8: return 15; // TurnKeepLeft -> HUD 15
+        case 9: return 14; // TurnKeepRight -> HUD 14
+        case 10: return 4; // TurnSlightLeft -> HUD 4
+        case 11: return 5; // TurnSlightRight -> HUD 5
+        case 12: return 11; // TurnSharpLeft -> HUD 11
+        case 13: return 9;  // TurnSharpRight -> HUD 9
+        case 14: case 15: return 13; // TurnUTurn -> HUD 13
+        case 17: return 16; // MergeLeft -> HUD 16
+        case 18: return 17; // MergeRight -> HUD 17
+        case 19: return 15; // ForkLeft -> HUD 15
+        case 20: return 14; // ForkRight -> HUD 14
+        case 2: case 3: case 4: return 8; // Destination -> HUD 8
+        default: return 0;
+    }
+}
+
 // ── Maneuver Extraction & UDP Relay Dispatcher ──────────────────────────────
 
 static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
@@ -173,14 +194,46 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     }
 
     NSString *road = @"";
-    if ([maneuver respondsToSelector:@selector(instructionVariants)]) {
+    // 1. Try attributedInstructionVariants first (where Google Maps puts the turn text)
+    if ([maneuver respondsToSelector:@selector(attributedInstructionVariants)]) {
+        NSArray *attrVariants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(attributedInstructionVariants));
+        if ([attrVariants isKindOfClass:[NSArray class]] && [attrVariants count] > 0) {
+            id firstAttr = [attrVariants firstObject];
+            if ([firstAttr respondsToSelector:@selector(string)]) {
+                road = [firstAttr string];
+            } else if ([firstAttr isKindOfClass:[NSString class]]) {
+                road = (NSString *)firstAttr;
+            }
+        }
+    }
+    // 2. Fallback to standard instructionVariants
+    if ((!road || road.length == 0) && [maneuver respondsToSelector:@selector(instructionVariants)]) {
         NSArray *variants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(instructionVariants));
         if ([variants isKindOfClass:[NSArray class]] && [variants count] > 0) {
             road = [variants firstObject];
         }
     }
 
+    // 3. Direct Google Maps GMSNavigationManeuver enum extraction via userInfo.stepInfo
+    NSUInteger gmsManeuver = 0;
+    if ([maneuver respondsToSelector:@selector(userInfo)]) {
+        id uInfo = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(userInfo));
+        if (uInfo && [uInfo respondsToSelector:@selector(stepInfo)]) {
+            id sInfo = ((id (*)(id, SEL))objc_msgSend)(uInfo, @selector(stepInfo));
+            if (sInfo && [sInfo respondsToSelector:@selector(maneuver)]) {
+                gmsManeuver = ((NSUInteger (*)(id, SEL))objc_msgSend)(sInfo, @selector(maneuver));
+            }
+        }
+    }
+
+    // Multi-tier icon resolution:
+    // Tier 1: Semantic text analysis from instruction ("Rẽ trái", "Quẹo phải"...)
     uint16_t hudIcon = GVMMapInstructionTextToMazdaHUD(road);
+    // Tier 2: Internal Google Maps maneuver enum (GMSNavigationManeuver: 6=Left, 7=Right...)
+    if (hudIcon == 0 && gmsManeuver > 0) {
+        hudIcon = GVMMapGMSManeuverToMazdaHUD(gmsManeuver);
+    }
+    // Tier 3: Apple CarPlay CPManeuverType enum
     if (hudIcon == 0) {
         hudIcon = GVMMapCarPlayManeuverToMazdaHUD(mType);
     }
@@ -294,7 +347,11 @@ void GVMInstallCarPlayNavHook(void) {
                 MSHookMessageEx(navSession, selUpdate, (IMP)hook_updateTravelEstimates, (IMP *)&orig_updateTravelEstimates);
             }
 
-            // Hook upcoming maneuvers list
+            // Hook upcoming maneuvers list (both setUpcomingManeuvers: and setManeuvers:)
+            SEL selUpcoming = NSSelectorFromString(@"setUpcomingManeuvers:");
+            if (class_getInstanceMethod(navSession, selUpcoming)) {
+                MSHookMessageEx(navSession, selUpcoming, (IMP)hook_setManeuvers, (IMP *)&orig_setManeuvers);
+            }
             SEL selManeuvers = NSSelectorFromString(@"setManeuvers:");
             if (class_getInstanceMethod(navSession, selManeuvers)) {
                 MSHookMessageEx(navSession, selManeuvers, (IMP)hook_setManeuvers, (IMP *)&orig_setManeuvers);
