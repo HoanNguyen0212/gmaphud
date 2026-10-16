@@ -21,28 +21,80 @@ NSString *GVMStripVietnameseDiacritics(NSString *str) {
 
 // ── Apple CarPlay CPManeuverType to Mazda CMU HUD Icon Mapping ───────────────
 
-uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger type) {
+uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger type, NSString *instruction) {
+    // 1. Text-based semantic parsing (Highest accuracy for Google Maps in Vietnam)
+    if (instruction && instruction.length > 0) {
+        NSString *clean = GVMStripVietnameseDiacritics(instruction).lowercaseString;
+        if ([clean containsString:@"quay dau"] || [clean containsString:@"u-turn"]) {
+            return 13; // HUD_U_TURN_LEFT
+        }
+        if ([clean containsString:@"re trai"] || [clean containsString:@"queo trai"] ||
+            [clean containsString:@"ngoat trai"] || [clean containsString:@"turn left"]) {
+            if ([clean containsString:@"chech"] || [clean containsString:@"slight"]) {
+                return 4; // HUD_SLIGHT_LEFT
+            }
+            if ([clean containsString:@"gat"] || [clean containsString:@"sharp"]) {
+                return 11; // HUD_SHARP_LEFT
+            }
+            return 2; // HUD_LEFT
+        }
+        if ([clean containsString:@"re phai"] || [clean containsString:@"queo phai"] ||
+            [clean containsString:@"ngoat phai"] || [clean containsString:@"turn right"]) {
+            if ([clean containsString:@"chech"] || [clean containsString:@"slight"]) {
+                return 5; // HUD_SLIGHT_RIGHT
+            }
+            if ([clean containsString:@"gat"] || [clean containsString:@"sharp"]) {
+                return 9; // HUD_SHARP_RIGHT
+            }
+            return 3; // HUD_RIGHT
+        }
+        if ([clean containsString:@"chech sang trai"] || [clean containsString:@"slight left"]) {
+            return 4; // HUD_SLIGHT_LEFT
+        }
+        if ([clean containsString:@"chech sang phai"] || [clean containsString:@"slight right"]) {
+            return 5; // HUD_SLIGHT_RIGHT
+        }
+        if ([clean containsString:@"loi ra"] || [clean containsString:@"exit"] || [clean containsString:@"off-ramp"]) {
+            return 7; // HUD_OFF_RAMP_RIGHT
+        }
+        if ([clean containsString:@"nhap lan"] || [clean containsString:@"merge"]) {
+            return 16; // HUD_MERGE_LEFT
+        }
+        if ([clean containsString:@"vong xuyen"] || [clean containsString:@"bung binh"] || [clean containsString:@"roundabout"]) {
+            return 37; // HUD_ROUNDABOUT
+        }
+        if ([clean containsString:@"den noi"] || [clean containsString:@"diem den"] || [clean containsString:@"arrive"]) {
+            return 8; // HUD_DESTINATION
+        }
+        if ([clean containsString:@"di thang"] || [clean containsString:@"tiep tuc"] || [clean containsString:@"straight"]) {
+            return 1; // HUD_STRAIGHT
+        }
+    }
+
+    // 2. Apple CarPlay CPManeuverType enum mapping
     switch (type) {
         case 0:  return 0;  // No turn / clear
-        case 1:  return 2;  // TurnLeft -> HUD 2
-        case 2:  return 3;  // TurnRight -> HUD 3
+        case 1:  return 2;  // LeftTurn -> HUD 2
+        case 2:  return 3;  // RightTurn -> HUD 3
         case 3:  return 1;  // StraightAhead -> HUD 1
         case 4:             // UTurn
-        case 26: return 13; // UTurnLeft/WhenPossible -> HUD 13
+        case 18:            // StartRouteWithUTurn
+        case 19:            // UTurnAtRoundabout
+        case 26: return 13; // UTurnWhenPossible -> HUD 13
         case 5:  return 1;  // FollowRoad -> HUD 1
         case 6:             // EnterRoundabout generic
         case 7:  return 37; // ExitRoundabout generic -> HUD 37
         case 8:  return 7;  // OffRamp (Right exit in RHT) -> HUD 7
         case 9:  return 16; // OnRamp (Merge left in RHT) -> HUD 16
-        case 10:            // ArriveAtDestination
-        case 11:            // ArriveAtEndOfSearch
-        case 12:            // ArriveAtDestinationLeft
-        case 13:            // ArriveAtDestinationRight
+        case 10:            // ArriveEndOfNavigation
+        case 12:            // ArriveAtDestination
         case 24:            // ArriveAtDestinationLeft
         case 25:            // ArriveAtDestinationRight
-        case 27: return 8;  // Arrive -> HUD 8
-        case 14: return 14; // KeepRight -> HUD 14
-        case 15: return 15; // KeepLeft -> HUD 15
+        case 27: return 8;  // ArriveEndOfDirections -> HUD 8
+        case 11: return 1;  // StartRoute -> HUD 1
+        case 13: return 15; // KeepLeft -> HUD 15 (HUD_FORK_LEFT)
+        case 14: return 14; // KeepRight -> HUD 14 (HUD_FORK_RIGHT)
+        case 15: case 16: case 17: return 1; // Ferry -> HUD 1
         case 20: return 31; // LeftTurnAtEnd (T-junction left) -> HUD 31
         case 21: return 32; // RightTurnAtEnd (T-junction right) -> HUD 32
         case 22: return 30; // HighwayOffRampLeft -> HUD 30
@@ -128,7 +180,7 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
         }
     }
 
-    uint16_t hudIcon = GVMMapCarPlayManeuverToMazdaHUD(mType);
+    uint16_t hudIcon = GVMMapCarPlayManeuverToMazdaHUD(mType, road);
     NSString *cleanRoad = GVMStripVietnameseDiacritics(road);
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(distMeters));
 
@@ -157,7 +209,22 @@ static void hook_updateTravelEstimates(id self, SEL _cmd, id estimates, id maneu
         orig_updateTravelEstimates(self, _cmd, estimates, maneuver);
     }
     @try {
-        ProcessManeuverAndEstimates(maneuver, estimates);
+        id target = maneuver;
+        NSUInteger mType = 0;
+        if ([target respondsToSelector:@selector(maneuverType)]) {
+            mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(target, @selector(maneuverType));
+        }
+        // If current maneuver is heading/context (StartRoute=11, FollowRoad=5, NoTurn=0),
+        // look ahead into upcomingManeuvers to see the actionable turn
+        if (mType == 11 || mType == 5 || mType == 0) {
+            if ([self respondsToSelector:@selector(upcomingManeuvers)]) {
+                NSArray *upcoming = ((id (*)(id, SEL))objc_msgSend)(self, @selector(upcomingManeuvers));
+                if ([upcoming isKindOfClass:[NSArray class]] && [upcoming count] > 1) {
+                    target = [upcoming objectAtIndex:1];
+                }
+            }
+        }
+        ProcessManeuverAndEstimates(target, estimates);
     } @catch (__unused NSException *e) {
         // Safe fail-safe: never disrupt CarPlay host application
     }
@@ -172,12 +239,11 @@ static void hook_setManeuvers(id self, SEL _cmd, id maneuvers) {
         if ([maneuvers isKindOfClass:[NSArray class]] && [(NSArray *)maneuvers count] > 0) {
             NSArray *arr = (NSArray *)maneuvers;
             id targetManeuver = [arr firstObject];
-            // If the first maneuver is start route (14), pick the immediate next action if available
             NSUInteger mType = 0;
             if ([targetManeuver respondsToSelector:@selector(maneuverType)]) {
                 mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(targetManeuver, @selector(maneuverType));
             }
-            if (mType == 14 && [arr count] > 1) {
+            if ((mType == 11 || mType == 5 || mType == 0) && [arr count] > 1) {
                 targetManeuver = [arr objectAtIndex:1];
             }
             ProcessManeuverAndEstimates(targetManeuver, nil);
