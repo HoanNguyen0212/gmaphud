@@ -105,6 +105,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.2.5", "Sửa thanh trượt Trái/phải và Lên/xuống của bong bóng trên iPhone: không kéo được ở 0.2.4, và hiện 100% khi mở lại Cài đặt nếu bong bóng lệch sang trái hoặc lên trên.",
+         "Fixes the iPhone bubble's left/right and up/down sliders: they could not be dragged in 0.2.4, and showed 100% on reopening Settings for a left or up offset."),
         ("0.2.4", "Thêm mục Giao diện: Classic (mặc định) hoặc New UI (beta) với đồng hồ tốc độ tròn, biển giới hạn ghim trên đồng hồ và biển làn đường theo VietMap Live; khi dẫn đường trên CarPlay, biển hiệu lực và làn nằm dưới ô chỉ dẫn. Vẽ lại bộ biển báo theo QCVN 41:2024, kích cỡ bong bóng tới 250%. Sửa biển hiệu lực hiện 0 m và nhấp nháy.",
          "Adds an Interface choice: Classic (default) or New UI (beta), with a round speed dial, the limit pinned on it and VietMap Live lane signs; while navigating on CarPlay, signs in effect and lanes sit under the maneuver card. Redraws road signs to QCVN 41:2024 and allows bubble sizes up to 250%. Fixes signs in effect showing 0 m and blinking."),
         ("0.2.3", "Đánh thức và duy trì nguồn cảnh báo khi chỉ dùng Google Maps trên iPhone, kể cả sau khi vừa ngắt CarPlay. Banner hay Trung tâm điều khiển không còn làm ngắt nguồn.",

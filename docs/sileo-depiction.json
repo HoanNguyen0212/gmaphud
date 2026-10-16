@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.2.5"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Sửa thanh trượt Trái/phải và Lên/xuống của bong bóng trên iPhone: không kéo được ở 0.2.4, và hiện 100% khi mở lại Cài đặt nếu bong bóng lệch sang trái hoặc lên trên.\n\n**English:** Fixes the iPhone bubble's left/right and up/down sliders: they could not be dragged in 0.2.4, and showed 100% on reopening Settings for a left or up offset."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.2.4"
         },
         {
