@@ -29,11 +29,15 @@ jobs:
           rm -rf temp_sdks
 
       - name: Build Dopamine Rootless Package (iphoneos-arm64)
+        env:
+          GMAPHUD_CHECK_RAW: "1"
         run: |
           chmod +x build-tweak.sh
           ./build-tweak.sh rootless
 
       - name: Build Rootful Package (iphoneos-arm)
+        env:
+          GMAPHUD_CHECK_RAW: "1"
         run: |
           ./build-tweak.sh rootful
 
