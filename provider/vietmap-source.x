@@ -164,9 +164,9 @@ static void ObserveAlerts(NSString *method,id payload,NSUInteger accepted,NSTime
     });
 }
 
-static void GVMParseSingleTire(NSDictionary *d) {
+static void GVMParseTireDict(NSDictionary *d, NSString *explicitPos) {
     if (!d || ![d isKindOfClass:NSDictionary.class]) return;
-    id codeVal = d[@"code"] ?: d[@"position"] ?: d[@"tireId"] ?: d[@"tire"] ?: d[@"id"] ?: d[@"deviceID"];
+    id codeVal = explicitPos ?: d[@"code"] ?: d[@"position"] ?: d[@"tireId"] ?: d[@"tire"] ?: d[@"id"] ?: d[@"deviceID"];
     id pressVal = d[@"pressure"] ?: d[@"press"] ?: d[@"bar"] ?: d[@"kpa"] ?: d[@"p"];
     id tempVal = d[@"temperature"] ?: d[@"temp"] ?: d[@"t"];
     id warnVal = d[@"isPressureWarning"] ?: d[@"warning"] ?: d[@"warn"];
@@ -185,20 +185,23 @@ static void GVMParseSingleTire(NSDictionary *d) {
     }
     
     if (!target) {
-        if (d[@"fl"] || d[@"fr"] || d[@"rl"] || d[@"rr"] || d[@"0"] || d[@"1"] || d[@"2"] || d[@"3"]) {
-            if (d[@"fl"] || d[@"0"]) { id sub = d[@"fl"] ?: d[@"0"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseSingleTire(sub); }
-            if (d[@"fr"] || d[@"1"]) { id sub = d[@"fr"] ?: d[@"1"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseSingleTire(sub); }
-            if (d[@"rl"] || d[@"2"]) { id sub = d[@"rl"] ?: d[@"2"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseSingleTire(sub); }
-            if (d[@"rr"] || d[@"3"]) { id sub = d[@"rr"] ?: d[@"3"]; if ([sub isKindOfClass:NSDictionary.class]) GVMParseSingleTire(sub); }
-        }
+        if (d[@"fl"] && [d[@"fl"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"fl"], @"fl");
+        if (d[@"fr"] && [d[@"fr"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"fr"], @"fr");
+        if (d[@"rl"] && [d[@"rl"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"rl"], @"rl");
+        if (d[@"rr"] && [d[@"rr"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"rr"], @"rr");
+        if (d[@"0"] && [d[@"0"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"0"], @"0");
+        if (d[@"1"] && [d[@"1"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"1"], @"1");
+        if (d[@"2"] && [d[@"2"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"2"], @"2");
+        if (d[@"3"] && [d[@"3"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"3"], @"3");
         return;
     }
     
-    float p = 0.0f;
-    if ([pressVal isKindOfClass:NSNumber.class]) p = [pressVal floatValue];
-    else if ([pressVal isKindOfClass:NSString.class]) p = (float)[pressVal doubleValue];
-    if (p > 50.0f) p = p / 100.0f; // kpa to bar conversion
-    if (p > 0.05f) {
+    if (pressVal != nil && pressVal != [NSNull null]) {
+        float p = 0.0f;
+        if ([pressVal isKindOfClass:NSNumber.class]) p = [pressVal floatValue];
+        else if ([pressVal isKindOfClass:NSString.class]) p = (float)[pressVal doubleValue];
+        if (p > 50.0f) p = p / 100.0f; // kpa to bar conversion
+        if (p < 0.0f) p = 0.0f;
         target->pressure = p;
         target->active = YES;
     }
@@ -207,40 +210,50 @@ static void GVMParseSingleTire(NSDictionary *d) {
     }
     BOOL isWarn = [warnVal respondsToSelector:@selector(boolValue)] && [warnVal boolValue];
     BOOL isLeak = [xieYaVal respondsToSelector:@selector(boolValue)] && [xieYaVal boolValue];
-    if (isLeak) target->warning = 3;
+    if (isLeak || (target->active && target->pressure <= 0.05f)) target->warning = 2; // Flat tire or leak = Critical Red
     else if (isWarn) target->warning = (target->pressure < 1.8f) ? 1 : 2;
-    else if (target->pressure < 1.8f && target->pressure > 0.1f) target->warning = 1;
+    else if (target->pressure < 1.8f) target->warning = 1;
     else if (target->pressure > 2.8f) target->warning = 2;
     else target->warning = 0;
 }
 
 static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
     if (!payload) return;
-    if ([payload isKindOfClass:NSString.class]) {
-        NSData *data = [(NSString *)payload dataUsingEncoding:NSUTF8StringEncoding];
-        if (data) {
-            id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-            if (json) payload = json;
+    static id s_tpmsLock = nil;
+    static dispatch_once_t lockOnce;
+    dispatch_once(&lockOnce, ^{ s_tpmsLock = [NSObject new]; });
+
+    @synchronized(s_tpmsLock) {
+        if ([payload isKindOfClass:NSString.class]) {
+            NSData *data = [(NSString *)payload dataUsingEncoding:NSUTF8StringEncoding];
+            if (data) {
+                id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                if (json) payload = json;
+            }
         }
-    }
-    
-    if ([payload isKindOfClass:NSArray.class]) {
-        for (id item in (NSArray *)payload) {
-            if ([item isKindOfClass:NSDictionary.class]) GVMParseSingleTire(item);
+        
+        if ([payload isKindOfClass:NSArray.class]) {
+            for (id item in (NSArray *)payload) {
+                if ([item isKindOfClass:NSDictionary.class]) GVMParseTireDict(item, nil);
+            }
+        } else if ([payload isKindOfClass:NSDictionary.class]) {
+            GVMParseTireDict((NSDictionary *)payload, nil);
         }
-    } else if ([payload isKindOfClass:NSDictionary.class]) {
-        GVMParseSingleTire((NSDictionary *)payload);
-    }
-    
-    g_liveTPMS.hasData = (g_liveTPMS.fl.active || g_liveTPMS.fr.active || g_liveTPMS.rl.active || g_liveTPMS.rr.active);
-    if (g_liveTPMS.hasData) {
-        g_liveTPMS.receivedAt = received;
-        uint64_t encoded = GVMEncodeTPMS(&g_liveTPMS, received);
-        if (tpmsToken >= 0 && notify_set_state(tpmsToken, encoded) == NOTIFY_STATUS_OK) {
-            notify_post(GVMTPMSStateName);
+        
+        g_liveTPMS.hasData = (g_liveTPMS.fl.active || g_liveTPMS.fr.active || g_liveTPMS.rl.active || g_liveTPMS.rr.active);
+        if (g_liveTPMS.hasData) {
+            g_liveTPMS.receivedAt = received;
+            static NSTimeInterval lastNotifyPost = 0;
+            if (received - lastNotifyPost >= 0.08) {
+                lastNotifyPost = received;
+                uint64_t encoded = GVMEncodeTPMS(&g_liveTPMS, received);
+                if (tpmsToken >= 0 && notify_set_state(tpmsToken, encoded) == NOTIFY_STATUS_OK) {
+                    notify_post(GVMTPMSStateName);
+                }
+            }
+            BridgeLog([NSString stringWithFormat:@"tpms update fl=%.1f fr=%.1f rl=%.1f rr=%.1f",
+                g_liveTPMS.fl.pressure, g_liveTPMS.fr.pressure, g_liveTPMS.rl.pressure, g_liveTPMS.rr.pressure]);
         }
-        BridgeLog([NSString stringWithFormat:@"tpms update fl=%.1f fr=%.1f rl=%.1f rr=%.1f",
-            g_liveTPMS.fl.pressure, g_liveTPMS.fr.pressure, g_liveTPMS.rl.pressure, g_liveTPMS.rr.pressure]);
     }
 }
 
@@ -259,13 +272,19 @@ static void SetEventStreamHandler(id channel, SEL selector, id handler) {
     Class handlerClass = [handler class];
     SEL onListenSel = NSSelectorFromString(@"onListenWithArguments:eventSink:");
     Method m = class_getInstanceMethod(handlerClass, onListenSel);
-    if (m) {
+    static const void *kGVMStreamHookedKey = &kGVMStreamHookedKey;
+    if (m && !objc_getAssociatedObject(handlerClass, kGVMStreamHookedKey)) {
+        objc_setAssociatedObject(handlerClass, kGVMStreamHookedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         __block id (*origOnListen)(id, SEL, id, id) = (id (*)(id, SEL, id, id))method_getImplementation(m);
         id newImp = ^(id selfHandler, id args, id eventSink) {
             BridgeLog(@"TPMS event sink registered");
             id wrappedSink = ^(id event) {
-                NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-                GVMProcessTirePayload(event, now);
+                @try {
+                    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+                    GVMProcessTirePayload(event, now);
+                } @catch (NSException *ex) {
+                    BridgeLog([NSString stringWithFormat:@"TPMS stream exception: %@", ex]);
+                }
                 if (eventSink) ((void (^)(id))eventSink)(event);
             };
             return origOnListen(selfHandler, onListenSel, args, wrappedSink);

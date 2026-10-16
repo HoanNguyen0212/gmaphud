@@ -144,12 +144,14 @@ CGRect GVMLayoutSpeedCard(UIView *map) {
     // corner or the space left by Google's navigation controls.
     if (phone) size=GVMScaleCardSize(size,SizePercent(surface),MAX(0,right-left),MAX(0,bottom-top));
     if (card && card.tpms.hasData) {
+        NSUInteger alertCount = MIN(card.alerts.count, 2);
+        GVMCardSize c0 = GVMCardCanvasSize(style, alertCount, compact);
         if (compact) {
-            CGFloat baseH = card.alerts.count >= 2 ? 350.0 : card.alerts.count == 1 ? 260.0 : 160.0;
-            size.height = size.height * ((baseH + 65.0) / baseH);
+            CGFloat extraH = (style == GVMInterfaceHalo) ? 70.0 : 65.0;
+            if (c0.height > 0) size.height = size.height * ((c0.height + extraH) / c0.height);
         } else {
-            CGFloat baseW = card.alerts.count >= 2 ? 296.0 : card.alerts.count == 1 ? 240.0 : 208.0;
-            size.width = size.width * ((baseW + 80.0) / baseW);
+            CGFloat extraW = (style == GVMInterfaceHalo) ? 84.0 : 80.0;
+            if (c0.width > 0) size.width = size.width * ((c0.width + extraW) / c0.width);
         }
     }
     CGFloat viewportLeft=left, viewportRight=right, viewportTop=top, viewportBottom=bottom;

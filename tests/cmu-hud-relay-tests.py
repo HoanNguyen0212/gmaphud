@@ -205,6 +205,26 @@ class TPMSIntegrationFullTests(unittest.TestCase):
         self.assertIn("GVMEncodeTPMS", cli)
         self.assertIn("GVMTPMSStateName", cli)
 
+    def test_tpms_audit_remediations(self):
+        vmsource = (root / "provider/vietmap-source.x").read_text()
+        self.assertIn("GVMParseTireDict", vmsource)
+        self.assertIn("explicitPos", vmsource)
+        self.assertIn("@try", vmsource)
+        self.assertIn("@catch", vmsource)
+        self.assertIn("s_tpmsLock", vmsource)
+        self.assertIn("kGVMStreamHookedKey", vmsource)
+
+        classic = (root / "tweak/classic-card.m").read_text()
+        self.assertIn("modulesEnd", classic)
+        self.assertIn("BOOL active", classic)
+
+        halo = (root / "tweak/halo-card.m").read_text()
+        self.assertIn("baseHeight", halo)
+        self.assertIn("baseWidth", halo)
+
+        style = (root / "tweak/carplay-style.m").read_text()
+        self.assertIn("GVMCardCanvasSize(style, alertCount, compact)", style)
+
 
 if __name__ == "__main__":
     unittest.main()

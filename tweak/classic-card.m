@@ -56,10 +56,10 @@ static UIImage *AlertArtwork(NSUInteger type,NSNumber *value) {
     }
     return image;
 }
-static void DrawTire(NSString *pos, float press, uint8_t warn, CGRect rect, BOOL night) {
-    if (press <= 0.01f) return;
-    UIColor *bg = warn == 1 ? RGB(0xff9f0a, 0.95) :  // warning low
-                  warn >= 2 ? RGB(0xff3b30, 0.95) :  // warning high/leak
+static void DrawTire(NSString *pos, float press, uint8_t warn, BOOL active, CGRect rect, BOOL night) {
+    if (!active) return;
+    UIColor *bg = warn == 1 ? RGB(0xff9f0a, 0.95) :  // warning low (amber)
+                  warn >= 2 ? RGB(0xff3b30, 0.95) :  // warning high/leak/flat (red)
                   RGB(night ? 0x242b35 : 0x48515f, 0.85); // normal
     UIBezierPath *box = [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:6];
     [bg setFill]; [box fill];
@@ -94,6 +94,7 @@ static void DrawTire(NSString *pos, float press, uint8_t warn, CGRect rect, BOOL
         body=CGRectUnion(body,cell);
         alertRegion=i ? CGRectUnion(alertRegion,cell) : cell;
     }
+    CGFloat modulesEnd = self.compact ? CGRectGetMaxY(body) : CGRectGetMaxX(body);
     if (self.tpms.hasData) {
         if (self.compact) body.size.height += 65;
         else body.size.width += 80;
@@ -176,27 +177,27 @@ static void DrawTire(NSString *pos, float press, uint8_t warn, CGRect rect, BOOL
     }
     if (self.tpms.hasData) {
         if (self.compact) {
-            CGFloat tpmsY = count == 2 ? 335 : count == 1 ? 245 : 155;
+            CGFloat tpmsY = modulesEnd + 5;
             UIBezierPath *tpmsDiv = [UIBezierPath bezierPath];
-            [tpmsDiv moveToPoint:CGPointMake(10, tpmsY - 5)];
-            [tpmsDiv addLineToPoint:CGPointMake(74, tpmsY - 5)];
+            [tpmsDiv moveToPoint:CGPointMake(CGRectGetMinX(firstCell)+12, modulesEnd + 1)];
+            [tpmsDiv addLineToPoint:CGPointMake(CGRectGetMaxX(firstCell)-12, modulesEnd + 1)];
             [RGB(0x303947, 0.65) setStroke]; tpmsDiv.lineWidth = 1; [tpmsDiv stroke];
 
-            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, CGRectMake(6, tpmsY, 34, 26), self.night);
-            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, CGRectMake(44, tpmsY, 34, 26), self.night);
-            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, CGRectMake(6, tpmsY + 30, 34, 26), self.night);
-            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, CGRectMake(44, tpmsY + 30, 34, 26), self.night);
+            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, self.tpms.fl.active, CGRectMake(6, tpmsY, 34, 26), self.night);
+            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, self.tpms.fr.active, CGRectMake(44, tpmsY, 34, 26), self.night);
+            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, self.tpms.rl.active, CGRectMake(6, tpmsY + 30, 34, 26), self.night);
+            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, self.tpms.rr.active, CGRectMake(44, tpmsY + 30, 34, 26), self.night);
         } else {
-            CGFloat tpmsX = count == 2 ? 300 : count == 1 ? 244 : 210;
+            CGFloat tpmsX = modulesEnd + 5;
             UIBezierPath *tpmsDiv = [UIBezierPath bezierPath];
-            [tpmsDiv moveToPoint:CGPointMake(tpmsX - 8, 34)];
-            [tpmsDiv addLineToPoint:CGPointMake(tpmsX - 8, 96)];
+            [tpmsDiv moveToPoint:CGPointMake(modulesEnd + 1, 34)];
+            [tpmsDiv addLineToPoint:CGPointMake(modulesEnd + 1, 96)];
             [RGB(0x303947, 0.65) setStroke]; tpmsDiv.lineWidth = 1; [tpmsDiv stroke];
 
-            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, CGRectMake(tpmsX, 34, 34, 27), self.night);
-            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, CGRectMake(tpmsX + 38, 34, 34, 27), self.night);
-            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, CGRectMake(tpmsX, 65, 34, 27), self.night);
-            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, CGRectMake(tpmsX + 38, 65, 34, 27), self.night);
+            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, self.tpms.fl.active, CGRectMake(tpmsX, 34, 34, 27), self.night);
+            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, self.tpms.fr.active, CGRectMake(tpmsX + 38, 34, 34, 27), self.night);
+            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, self.tpms.rl.active, CGRectMake(tpmsX, 65, 34, 27), self.night);
+            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, self.tpms.rr.active, CGRectMake(tpmsX + 38, 65, 34, 27), self.night);
         }
     }
     CGContextRestoreGState(context);

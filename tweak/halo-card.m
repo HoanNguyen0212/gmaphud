@@ -12,8 +12,8 @@ static NSString *AlertKey(NSDictionary *alert) {
     return [NSString stringWithFormat:@"%@|%@|%@",alert[@"type"],alert[@"value"],alert[@"artworkID"]];
 }
 
-static void DrawTire(NSString *pos, float press, uint8_t warn, CGRect rect, BOOL night) {
-    if (press <= 0.01f) return;
+static void DrawTire(NSString *pos, float press, uint8_t warn, BOOL active, CGRect rect, BOOL night) {
+    if (!active) return;
     UIColor *bg = warn == 1 ? [UIColor colorWithRed:1.0 green:0.62 blue:0.04 alpha:0.95] :
                   warn >= 2 ? [UIColor colorWithRed:1.0 green:0.23 blue:0.19 alpha:0.95] :
                   (night ? [UIColor colorWithRed:0.14 green:0.17 blue:0.21 alpha:0.85] : [UIColor colorWithRed:0.28 green:0.32 blue:0.37 alpha:0.85]);
@@ -28,7 +28,7 @@ static void DrawTire(NSString *pos, float press, uint8_t warn, CGRect rect, BOOL
         NSForegroundColorAttributeName:UIColor.whiteColor, NSParagraphStyleAttributeName:paragraph}];
     [pos drawInRect:CGRectMake(rect.origin.x, rect.origin.y + 15, rect.size.width, 10) withAttributes:@{
         NSFontAttributeName:[UIFont boldSystemFontOfSize:8],
-        NSForegroundColorAttributeName:[UIColor colorWithRed:0.82 green:0.83 blue:0.86 alpha:1], NSParagraphStyleAttributeName:paragraph}];
+        NSForegroundColorAttributeName:[UIColor colorWithRed:0.82 green:0.83 blue:0.86 alpha:1.0], NSParagraphStyleAttributeName:paragraph}];
 }
 
 @implementation GVMHaloSpeedCard {
@@ -68,9 +68,11 @@ static void DrawTire(NSString *pos, float press, uint8_t warn, CGRect rect, BOOL
     NSUInteger count=MIN(self.alerts.count,2);
     GVMHaloArrangement arrangement=self.stacked ? GVMHaloStack : self.compact ? GVMHaloColumn : GVMHaloRow;
     GVMCardSize canvas=GVMHaloCanvasSize(arrangement,count);
+    CGFloat baseWidth = canvas.width;
+    CGFloat baseHeight = canvas.height;
     if (self.tpms.hasData) {
-        if (self.compact) canvas.height += 65;
-        else canvas.width += 80;
+        if (self.compact) canvas.height += 70;
+        else canvas.width += 84;
     }
     BOOL alertsFirst=GVMAlertsFirst(self.moduleOrder);
     CGContextScaleCTM(context,self.bounds.size.width/canvas.width,self.bounds.size.height/canvas.height);
@@ -82,27 +84,29 @@ static void DrawTire(NSString *pos, float press, uint8_t warn, CGRect rect, BOOL
     }
     if (self.tpms.hasData) {
         if (self.compact) {
-            CGFloat tpmsY = count == 2 ? 335 : count == 1 ? 245 : 155;
+            CGFloat tpmsY = baseHeight + 5;
             UIBezierPath *tpmsDiv = [UIBezierPath bezierPath];
-            [tpmsDiv moveToPoint:CGPointMake(10, tpmsY - 5)];
-            [tpmsDiv addLineToPoint:CGPointMake(74, tpmsY - 5)];
+            [tpmsDiv moveToPoint:CGPointMake(16, baseHeight)];
+            [tpmsDiv addLineToPoint:CGPointMake(canvas.width - 16, baseHeight)];
             [[UIColor colorWithWhite:0.5 alpha:0.4] setStroke]; tpmsDiv.lineWidth = 1; [tpmsDiv stroke];
 
-            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, CGRectMake(6, tpmsY, 34, 26), self.night);
-            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, CGRectMake(44, tpmsY, 34, 26), self.night);
-            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, CGRectMake(6, tpmsY + 30, 34, 26), self.night);
-            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, CGRectMake(44, tpmsY + 30, 34, 26), self.night);
+            CGFloat leftX = (canvas.width - 72) / 2.0;
+            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, self.tpms.fl.active, CGRectMake(leftX, tpmsY, 34, 26), self.night);
+            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, self.tpms.fr.active, CGRectMake(leftX + 38, tpmsY, 34, 26), self.night);
+            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, self.tpms.rl.active, CGRectMake(leftX, tpmsY + 30, 34, 26), self.night);
+            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, self.tpms.rr.active, CGRectMake(leftX + 38, tpmsY + 30, 34, 26), self.night);
         } else {
-            CGFloat tpmsX = canvas.width - 76;
+            CGFloat tpmsX = baseWidth + 6;
             UIBezierPath *tpmsDiv = [UIBezierPath bezierPath];
-            [tpmsDiv moveToPoint:CGPointMake(tpmsX - 6, 20)];
-            [tpmsDiv addLineToPoint:CGPointMake(tpmsX - 6, 90)];
+            [tpmsDiv moveToPoint:CGPointMake(baseWidth + 1, 16)];
+            [tpmsDiv addLineToPoint:CGPointMake(baseWidth + 1, canvas.height - 16)];
             [[UIColor colorWithWhite:0.5 alpha:0.4] setStroke]; tpmsDiv.lineWidth = 1; [tpmsDiv stroke];
 
-            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, CGRectMake(tpmsX, 24, 34, 27), self.night);
-            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, CGRectMake(tpmsX + 38, 24, 34, 27), self.night);
-            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, CGRectMake(tpmsX, 55, 34, 27), self.night);
-            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, CGRectMake(tpmsX + 38, 55, 34, 27), self.night);
+            CGFloat topY = (canvas.height - 56) / 2.0;
+            DrawTire(@"FL", self.tpms.fl.pressure, self.tpms.fl.warning, self.tpms.fl.active, CGRectMake(tpmsX, topY, 34, 26), self.night);
+            DrawTire(@"FR", self.tpms.fr.pressure, self.tpms.fr.warning, self.tpms.fr.active, CGRectMake(tpmsX + 38, topY, 34, 26), self.night);
+            DrawTire(@"RL", self.tpms.rl.pressure, self.tpms.rl.warning, self.tpms.rl.active, CGRectMake(tpmsX, topY + 30, 34, 26), self.night);
+            DrawTire(@"RR", self.tpms.rr.pressure, self.tpms.rr.warning, self.tpms.rr.active, CGRectMake(tpmsX + 38, topY + 30, 34, 26), self.night);
         }
     }
     CGContextRestoreGState(context);
