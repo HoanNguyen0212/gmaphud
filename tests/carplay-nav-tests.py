@@ -20,6 +20,7 @@ class CarPlayNavHookSourceTests(unittest.TestCase):
         self.assertIn("GVMInstallCarPlayNavHook", self.header)
         self.assertIn("GVMMapCarPlayManeuverToMazdaHUD", self.header)
         self.assertIn("GVMStripVietnameseDiacritics", self.header)
+        self.assertIn("GVMExtractRoadName", self.header)
 
     def test_installed_in_google_hook(self):
         self.assertIn('#import "carplay-nav-hook.h"', self.google_hook)

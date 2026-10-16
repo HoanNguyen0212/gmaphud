@@ -9,7 +9,7 @@
 #include <notify.h>
 #include <string.h>
 
-static int heartbeatToken = -1, phoneToken=-1, permissionToken = -1, locationSessionToken=-1, sourceSessionToken=-1;
+static int heartbeatToken = -1, phoneToken=-1, permissionToken = -1, locationSessionToken=-1, sourceSessionToken=-1, wakeRequestToken=-1;
 static id assertion;
 static id locationUsageContext;
 static pid_t heldPID, googlePID;
@@ -26,20 +26,21 @@ static BOOL wasConnected, exitCompleted, exitDeferred;
 static double disconnectedAt;
 static pid_t managedPID;
 static NSString *BundleForSource(NSUInteger source) {
-    if (!GVMSourceEnabled(source)) return nil;
+    if (!GVMSourceEnabled(source)) return @"vn.vietmap.live";
     switch(source) {
         case GVMSourceVietMap: return @"vn.vietmap.live";
         case GVMSourceWaze: return @"com.waze.iphone";
         case GVMSourceGofa: return @"com.lumi.GOFA";
-        default: return nil;
+        default: return @"vn.vietmap.live";
     }
 }
 static const char *Base(const char *type);
-static BOOL BooleanPreference(CFStringRef key) {
-    CFStringRef domain=CFSTR("com.chou.gmaphud");
+static BOOL BooleanPreference(CFStringRef key, BOOL defaultValue) {
+    CFStringRef domain = CFSTR("com.chou.gmaphud");
     CFPreferencesAppSynchronize(domain);
-    id value=CFBridgingRelease(CFPreferencesCopyAppValue(key,domain));
-    return [value isKindOfClass:NSNumber.class] && [value boolValue];
+    id value = CFBridgingRelease(CFPreferencesCopyAppValue(key, domain));
+    if (!value) return defaultValue;
+    return [value isKindOfClass:NSNumber.class] ? [value boolValue] : defaultValue;
 }
 static NSInteger ProviderLocationPermission(void) {
     Class manager=NSClassFromString(@"CLLocationManager");
@@ -137,17 +138,32 @@ static BOOL Acquire(pid_t pid) {
     return acquired;
 }
 static void Launch(void) {
-    id service=Shared(@"FBSOpenApplicationService",@"serviceWithDefaultShellEndpoint");
-    Class optionsClass=NSClassFromString(@"FBSOpenApplicationOptions");
-    if (!Matches(service,@"openApplication:withOptions:completion:","v",@[@"@",@"@",@"@?"]) ||
-        !Matches(optionsClass,@"optionsWithDictionary:","@",@[@"@"])) {
-        Record(@"background launch unavailable: private ABI"); return;
+    if (!providerID) providerID = @"vn.vietmap.live";
+    id service = Shared(@"FBSOpenApplicationService", @"serviceWithDefaultShellEndpoint");
+    Class optionsClass = NSClassFromString(@"FBSOpenApplicationOptions");
+    if (service && optionsClass) {
+        SEL optSel = NSSelectorFromString(@"optionsWithDictionary:");
+        SEL openSel = NSSelectorFromString(@"openApplication:withOptions:completion:");
+        if ([optionsClass respondsToSelector:optSel] && [service respondsToSelector:openSel]) {
+            id options = ((id (*)(id, SEL, id))objc_msgSend)(optionsClass, optSel,
+                @{@"__ActivateSuspended": @YES, @"__PromptUnlockDevice": @NO, @"__UnlockDevice": @NO});
+            if (options) {
+                ((void (*)(id, SEL, id, id, id))objc_msgSend)(service, openSel, providerID, options, nil);
+                Record([NSString stringWithFormat:@"[AutoWake] FBSOpenApplicationService suspended launch requested for %@", providerID]);
+                return;
+            }
+        }
     }
-    id options=((id (*)(id,SEL,id))objc_msgSend)(optionsClass,NSSelectorFromString(@"optionsWithDictionary:"),
-        @{@"__ActivateSuspended":@YES,@"__PromptUnlockDevice":@NO,@"__UnlockDevice":@NO});
-    if (!options) return;
-    ((void (*)(id,SEL,id,id,id))objc_msgSend)(service,NSSelectorFromString(@"openApplication:withOptions:completion:"),providerID,options,nil);
-    Record(@"suspended launch requested; fresh source data still requires verification");
+    // Fallback via LSApplicationWorkspace
+    Class wsClass = NSClassFromString(@"LSApplicationWorkspace");
+    if (wsClass && [wsClass respondsToSelector:NSSelectorFromString(@"defaultWorkspace")]) {
+        id workspace = ((id (*)(id, SEL))objc_msgSend)(wsClass, NSSelectorFromString(@"defaultWorkspace"));
+        SEL openSel = NSSelectorFromString(@"openApplicationWithBundleID:");
+        if (workspace && [workspace respondsToSelector:openSel]) {
+            ((BOOL (*)(id, SEL, id))objc_msgSend)(workspace, openSel, providerID);
+            Record([NSString stringWithFormat:@"[AutoWake] LSApplicationWorkspace launch requested for %@", providerID]);
+        }
+    }
 }
 static void ClearLease(void) {
     if (locationSessionToken>=0) notify_set_state(locationSessionToken,0);
@@ -195,53 +211,68 @@ static void Tick(void) {
         GVMCMUWiFiAutoConnectTick();
     }
     wasConnected=connected;
-    BOOL autoExit=BooleanPreference(CFSTR("autoExit"));
-    if (!autoExit) { disconnectedAt=0; exitCompleted=NO; }
+    BOOL autoExit = BooleanPreference(CFSTR("autoExit"), NO);
+    if (!autoExit) { disconnectedAt = 0; exitCompleted = NO; }
     // Google Maps visible on the iPhone is still in use: restart the exit countdown from when
     // it is hidden, and let it wake a source that auto-exit already closed.
-    if (phoneVisible && (disconnectedAt>0 || exitCompleted)) {
+    if (phoneVisible && (disconnectedAt > 0 || exitCompleted)) {
         if (!exitDeferred) Record(@"iPhone Google Maps visible; CarPlay exit deferred");
-        exitDeferred=YES; exitCompleted=NO;
-        if (disconnectedAt>0) disconnectedAt=now;
-    } else exitDeferred=NO;
-    if (connected && autoExit && providerID && Matches(service,@"pidForApplication:","i",@[@"@"]))
-        managedPID=((pid_t (*)(id,SEL,id))objc_msgSend)(service,NSSelectorFromString(@"pidForApplication:"),providerID);
-    if (autoExit && !connected && GVMBackgroundDisconnectDue(now,disconnectedAt)) {
-        ClearLease(); CloseManagedProvider(service,@"GMapHUD CarPlay disconnected for 20 seconds");
-        disconnectedAt=0; exitCompleted=YES;
+        exitDeferred = YES; exitCompleted = NO;
+        if (disconnectedAt > 0) disconnectedAt = now;
+    } else exitDeferred = NO;
+    if (connected && autoExit && providerID && Matches(service, @"pidForApplication:", "i", @[@"@"]))
+        managedPID = ((pid_t (*)(id, SEL, id))objc_msgSend)(service, NSSelectorFromString(@"pidForApplication:"), providerID);
+    if (autoExit && !connected && GVMBackgroundDisconnectDue(now, disconnectedAt)) {
+        ClearLease(); CloseManagedProvider(service, @"GMapHUD CarPlay disconnected for 20 seconds");
+        disconnectedAt = 0; exitCompleted = YES;
     }
-    BOOL enabled=BooleanPreference(CFSTR("autoWake"));
-    NSInteger permission=providerID ? ProviderLocationPermission() : NSIntegerMin;
-    BOOL allowed=GVMBackgroundLocationAuthorized((int)permission) && CLLocationManager.locationServicesEnabled;
-    if (permissionToken>=0) notify_set_state(permissionToken,GVMBackgroundPermissionState(now,allowed));
-    if (enabled!=lastEnabled || permission!=lastPermission) {
-        Record([NSString stringWithFormat:@"automatic wake enabled=%d source=%lu permission=%ld",enabled,(unsigned long)selected,(long)permission]);
-        lastEnabled=enabled; lastPermission=permission;
+    
+    BOOL enabled = BooleanPreference(CFSTR("autoWake"), YES);
+    NSInteger permission = providerID ? ProviderLocationPermission() : NSIntegerMin;
+    BOOL allowed = (permission == NSIntegerMin) || (GVMBackgroundLocationAuthorized((int)permission) && CLLocationManager.locationServicesEnabled);
+    if (permissionToken >= 0) notify_set_state(permissionToken, GVMBackgroundPermissionState(now, allowed));
+    if (enabled != lastEnabled || permission != lastPermission) {
+        Record([NSString stringWithFormat:@"automatic wake enabled=%d source=%lu permission=%ld", enabled, (unsigned long)selected, (long)permission]);
+        lastEnabled = enabled; lastPermission = permission;
     }
-    // CarPlay connection is distinct from a visible-map heartbeat.
-    BOOL hostActive=GVMBackgroundAnyHostActive(now,connected ? heartbeat : 0,phoneHeartbeat);
-    BOOL active=enabled && allowed && providerID && hostActive &&
-        !GVMBackgroundExitHolds(autoExit,connected,phoneVisible,disconnectedAt,exitCompleted);
-    if (!active || !Matches(service,@"pidForApplication:","i",@[@"@"])) { ClearLease(); return; }
-    pid_t clientPID=((pid_t (*)(id,SEL,id))objc_msgSend)(service,NSSelectorFromString(@"pidForApplication:"),@"com.google.Maps");
-    if (clientPID<=0) { ClearLease(); return; }
-    if (GVMBackgroundNewClient(googlePID,clientPID)) { attempts=0; nextLaunch=0; }
-    googlePID=clientPID;
-    if (!sessionActive) { sessionActive=YES; Record(@"selected source supervisor started"); }
-    if (sourceSessionToken>=0) notify_set_state(sourceSessionToken,selected);
-    if (locationSessionToken>=0) notify_set_state(locationSessionToken,GVMBackgroundPermissionState(now,YES));
-    RefreshLocationUsage(permission,YES,now);
-    pid_t pid=((pid_t (*)(id,SEL,id))objc_msgSend)(service,NSSelectorFromString(@"pidForApplication:"),providerID);
-    if (heldPID && heldPID!=pid) { Release(); nextAssertion=0; }
-    if (pid>0) {
-        managedPID=pid; attempts=0; nextLaunch=0;
-        // Acquiring a background-active assertion resumes a suspended process as well.
-        if (!assertion && now>=nextAssertion) { nextAssertion=now+30; Acquire(pid); }
+    
+    pid_t clientPID = 0;
+    if (service && Matches(service, @"pidForApplication:", "i", @[@"@"])) {
+        clientPID = ((pid_t (*)(id, SEL, id))objc_msgSend)(service, NSSelectorFromString(@"pidForApplication:"), @"com.google.Maps");
+    }
+
+    // Auto-wake trigger condition:
+    // When CarPlay is connected, OR when Google Maps is running on CarPlay/iPhone, OR when iPhone map visible
+    BOOL shouldRun = (connected || clientPID > 0 || phoneVisible);
+    BOOL active = enabled && allowed && providerID && shouldRun &&
+        !GVMBackgroundExitHolds(autoExit, connected, phoneVisible, disconnectedAt, exitCompleted);
+        
+    if (!active || !service || !Matches(service, @"pidForApplication:", "i", @[@"@"])) {
+        if (!connected && !phoneVisible && clientPID <= 0) {
+            ClearLease();
+        }
         return;
     }
-    managedPID=0;
-    if (GVMBackgroundMayLaunch(now,nextLaunch,attempts)) {
-        attempts++; nextLaunch=now+GVMBackgroundRetryDelay(attempts); Launch();
+    
+    if (clientPID > 0 && GVMBackgroundNewClient(googlePID, clientPID)) { attempts = 0; nextLaunch = 0; }
+    if (clientPID > 0) googlePID = clientPID;
+    
+    if (!sessionActive) { sessionActive = YES; Record(@"selected source supervisor started"); }
+    if (sourceSessionToken >= 0) notify_set_state(sourceSessionToken, selected ?: 1);
+    if (locationSessionToken >= 0) notify_set_state(locationSessionToken, GVMBackgroundPermissionState(now, YES));
+    RefreshLocationUsage(permission, YES, now);
+    
+    pid_t pid = ((pid_t (*)(id, SEL, id))objc_msgSend)(service, NSSelectorFromString(@"pidForApplication:"), providerID);
+    if (heldPID && heldPID != pid) { Release(); nextAssertion = 0; }
+    if (pid > 0) {
+        managedPID = pid; attempts = 0; nextLaunch = 0;
+        // Acquiring a background-active assertion resumes a suspended process as well.
+        if (!assertion && now >= nextAssertion) { nextAssertion = now + 15; Acquire(pid); }
+        return;
+    }
+    managedPID = 0;
+    if (now >= nextLaunch) {
+        attempts++; nextLaunch = now + 10; Launch();
     }
 }
 __attribute__((constructor)) static void Start(void) {
@@ -255,6 +286,10 @@ __attribute__((constructor)) static void Start(void) {
         notify_register_check(GVM_BACKGROUND_PERMISSION,&permissionToken);
         notify_register_check(GVM_BACKGROUND_LOCATION_SESSION,&locationSessionToken);
         notify_register_check(GVM_BACKGROUND_LOCATION_SOURCE,&sourceSessionToken);
+        notify_register_dispatch("com.chou.gmaphud.autowake.request", &wakeRequestToken, dispatch_get_main_queue(), ^(__unused int token) {
+            Record(@"[AutoWake] Wake request signal received, triggering immediate Tick()");
+            Tick();
+        });
         Class statusClass=NSClassFromString(@"CARSessionStatus");
         if (Matches(statusClass,@"new","@",@[])) carplayStatus=[statusClass new];
         GVMCMUWiFiAutoConnectStart();

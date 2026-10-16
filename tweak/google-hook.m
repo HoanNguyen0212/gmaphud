@@ -292,6 +292,7 @@ __attribute__((constructor)) static void Start(void) {
         GVMDiagnosticsStart(@"googlemaps");
         GVMCMURelayStart();
         GVMInstallCarPlayNavHook();
+        notify_post("com.chou.gmaphud.autowake.request");
         _dyld_register_func_for_add_image(ImageLoaded);
     }
 }

@@ -11,12 +11,72 @@
 NSString *GVMStripVietnameseDiacritics(NSString *str) {
     if (!str || [str length] == 0) return @"";
     NSMutableString *ms = [str mutableCopy];
+    // Replace đ / Đ explicitly first
+    [ms replaceOccurrencesOfString:@"đ" withString:@"d" options:NSCaseInsensitiveSearch range:NSMakeRange(0, [ms length])];
+    [ms replaceOccurrencesOfString:@"Đ" withString:@"D" options:NSCaseInsensitiveSearch range:NSMakeRange(0, [ms length])];
+    // Transliterate to Latin (turns composed characters like 'ễ' into base + combining)
+    CFStringTransform((__bridge CFMutableStringRef)ms, NULL, kCFStringTransformToLatin, NO);
+    // Strip all combining accent marks
     CFStringTransform((__bridge CFMutableStringRef)ms, NULL, kCFStringTransformStripCombiningMarks, NO);
-    [ms replaceOccurrencesOfString:@"đ" withString:@"d" options:NSLiteralSearch range:NSMakeRange(0, [ms length])];
-    [ms replaceOccurrencesOfString:@"Đ" withString:@"D" options:NSLiteralSearch range:NSMakeRange(0, [ms length])];
-    [ms replaceOccurrencesOfString:@"\n" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, [ms length])];
-    [ms replaceOccurrencesOfString:@"\r" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, [ms length])];
-    return [ms stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    
+    // Convert to 7-bit ASCII to guarantee 100% clean HUD display
+    NSData *asciiData = [ms dataUsingEncoding:NSASCIIStringEncoding allowLossyConversion:YES];
+    NSString *clean = [[NSString alloc] initWithData:asciiData encoding:NSASCIIStringEncoding];
+    if (!clean) clean = ms;
+    
+    // Normalize newlines, carriage returns, and tabs to spaces
+    NSMutableString *res = [clean mutableCopy];
+    [res replaceOccurrencesOfString:@"\n" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, [res length])];
+    [res replaceOccurrencesOfString:@"\r" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, [res length])];
+    [res replaceOccurrencesOfString:@"\t" withString:@" " options:NSLiteralSearch range:NSMakeRange(0, [res length])];
+    
+    // Collapse consecutive whitespaces
+    NSArray *parts = [res componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    NSMutableArray *nonEmpty = [NSMutableArray array];
+    for (NSString *p in parts) {
+        if ([p length] > 0) [nonEmpty addObject:p];
+    }
+    return [[nonEmpty componentsJoinedByString:@" "] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+// ── Clean Road Name Extractor for Mazda CX-5 HUD ─────────────────────────────
+
+NSString *GVMExtractRoadName(NSString *instruction) {
+    NSString *clean = GVMStripVietnameseDiacritics(instruction);
+    if (!clean || [clean length] == 0) return @"";
+    
+    NSString *lower = [clean lowercaseString];
+    NSArray *prefixes = @[
+        @"re sang phai vao ", @"re sang trai vao ",
+        @"re phai vao ", @"re trai vao ",
+        @"queo sang phai vao ", @"queo sang trai vao ",
+        @"queo phai vao ", @"queo trai vao ",
+        @"chech sang phai vao ", @"chech sang trai vao ",
+        @"chech phai vao ", @"chech trai vao ",
+        @"ngoat sang phai vao ", @"ngoat sang trai vao ",
+        @"ngoat phai vao ", @"ngoat trai vao ",
+        @"nhap vao ", @"nhap lan vao ", @"di vao ",
+        @"di tiep tren ", @"tiep tuc tren ", @"di theo ",
+        @"re sang phai ", @"re sang trai ",
+        @"re phai ", @"re trai ",
+        @"queo phai ", @"queo trai ",
+        @"chech sang phai ", @"chech sang trai ",
+        @"chech phai ", @"chech trai ",
+        @"turn right on ", @"turn left on ", @"turn right onto ", @"turn left onto ",
+        @"keep right onto ", @"keep left onto "
+    ];
+    for (NSString *p in prefixes) {
+        if ([lower hasPrefix:p]) {
+            clean = [clean substringFromIndex:[p length]];
+            break;
+        }
+    }
+    
+    // Mazda CX-5 HUD text field safe limit: 28 characters
+    if ([clean length] > 28) {
+        clean = [clean substringToIndex:28];
+    }
+    return [clean stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
 }
 
 // ── Apple CarPlay CPManeuverType to Mazda CMU HUD Icon Mapping ───────────────
@@ -27,45 +87,39 @@ uint16_t GVMMapInstructionTextToMazdaHUD(NSString *instruction) {
     if ([clean containsString:@"quay dau"] || [clean containsString:@"u-turn"]) {
         return 13; // HUD_U_TURN_LEFT
     }
+    if ([clean containsString:@"vong xuyen"] || [clean containsString:@"bung binh"] || [clean containsString:@"roundabout"]) {
+        return 37; // HUD_ROUNDABOUT
+    }
+    if ([clean containsString:@"gat trai"] || [clean containsString:@"sharp left"]) {
+        return 11; // HUD_SHARP_LEFT
+    }
+    if ([clean containsString:@"gat phai"] || [clean containsString:@"sharp right"]) {
+        return 9; // HUD_SHARP_RIGHT
+    }
+    if ([clean containsString:@"chech sang trai"] || [clean containsString:@"chech trai"] || [clean containsString:@"slight left"]) {
+        return 4; // HUD_SLIGHT_LEFT
+    }
+    if ([clean containsString:@"chech sang phai"] || [clean containsString:@"chech phai"] || [clean containsString:@"slight right"]) {
+        return 5; // HUD_SLIGHT_RIGHT
+    }
     if ([clean containsString:@"re trai"] || [clean containsString:@"queo trai"] ||
         [clean containsString:@"ngoat trai"] || [clean containsString:@"turn left"]) {
-        if ([clean containsString:@"chech"] || [clean containsString:@"slight"]) {
-            return 4; // HUD_SLIGHT_LEFT
-        }
-        if ([clean containsString:@"gat"] || [clean containsString:@"sharp"]) {
-            return 11; // HUD_SHARP_LEFT
-        }
         return 2; // HUD_LEFT
     }
     if ([clean containsString:@"re phai"] || [clean containsString:@"queo phai"] ||
         [clean containsString:@"ngoat phai"] || [clean containsString:@"turn right"]) {
-        if ([clean containsString:@"chech"] || [clean containsString:@"slight"]) {
-            return 5; // HUD_SLIGHT_RIGHT
-        }
-        if ([clean containsString:@"gat"] || [clean containsString:@"sharp"]) {
-            return 9; // HUD_SHARP_RIGHT
-        }
         return 3; // HUD_RIGHT
-    }
-    if ([clean containsString:@"chech sang trai"] || [clean containsString:@"slight left"]) {
-        return 4; // HUD_SLIGHT_LEFT
-    }
-    if ([clean containsString:@"chech sang phai"] || [clean containsString:@"slight right"]) {
-        return 5; // HUD_SLIGHT_RIGHT
     }
     if ([clean containsString:@"loi ra"] || [clean containsString:@"exit"] || [clean containsString:@"off-ramp"]) {
         return 7; // HUD_OFF_RAMP_RIGHT
     }
-    if ([clean containsString:@"nhap lan"] || [clean containsString:@"merge"]) {
+    if ([clean containsString:@"nhap lan"] || [clean containsString:@"nhap vao"] || [clean containsString:@"merge"]) {
         return 16; // HUD_MERGE_LEFT
     }
-    if ([clean containsString:@"vong xuyen"] || [clean containsString:@"bung binh"] || [clean containsString:@"roundabout"]) {
-        return 37; // HUD_ROUNDABOUT
-    }
-    if ([clean containsString:@"den noi"] || [clean containsString:@"diem den"] || [clean containsString:@"arrive"]) {
+    if ([clean containsString:@"den noi"] || [clean containsString:@"diem den"] || [clean containsString:@"arrive"] || [clean containsString:@"destination"]) {
         return 8; // HUD_DESTINATION
     }
-    if ([clean containsString:@"di thang"] || [clean containsString:@"tiep tuc"] || [clean containsString:@"straight"]) {
+    if ([clean containsString:@"di thang"] || [clean containsString:@"tiep tuc"] || [clean containsString:@"straight"] || [clean containsString:@"follow"]) {
         return 1; // HUD_STRAIGHT
     }
     return 0;
@@ -237,16 +291,26 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     if (hudIcon == 0) {
         hudIcon = GVMMapCarPlayManeuverToMazdaHUD(mType);
     }
-    NSString *cleanRoad = GVMStripVietnameseDiacritics(road);
+    
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(distMeters));
+    
+    // Tier 4: Fallback to Straight (1) when navigating with valid distance so HUD is never blank
+    if (hudIcon == 0 && finalDist > 0) {
+        hudIcon = 1; // HUD_STRAIGHT
+    }
+
+    NSString *cleanRoad = GVMExtractRoadName(road);
+    if (!cleanRoad || [cleanRoad length] == 0) {
+        cleanRoad = GVMStripVietnameseDiacritics(road);
+    }
 
     char navLog[512];
     time_t now = time(NULL);
     struct tm *tm_info = localtime(&now);
     char timeStr[32];
     strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
-    snprintf(navLog, sizeof(navLog), "[%s] [NAV_INTERCEPT] mType=%lu hudIcon=%u dist=%lu road=\"%s\"\n",
-             timeStr, (unsigned long)mType, (unsigned int)hudIcon, (unsigned long)finalDist, cleanRoad.UTF8String ?: "");
+    snprintf(navLog, sizeof(navLog), "[%s] [NAV_INTERCEPT] mType=%lu gms=%lu hudIcon=%u dist=%lu road=\"%s\"\n",
+             timeStr, (unsigned long)mType, (unsigned long)gmsManeuver, (unsigned int)hudIcon, (unsigned long)finalDist, cleanRoad.UTF8String ?: "");
     NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-relay.log"];
     FILE *f = fopen(path.UTF8String, "a");
     if (f) {

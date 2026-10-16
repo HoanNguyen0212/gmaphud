@@ -101,8 +101,11 @@ static void SendLimit(NSUInteger limitKmh) {
 // Format and send "NAV <icon_id> <dist_m> <road_name>\n".
 static void SendNav(NSUInteger iconID, NSUInteger distM, NSString *road) {
     if (!road) road = @"";
-    // Sanitize road name: truncate to 200 bytes, strip newlines.
-    NSString *safe = [road stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+    // Convert to 7-bit ASCII to guarantee 100% clean HUD display (no corrupted UTF-8)
+    NSData *asciiData = [road dataUsingEncoding:NSASCIIStringEncoding allowLossyConversion:YES];
+    NSString *safe = [[NSString alloc] initWithData:asciiData encoding:NSASCIIStringEncoding] ?: road;
+    safe = [safe stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+    safe = [safe stringByReplacingOccurrencesOfString:@"\r" withString:@" "];
     if (safe.length > 200) safe = [safe substringToIndex:200];
     char buf[300];
     int n = snprintf(buf, sizeof(buf), "NAV %lu %lu %s\n",

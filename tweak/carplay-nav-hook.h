@@ -9,3 +9,6 @@ uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger maneuverType);
 
 // Helper for stripping Vietnamese diacritics for Mazda CMU HUD font compatibility (exposed for tests)
 NSString *GVMStripVietnameseDiacritics(NSString *str);
+
+// Helper for extracting clean road name from turn instruction (exposed for tests)
+NSString *GVMExtractRoadName(NSString *str);
