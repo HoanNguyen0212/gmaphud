@@ -120,7 +120,8 @@ static BOOL GVMStorePlacement(NSString *key,id value) {
     [reset.heightAnchor constraintEqualToConstant:44].active=YES;
     UIStackView *header=[[UIStackView alloc] initWithArrangedSubviews:@[label,self.valueLabel]];
     header.axis=UILayoutConstraintAxisHorizontal; header.alignment=UIStackViewAlignmentCenter; header.spacing=8;
-    self.sizeSlider=[UISlider new]; self.sizeSlider.minimumValue=self.offset ? -100 : GVMSizePercentMin; self.sizeSlider.maximumValue=self.offset ? 100 : GVMSizePercentMax;
+    // Float on both branches: with the unsigned size limits, -100 would become a huge minimum.
+    self.sizeSlider=[UISlider new]; self.sizeSlider.minimumValue=self.offset ? -100.0f : (float)GVMSizePercentMin; self.sizeSlider.maximumValue=self.offset ? 100.0f : (float)GVMSizePercentMax;
     self.sizeSlider.accessibilityLabel=specifier.name;
     self.sizeSlider.accessibilityHint=self.offset ? @"0 phần trăm giữ nguyên góc đã chọn" : @"100 phần trăm là kích cỡ mặc định";
     CFPreferencesAppSynchronize(CFSTR("com.chou.gmaphud"));
