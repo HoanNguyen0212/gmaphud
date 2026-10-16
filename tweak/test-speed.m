@@ -23,6 +23,9 @@ static NSDictionary *DisplayAlert(const char *text) {
     } else if (parts.count!=1) return nil;
     NSInteger distance;
     NSUInteger kind=GVMVietMapKindForAssetName(name);
+    // "-" is a sign in effect, which VietMap shows without a distance.
+    if (kind && parts.count==2 && [distanceText isEqual:@"-"])
+        return @{@"provider":@(GVMVietMapProviderID),@"kind":@(kind),@"distance":NSNull.null};
     if (!kind || !Number(distanceText.UTF8String,&distance) || distance<0 || distance>10000) return nil;
     return @{@"provider":@(GVMVietMapProviderID),@"kind":@(kind),@"distance":@(distance)};
 }
@@ -49,6 +52,18 @@ int main(int argc, char **argv) {
             notify_cancel(token);
             return result==NOTIFY_STATUS_OK ? 0 : 3;
         }
+        // Optional test lanes, anywhere after the values: lanes=1,1,1,5,4@127.
+        uint64_t laneState=0;
+        for (int i=1;i<argc;i++) {
+            if (strncmp(argv[i],"lanes=",6)) continue;
+            NSDictionary *lanes=GVMParseTestLanes([NSString stringWithUTF8String:argv[i]+6]);
+            if (!lanes) {
+                fprintf(stderr, "Use lanes=CODES[@METERS]: up to 7 VietMap lane codes such as 1,1,5,4 (x1 marks a lane not to use)\n"); return 2;
+            }
+            laneState=GVMEncodeTestLanes(lanes[@"items"],lanes[@"distance"]);
+            for (int j=i;j<argc-1;j++) argv[j]=argv[j+1];
+            argc--; break;
+        }
         BOOL photo=argc>1 && strcmp(argv[argc-1],"--photo")==0;
         if (photo) argc--;
         uint64_t state = 0;
@@ -57,14 +72,14 @@ int main(int argc, char **argv) {
             NSInteger speed, limit, duration;
             if ((argc != 4 && argc != 6) || !Number(argv[1], &speed) || !Number(argv[2], &limit) || !Number(argv[3], &duration) ||
                 !(state = GVMEncodeTest(speed, limit, NSProcessInfo.processInfo.systemUptime, duration))) {
-                fprintf(stderr, "Usage: gvm-test-speed SPEED_KMH LIMIT_KMH SECONDS [SIGN1:METERS SIGN2:METERS], [--photo], or off; position FULL DASHBOARD; overspeed off|map|screen\n"); return 2;
+                fprintf(stderr, "Usage: gvm-test-speed SPEED_KMH LIMIT_KMH SECONDS [SIGN1:METERS SIGN2:METERS] [lanes=CODES@METERS], [--photo], or off; position FULL DASHBOARD; overspeed off|map|screen\n"); return 2;
             }
             if (argc == 6) {
                 NSDictionary *first=DisplayAlert(argv[4]), *second=DisplayAlert(argv[5]);
                 NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
                 if (!first || !second || !(firstAlert=GVMEncodeAlert(first,now)) ||
                     !(secondAlert=GVMEncodeAlert(second,now))) {
-                    fprintf(stderr, "Use VietMap sign asset names and distances 0..10000 m; bare numbers mean traffic_camera\n"); return 2;
+                    fprintf(stderr, "Use VietMap sign asset names and distances 0..10000 m (- for a sign in effect); bare numbers mean traffic_camera\n"); return 2;
                 }
             }
         }
@@ -73,6 +88,12 @@ int main(int argc, char **argv) {
         uint32_t photoResult=notify_set_state(photoToken,photo ? state : 0);
         notify_cancel(photoToken);
         if (photoResult!=NOTIFY_STATUS_OK) return 3;
+        if (!state) laneState=0;
+        int laneToken=-1;
+        if (notify_register_check(GVMTestLaneStateName,&laneToken)!=NOTIFY_STATUS_OK) return 3;
+        uint32_t laneResult=notify_set_state(laneToken,laneState);
+        notify_cancel(laneToken);
+        if (laneResult!=NOTIFY_STATUS_OK) return 3;
         int token, firstToken, secondToken;
         if (notify_register_check(GVMTestStateName, &token) != NOTIFY_STATUS_OK) return 3;
         if (notify_register_check(GVMTestFirstAlertStateName, &firstToken) != NOTIFY_STATUS_OK) {

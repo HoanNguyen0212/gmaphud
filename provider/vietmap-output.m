@@ -52,15 +52,30 @@ NSDictionary *GVMVietMapOutputAlert(NSDictionary *alert,NSTimeInterval receivedA
     return @{@"type":type,@"value":value ?: NSNull.null,@"distance":alert[@"distance"] ?: NSNull.null,
         @"receivedAt":@(receivedAt)};
 }
+NSDictionary *GVMVietMapLaneSample(NSArray<NSNumber *> *codes,NSTimeInterval now) {
+    if (![codes isKindOfClass:NSArray.class] || !codes.count || codes.count>GVMMaximumLanes || !isfinite(now)) return nil;
+    NSMutableArray *items=[NSMutableArray new];
+    for (NSNumber *code in codes) [items addObject:@{@"code":code,@"enabled":@YES}];
+    return @{@"distance":NSNull.null,@"items":items,@"receivedAt":@(now)};
+}
 NSDictionary *GVMVietMapOutput(NSDictionary *samples,NSArray<NSDictionary *> *alertEntries,NSTimeInterval now) {
     if (alertEntries && (![alertEntries isKindOfClass:NSArray.class] || alertEntries.count>64)) return nil;
-    NSMutableArray *alerts=[NSMutableArray new];
+    NSMutableArray *alerts=[NSMutableArray new], *active=[NSMutableArray new];
     for (NSDictionary *entry in alertEntries) {
         if (![entry isKindOfClass:NSDictionary.class]) continue;
         id received=entry[@"receivedAt"];
         if (![received isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)received)==CFBooleanGetTypeID()) continue;
         NSDictionary *alert=GVMVietMapOutputAlert(entry[@"sample"],[received doubleValue]);
-        if (alert) [alerts addObject:alert];
+        if (!alert) continue;
+        if (![entry[@"active"] isEqual:@YES]) { [alerts addObject:alert]; continue; }
+        NSMutableDictionary *inEffect=[alert mutableCopy]; inEffect[@"distance"]=NSNull.null;
+        [active addObject:inEffect];
+    }
+    for (NSDictionary *alert in active) {
+        BOOL upcoming=NO;
+        for (NSDictionary *other in alerts)
+            if ([other[@"type"] isEqual:alert[@"type"]] && [other[@"value"] isEqual:alert[@"value"]]) { upcoming=YES; break; }
+        if (!upcoming) [alerts addObject:alert];
     }
     return GVMSourceOutput(GVMSourceVietMap,samples,alerts,now);
 }

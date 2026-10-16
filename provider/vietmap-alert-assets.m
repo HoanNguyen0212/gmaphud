@@ -164,23 +164,162 @@ NSDictionary *GVMVietMapAlertObservation(id payload, NSUInteger acceptedCount) {
         @"truncated":@(count>items.count),@"items":items};
 }
 
+NSData *GVMVietMapDataValue(id item);
+static NSString *Shape(id value) {
+    return value==NSNull.null ? @"null" : GVMVietMapDataValue(value) ? @"data" : [value isKindOfClass:NSDictionary.class] ? @"dictionary" :
+        [value isKindOfClass:NSArray.class] ? @"array" : [value isKindOfClass:NSString.class] ? @"string" :
+        [value isKindOfClass:NSNumber.class] ? @"number" : @"other";
+}
+// Field names that could point at a person or a place stay out of the log, even as names.
+static BOOL PrivateKey(id key) {
+    if (![key isKindOfClass:NSString.class]) return YES;
+    NSString *lower=[key lowercaseString];
+    for (NSString *part in @[@"lat",@"lon",@"lng",@"coord",@"location",@"position",@"heading",@"bearing",
+        @"address",@"name",@"user",@"account",@"token",@"phone",@"mail",@"device"])
+        if ([lower containsString:part]) return YES;
+    return NO;
+}
+// A short code such as "straight_right" says how a field is encoded; free text and numbers that could
+// be measurements stay out.
+static id Token(id value) {
+    if ([value isKindOfClass:NSNumber.class]) return CFGetTypeID((__bridge CFTypeRef)value)==CFBooleanGetTypeID() ? value : @([value integerValue]);
+    // Lane image ids are direction names and separators only, so they are kept whole even when long.
+    if ([value isKindOfClass:NSString.class] && [value hasPrefix:@"lane_"] && [value length]<=96 &&
+        [[[value substringFromIndex:5] stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_|,;:+/&-. "]] length]==0)
+        return value;
+    if (![value isKindOfClass:NSString.class] || [value length]>24) return nil;
+    if ([value length]<=3) return value; // One to three characters cannot identify anyone: lane and type codes.
+    NSCharacterSet *allowed=[NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-|,"];
+    return [[value stringByTrimmingCharactersInSet:allowed] length]==0 ? value : nil;
+}
+static NSArray<NSString *> *KeyNames(NSDictionary *dictionary);
+static id Describe(id item, NSUInteger depth);
+// A string that is not a short code: decoded as JSON when it is one; otherwise only its length and
+// whether it looks like base64 (an encoded image) or text.
+static id DescribeString(NSString *s, NSUInteger depth) {
+    id decoded=[s length]<=262144 ? [NSJSONSerialization JSONObjectWithData:[s dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil] : nil;
+    if (decoded && depth<3) return Describe(decoded,depth+1);
+    NSCharacterSet *b64=[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="];
+    BOOL base64=[s length]>=64 && [[s stringByTrimmingCharactersInSet:b64] length]==0;
+    return @{@"len":@([s length]),@"kind":base64 ? @"base64" : @"text"};
+}
+NSData *GVMVietMapDataValue(id item) {
+    if ([item isKindOfClass:NSData.class]) return item;
+    if (![item isKindOfClass:NSString.class] && [item respondsToSelector:@selector(data)]) {
+        id data=[item valueForKey:@"data"];
+        if ([data isKindOfClass:NSData.class]) return data;
+    }
+    return nil;
+}
+static id Describe(id item, NSUInteger depth) {
+    id token=Token(item);
+    if (token) return token;
+    NSData *data=GVMVietMapDataValue(item);
+    if (data) return @{@"bytes":@(data.length),@"sha256":ImageDigest(data) ?: @"large"}; // An image: size and digest only.
+    if ([item isKindOfClass:NSString.class]) return DescribeString(item,depth);
+    if ([item isKindOfClass:NSDictionary.class]) {
+        NSMutableDictionary *codes=[NSMutableDictionary new];
+        for (NSString *name in KeyNames(item)) {
+            id value=item[name];
+            id code=Token(value);
+            // Strings are always summarised (bounded); nested containers only two levels down.
+            if (!code && ([value isKindOfClass:NSString.class] || GVMVietMapDataValue(value))) code=Describe(value,depth+1);
+            else if (!code && depth<3 && ([value isKindOfClass:NSDictionary.class] || [value isKindOfClass:NSArray.class])) code=Describe(value,depth+1);
+            if (code) codes[name]=code;
+        }
+        return @{@"keys":KeyNames(item),@"codes":codes};
+    }
+    if ([item isKindOfClass:NSArray.class]) {
+        NSMutableArray *codes=[NSMutableArray new];
+        for (id element in [item subarrayWithRange:NSMakeRange(0,MIN([item count],8))])
+            [codes addObject:depth<3 ? Describe(element,depth+1) : (Token(element) ?: @"?")];
+        return @{@"count":@([item count]),@"codes":codes};
+    }
+    return item==NSNull.null ? @"null" : @"?";
+}
+NSDictionary *GVMVietMapValueObservation(id payload) {
+    return @{@"shape":Shape(payload),@"value":Describe(payload,0)};
+}
+static NSArray<NSString *> *KeyNames(NSDictionary *dictionary) {
+    NSMutableArray *names=[NSMutableArray new];
+    for (id key in [dictionary.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        if (PrivateKey(key) || names.count>=16) continue;
+        [names addObject:[key substringToIndex:MIN([key length],40)]];
+    }
+    return names;
+}
+NSDictionary *GVMVietMapOverlayPatch(id payload) {
+    id patch=([payload isKindOfClass:NSArray.class] && [payload count]==2) ? payload[0] : payload;
+    return [patch isKindOfClass:NSDictionary.class] ? patch : nil;
+}
+BOOL GVMVietMapOverlayCarriesImages(id payload) {
+    for (id value in GVMVietMapOverlayPatch(payload).allValues) if (GVMVietMapDataValue(value)) return YES;
+    return NO;
+}
 NSDictionary *GVMVietMapOverlayObservation(id payload) {
     // Inspect only known warning field names; never record map coordinates or free text.
-    id patch=([payload isKindOfClass:NSArray.class] && [payload count]==2) ? payload[0] : payload;
-    if (![patch isKindOfClass:NSDictionary.class]) return @{ @"dictionary":@NO };
+    NSDictionary *patch=GVMVietMapOverlayPatch(payload);
+    if (!patch) return @{ @"dictionary":@NO };
+    NSArray *known=@[@"stickyAlerts",@"upcomingAlerts",@"upcommingAlerts",@"alerts",
+        @"restrictionEventData",@"parkingInfo",@"noPassingGoingIn",@"trafficSignal"];
     NSMutableDictionary *fields=[NSMutableDictionary new];
-    for (NSString *key in @[@"stickyAlerts",@"upcomingAlerts",@"upcommingAlerts",@"alerts",
-        @"restrictionEventData",@"parkingInfo",@"noPassingGoingIn",@"trafficSignal"]) {
+    for (NSString *key in known) {
         id value=patch[key];
         if (!value) continue;
         if ([value isKindOfClass:NSArray.class]) fields[key]=GVMVietMapAlertObservation(value,0);
-        else fields[key]=@{@"shape":value==NSNull.null ? @"null" :
-            [value isKindOfClass:NSDictionary.class] ? @"dictionary" :
-            [value isKindOfClass:NSString.class] ? @"string" : @"other"};
+        else fields[key]=@{@"shape":Shape(value)};
     }
-    return @{@"dictionary":@YES,@"fields":fields};
+    // Other fields are recorded by name and shape only, so a new kind of guidance can be found.
+    NSMutableArray *others=[NSMutableArray new];
+    for (id key in [patch.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        if ([known containsObject:key] || PrivateKey(key) || others.count>=24) continue;
+        id value=patch[key];
+        NSMutableDictionary *entry=[@{@"key":[key substringToIndex:MIN([key length],40)],@"shape":Shape(value)} mutableCopy];
+        NSData *data=GVMVietMapDataValue(value);
+        if (data) { entry[@"bytes"]=@(data.length); entry[@"sha256"]=ImageDigest(data) ?: @"large"; }
+        else if ([value isKindOfClass:NSArray.class]) {
+            entry[@"count"]=@([value count]);
+            id first=[value firstObject];
+            id decoded=[first isKindOfClass:NSString.class] && [first length]<=262144 ?
+                [NSJSONSerialization JSONObjectWithData:[first dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil] : nil;
+            if (decoded) first=decoded;
+            if (first) entry[@"itemShape"]=Shape(first);
+            if ([first isKindOfClass:NSDictionary.class]) {
+                entry[@"itemKeys"]=KeyNames(first);
+                NSDictionary *described=Describe(first,1);
+                if ([described[@"codes"] count]) entry[@"itemCodes"]=described[@"codes"];
+            } else {
+                NSMutableArray *codes=[NSMutableArray new];
+                for (id item in [value subarrayWithRange:NSMakeRange(0,MIN([value count],8))]) [codes addObject:Describe(item,1)];
+                entry[@"codes"]=codes;
+            }
+        } else if ([value isKindOfClass:NSDictionary.class]) entry[@"keys"]=KeyNames(value);
+        [others addObject:entry];
+    }
+    return @{@"dictionary":@YES,@"fields":fields,@"otherFields":others};
 }
 
+NSArray<NSNumber *> *GVMVietMapOverlayLaneCodes(id payload) {
+    NSDictionary *patch=GVMVietMapOverlayPatch(payload);
+    id value=patch[@"laneInfo"];
+    // A patch that replaces the whole overlay and has no lanes means there are none.
+    BOOL replace=[payload isKindOfClass:NSArray.class] && [payload count]==2 && [payload[1] isEqual:@YES];
+    if (!patch || (!value && !replace)) return nil;
+    if (![value isKindOfClass:NSArray.class] || [value count]>12) return @[];
+    NSMutableArray *codes=[NSMutableArray new];
+    NSCharacterSet *other=NSCharacterSet.decimalDigitCharacterSet.invertedSet;
+    for (id item in value) {
+        NSInteger code=-1;
+        if ([item isKindOfClass:NSString.class] && [item length] && [item length]<=3 &&
+            [item rangeOfCharacterFromSet:other].location==NSNotFound) code=[item integerValue];
+        else if ([item isKindOfClass:NSNumber.class] && CFGetTypeID((__bridge CFTypeRef)item)!=CFBooleanGetTypeID() &&
+            [item doubleValue]==[item integerValue]) code=[item integerValue];
+        // One unreadable lane would misplace the others, so the whole set is dropped.
+        if (code<0 || code>511) return @[];
+        [codes addObject:@(code)];
+    }
+    return codes;
+}
 NSArray<NSDictionary *> *GVMVietMapOverlayStickyAlerts(id payload) {
     if (![payload isKindOfClass:NSArray.class] || [payload count]!=2 ||
         ![payload[0] isKindOfClass:NSDictionary.class]) return nil;
@@ -189,5 +328,8 @@ NSArray<NSDictionary *> *GVMVietMapOverlayStickyAlerts(id payload) {
     if (!value) return nil;
     if (value==NSNull.null) return @[];
     if (![value isKindOfClass:NSArray.class] || [value count]>32) return nil;
-    return GVMVietMapAlertsFromPayload(value);
+    // The overlay usually sends sticky signs without their images. A list it cannot read keeps the
+    // signs updateStickyAlerts reported instead of clearing them between updates.
+    NSArray<NSDictionary *> *alerts=GVMVietMapAlertsFromPayload(value);
+    return alerts.count<MIN([value count],2) ? nil : alerts;
 }

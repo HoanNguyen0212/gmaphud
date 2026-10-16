@@ -24,6 +24,16 @@ int main(void) {
         assert(!GVMEncodeTest(60, 50, 100, 301));
         assert(!GVMEncodeTest(60, 50, INFINITY, 60));
         assert(!GVMDecodeTest((200000ULL << 18) | (50ULL << 9) | 511, 100));
+        NSDictionary *lanes=GVMParseTestLanes(@"1,1,x1,5,4@127");
+        assert([lanes[@"distance"] isEqual:@127] && [lanes[@"items"] count]==5 && [lanes[@"items"][2][@"enabled"] isEqual:@NO]);
+        NSDictionary *decoded=GVMDecodeTestLanes(GVMEncodeTestLanes(lanes[@"items"],lanes[@"distance"]));
+        assert([decoded isEqual:lanes]);
+        NSDictionary *every=GVMParseTestLanes(@"85,257,81,69,68,21,17");
+        assert(every[@"distance"]==NSNull.null && [GVMDecodeTestLanes(GVMEncodeTestLanes(every[@"items"],NSNull.null)) isEqual:every]);
+        for (NSString *bad in @[@"",@"1,,4",@"1,512",@"1,a",@"1@",@"1@-5",@"1@10001x",@"1,1,1,1,1,1,1,1",@"1@2@3"])
+            assert(!GVMParseTestLanes(bad));
+        assert(!GVMParseTestLanes(@"1@10001"));
+        assert(!GVMDecodeTestLanes(0) && !GVMDecodeTestLanes(GVMEncodeTestLanes(@[@{@"code":@1}],@5)|(1ULL<<40)));
         puts("test-state tests passed");
     }
 }

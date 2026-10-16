@@ -2,7 +2,11 @@
 #import "diagnostics.h"
 #include <assert.h>
 #include <math.h>
-int main(void) { @autoreleasepool {
+int main(int argc, char **argv) { @autoreleasepool {
+    assert(argc==2);
+    NSString *version=@(argv[1]);
+    NSString *loaded=[NSString stringWithFormat:@"Module %@ đã nạp",version];
+    NSString *header=[NSString stringWithFormat:@"GMapHUD %@ — Chẩn đoán\n",version];
     assert(!GVMEncodeDiagnostic(0,1,100));
     assert(!GVMEncodeDiagnostic(11,1,100));
     assert(!GVMEncodeDiagnostic(1,0x1000000,100));
@@ -15,6 +19,7 @@ int main(void) { @autoreleasepool {
     assert([GVMDescribeDiagnostic(sample,99) containsString:@"Chưa có dữ liệu"]);
     assert([GVMDescribeDiagnostic(GVMEncodeDiagnostic(GVMDiagnosticSamples,0,100),110) containsString:@"thiếu/hết hạn"]);
     assert([GVMDescribeDiagnostic(GVMEncodeDiagnostic(GVMDiagnosticLoaded,(26<<16)|(40<<8)|3,100),110) containsString:@"26.40.3"]);
+    assert([GVMDescribeDiagnostic(GVMEncodeDiagnostic(GVMDiagnosticLoaded,0,100),110) containsString:loaded]);
     assert([GVMDescribeDiagnostic(GVMEncodeDiagnostic(GVMDiagnosticCarPlay,4,100),110) containsString:@"mẫu thử"]);
     NSString *directory=[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
     NSFileManager *manager=NSFileManager.defaultManager;
@@ -31,6 +36,7 @@ int main(void) { @autoreleasepool {
     assert([status containsString:@"Không đọc được"]);
     [manager removeItemAtPath:directory error:nil];
     NSString *report=GVMDiagnosticsReport();
+    assert([report hasPrefix:header]);
     assert([report containsString:@"com.google.Maps"] && [report containsString:@"vn.vietmap.live"]);
 
     assert([report containsString:@"vietmap"] && [report containsString:@"googlemaps"]);

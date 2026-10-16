@@ -8,9 +8,11 @@
 #endif
 static NSString *Prefix(void) { return @GVM_OUTPUT_NAMESPACE; }
 
+// Commit and selection, then the payload words in order.
+enum { GVMOutputSlotCount=2+GVMOutputWordCount };
 @interface GVMOutputEndpoint : NSObject {
 @public
-    int tokens[8];
+    int tokens[GVMOutputSlotCount];
     GVMOutputWords previous;
     uint64_t previousSelection;
     uint64_t previousCommit;
@@ -21,15 +23,16 @@ static NSString *Prefix(void) { return @GVM_OUTPUT_NAMESPACE; }
 @implementation GVMOutputEndpoint
 - (instancetype)initWithSourceID:(NSUInteger)sourceID {
     if (!(self=[super init])) return nil;
-    for (NSUInteger i=0;i<8;i++) tokens[i]=-1;
-    NSArray *slots=@[@"commit",@"selection",@"speed",@"limit",@"alert.first",@"alert.first.value",@"alert.second",@"alert.second.value"];
+    for (NSUInteger i=0;i<GVMOutputSlotCount;i++) tokens[i]=-1;
+    NSArray *slots=@[@"commit",@"selection",@"speed",@"limit",@"alert.first",@"alert.first.value",@"alert.second",@"alert.second.value",
+        @"lanes",@"lanes.first",@"lanes.second"];
     for (NSUInteger i=0;i<slots.count;i++) {
         NSString *name=[Prefix() stringByAppendingFormat:@".output.v1.%lu.%@",(unsigned long)sourceID,slots[i]];
         if (notify_register_check(name.UTF8String,&tokens[i])!=NOTIFY_STATUS_OK) return nil;
     }
     return self;
 }
-- (void)dealloc { for (NSUInteger i=0;i<8;i++) if (tokens[i]>=0) notify_cancel(tokens[i]); }
+- (void)dealloc { for (NSUInteger i=0;i<GVMOutputSlotCount;i++) if (tokens[i]>=0) notify_cancel(tokens[i]); }
 @end
 
 static int selectionToken=-1;

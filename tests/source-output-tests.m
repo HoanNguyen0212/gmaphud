@@ -107,6 +107,24 @@ int main(int argc,const char **argv) { @autoreleasepool {
     Require(!GVMVietMapOutputAlert(@{@"provider":@1,@"kind":@(NAN)},100),@"adapter rejects nonfinite kind");
     Require([GVMVietMapOutput(nil,@[@{@"sample":@{@"provider":@1,@"kind":@(next)},@"receivedAt":@YES}],1)[@"alerts"] count]==0,@"adapter does not coerce boolean timestamp");
     Require([GVMVietMapOutput(nil,(id)@[NSNull.null],100)[@"alerts"] count]==0,@"malformed alert entry ignored");
+    // VietMap sends signs in effect (sticky) with distance 0; they must not read "0 m".
+    NSUInteger noPassing=GVMVietMapKindForAssetName(@"no_passing_in.png"), forty=GVMVietMapKindForAssetName(@"speed_limit_40.png");
+    NSDictionary *sticky=@{@"sample":@{@"provider":@1,@"kind":@(noPassing),@"distance":@0},@"receivedAt":@100,@"active":@YES};
+    NSArray *inEffect=GVMVietMapOutput(nil,@[sticky],100)[@"alerts"];
+    Require(inEffect.count==1 && inEffect[0][@"distance"]==NSNull.null,@"sign in effect carries no distance");
+    Require(GVMEncodeSourceOutput(GVMVietMapOutput(nil,@[sticky],100),100,&words) &&
+        GVMDecodeSourceOutput(1,words,100)[@"alerts"][0][@"distance"]==NSNull.null,@"sign in effect survives the wire without distance");
+    NSArray *ahead=@[@{@"sample":@{@"provider":@1,@"kind":@(next),@"distance":@72},@"receivedAt":@100},
+        @{@"sample":@{@"provider":@1,@"kind":@(forty),@"distance":@180},@"receivedAt":@100}];
+    NSArray *full=GVMVietMapOutput(nil,[ahead arrayByAddingObject:sticky],100)[@"alerts"];
+    Require(full.count==2 && [full[0][@"distance"] isEqual:@72] && [full[1][@"distance"] isEqual:@180],@"upcoming signs take both places first");
+    NSArray *mixed=GVMVietMapOutput(nil,@[ahead[0],sticky],100)[@"alerts"];
+    Require(mixed.count==2 && [mixed[0][@"distance"] isEqual:@72] && [mixed[1][@"type"] isEqual:@(GVMRoadAlertNoPassingStart)] &&
+        mixed[1][@"distance"]==NSNull.null,@"sign in effect fills a free place after upcoming signs");
+    NSDictionary *again=@{@"sample":@{@"provider":@1,@"kind":@(noPassing),@"distance":@40},@"receivedAt":@100};
+    NSArray *once=GVMVietMapOutput(nil,@[again,sticky],100)[@"alerts"];
+    Require(once.count==1 && [once[0][@"distance"] isEqual:@40],@"a sign both upcoming and in effect shows once with its distance");
+    Require([GVMVietMapOutput(nil,@[@{@"sample":@{@"provider":@1,@"kind":@(noPassing),@"distance":@0},@"receivedAt":@100}],100)[@"alerts"][0][@"distance"] isEqual:@0],@"an upcoming sign at the car keeps its distance");
     VMNavSource *vm=[VMNavSource new];
     [vm applyArguments:@[@{@"speed":@42},@NO] receivedAt:100];
     [vm applyMainSpeedLimit:@50 receivedAt:101];
@@ -130,5 +148,45 @@ int main(int argc,const char **argv) { @autoreleasepool {
     Require(!GVMOutputFrameReadable(514,514,9,9,9,1),@"future wire schema rejected");
     Require(!GVMOutputFrameReadable(513,513,10,10,10,1),@"source mismatch rejected");
     Require(!GVMOutputFrameReadable(1,1,9,9,9,1),@"uncommitted frame rejected");
+
+    // VietMap lanes are the ones VietMap Live shows (its overlay's laneInfo): in effect where they show,
+    // with no distance, kept as they stand and published with the publication time.
+    NSDictionary *vmLanes=GVMVietMapLaneSample(@[@1,@1,@1,@5,@4],101);
+    Require(vmLanes[@"distance"]==NSNull.null && [vmLanes[@"items"][3] isEqual:(@{@"code":@5,@"enabled":@YES})] && [vmLanes[@"receivedAt"] isEqual:@101],@"VietMap lanes are in effect, without a distance");
+    Require(!GVMVietMapLaneSample(@[],101) && !GVMVietMapLaneSample(nil,101),@"no lanes shown, no lanes");
+    Require([GVMVietMapLaneSample(@[@1,@5],400)[@"receivedAt"] isEqual:@400],@"lanes VietMap still shows stay fresh while it publishes");
+    Require(!GVMSourceOutput(1,@{@"lanes":GVMVietMapLaneSample(@[@1,@5],100)},@[],105)[@"lanes"],@"lanes expire when VietMap Live stops publishing");
+    NSDictionary *vmOutput=GVMVietMapOutput(@{@"lanes":vmLanes},@[],101);
+    Require([vmOutput[@"lanes"][@"items"] count]==5 && GVMEncodeSourceOutput(vmOutput,101,&words) && [GVMDecodeSourceOutput(1,words,101)[@"lanes"] isEqual:vmOutput[@"lanes"]],@"VietMap lanes reach the wire");
+
+    // Lanes: one optional set for the next junction, all lanes or none.
+    NSDictionary *(^Lane)(id,id)=^NSDictionary *(id code,id enabled) { return enabled ? @{@"code":code,@"enabled":enabled} : @{@"code":code}; };
+    NSDictionary *laneSet=@{@"distance":@127,@"items":@[Lane(@1,@YES),Lane(@1,@YES),Lane(@1,@NO),Lane(@5,nil),Lane(@4,@YES)],@"receivedAt":@100};
+    NSDictionary *withLanes=GVMSourceOutput(1,@{@"speed":Sample(@42,100),@"lanes":laneSet},@[],101);
+    NSArray *items=withLanes[@"lanes"][@"items"];
+    Require(items.count==5 && [withLanes[@"lanes"][@"distance"] isEqual:@127] && [items[3][@"enabled"] isEqual:@YES] && [items[2][@"enabled"] isEqual:@NO],@"lanes keep order, distance and enabled (default true)");
+    Require(GVMEncodeSourceOutput(withLanes,101,&words) && [GVMDecodeSourceOutput(1,words,101) isEqual:withLanes],@"lanes round trip with the other fields");
+    Require(!GVMDecodeSourceOutput(1,words,105)[@"lanes"] && GVMDecodeSourceOutput(1,words,104)[@"lanes"],@"lanes expire at five seconds on their own receive time");
+    NSMutableArray *all=[NSMutableArray new];
+    for (NSNumber *code in @[@1,@4,@5,@16,@17,@21,@64,@65,@68,@69,@80,@81]) [all addObject:Lane(code,@YES)];
+    NSDictionary *twelve=GVMSourceOutput(1,@{@"lanes":@{@"distance":NSNull.null,@"items":all,@"receivedAt":@100}},@[],100);
+    Require(GVMEncodeSourceOutput(twelve,100,&words) && [GVMDecodeSourceOutput(1,words,100) isEqual:twelve] && twelve[@"lanes"][@"distance"]==NSNull.null,@"twelve lanes and an unknown distance round trip");
+    NSDictionary *wide=GVMSourceOutput(1,@{@"lanes":@{@"distance":@40,@"items":@[Lane(@85,@YES),Lane(@257,@YES)],@"receivedAt":@100}},@[],100);
+    Require(GVMEncodeSourceOutput(wide,100,&words) && [GVMDecodeSourceOutput(1,words,100)[@"lanes"][@"items"][1][@"code"] isEqual:@257],@"every known direction survives the wire");
+    Require([GVMSourceOutput(1,@{@"lanes":@{@"items":@[Lane(@3,@YES),Lane(@0,@YES)],@"receivedAt":@100}},@[],100)[@"lanes"][@"items"] isEqual:@[Lane(@1,@YES),Lane(@0,@YES)]],@"unknown direction bits are dropped, the lane keeps its place");
+    [all addObject:Lane(@1,@YES)];
+    NSArray *badSets=@[@{@"items":all,@"receivedAt":@100},@{@"items":@[],@"receivedAt":@100},
+        @{@"items":@[Lane(@1,@YES),Lane(@"1",@YES)],@"receivedAt":@100},@{@"items":@[Lane(@512,@YES)],@"receivedAt":@100},
+        @{@"items":@[Lane(@1,@1)],@"receivedAt":@100},@{@"items":@[Lane(@1,@YES)],@"distance":@10001,@"receivedAt":@100},
+        @{@"items":@[Lane(@1,@YES)],@"receivedAt":@94},@{@"items":@[Lane(@1,@YES)],@"receivedAt":@101}];
+    for (NSDictionary *bad in badSets) Require(!GVMSourceOutput(1,@{@"lanes":bad},@[],100)[@"lanes"],@"malformed, oversized, stale or future lane sets are omitted whole");
+    Require(GVMEncodeSourceOutput(withLanes,101,&words),@"re-encode lanes");
+    GVMOutputWords tampered=words; tampered.words[7]|=64ULL<<8;
+    Require(!GVMDecodeSourceOutput(1,tampered,101)[@"lanes"],@"reserved lane bits reject the set");
+    tampered=words; tampered.words[8]=1;
+    Require(!GVMDecodeSourceOutput(1,tampered,101)[@"lanes"],@"bytes past the lane count reject the set");
+    tampered=words; tampered.words[6]&=~(1023ULL<<14);
+    Require(!GVMDecodeSourceOutput(1,tampered,101)[@"lanes"],@"a zero lane count is no lanes");
+    Require([GVMDecodeSourceOutput(1,tampered,101)[@"speed"][@"value"] isEqual:@42],@"bad lanes leave the other fields alone");
     puts("source-output tests passed");
 } return 0; }

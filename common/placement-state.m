@@ -42,7 +42,7 @@ BOOL GVMBubbleEnabled(NSUInteger surface) {
 NSUInteger GVMSizePercent(id value) {
     if (![value isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)value)==CFBooleanGetTypeID()) return 100;
     double number=[value doubleValue];
-    return isfinite(number) ? (NSUInteger)lround(MAX(50,MIN(150,number))) : 100;
+    return isfinite(number) ? (NSUInteger)lround(MAX(GVMSizePercentMin,MIN(GVMSizePercentMax,number))) : 100;
 }
 uint64_t GVMEncodeSizes(id full,id dashboard,id phone) {
     return (1ULL<<24) | GVMSizePercent(full) | (GVMSizePercent(dashboard)<<8) | (GVMSizePercent(phone)<<16);
@@ -50,7 +50,20 @@ uint64_t GVMEncodeSizes(id full,id dashboard,id phone) {
 NSUInteger GVMDecodeSize(uint64_t state,NSUInteger surface) {
     if (state>>24!=1 || surface>2) return 100;
     NSUInteger value=(state>>(surface*8))&255;
-    return value>=50 && value<=150 ? value : 100;
+    return value>=GVMSizePercentMin && value<=GVMSizePercentMax ? value : 100;
+}
+const char *GVMInterfaceStyleName="com.chou.gmaphud.interface-style";
+uint64_t GVMEncodeInterfaceStyle(id value) {
+    return (1ULL<<8) | ([value isEqual:@"halo"] ? GVMInterfaceHalo : GVMInterfaceClassic);
+}
+GVMInterfaceStyle GVMDecodeInterfaceStyle(uint64_t state) {
+    return (state>>8)==1 && (state&255)==GVMInterfaceHalo ? GVMInterfaceHalo : GVMInterfaceClassic;
+}
+GVMInterfaceStyle GVMCurrentInterfaceStyle(void) {
+    static int token=-1; uint64_t state=0;
+    if (token<0) notify_register_check(GVMInterfaceStyleName,&token);
+    if (token>=0) notify_get_state(token,&state);
+    return GVMDecodeInterfaceStyle(state);
 }
 void GVMPublishSavedSizes(void) {
     CFStringRef domain=CFSTR("com.chou.gmaphud");
@@ -60,6 +73,10 @@ void GVMPublishSavedSizes(void) {
     static int overspeedToken=-1;
     if (overspeedToken<0) notify_register_check(GVMOverspeedModeName,&overspeedToken);
     if (overspeedToken>=0) { notify_set_state(overspeedToken,mode); notify_post(GVMOverspeedModeName); }
+    id style=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("interfaceStyle"),domain));
+    static int styleToken=-1;
+    if (styleToken<0) notify_register_check(GVMInterfaceStyleName,&styleToken);
+    if (styleToken>=0) { notify_set_state(styleToken,GVMEncodeInterfaceStyle(style)); notify_post(GVMInterfaceStyleName); }
     id enabled=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("bubbleEnabled"),domain));
     id fullEnabled=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("fullEnabled"),domain));
     id dashboardEnabled=CFBridgingRelease(CFPreferencesCopyAppValue(CFSTR("dashboardEnabled"),domain));
@@ -107,6 +124,9 @@ NSInteger GVMOffsetPercent(id value) {
     double number=[value doubleValue];
     return isfinite(number) ? (NSInteger)lround(MAX(-100,MIN(100,number))) : 0;
 }
+// Each branch converts on its own: a shared ternary of NSInteger and NSUInteger is unsigned, so
+// a negative offset would turn huge and the slider would pin at its maximum.
+double GVMSliderPercent(id value,BOOL offset) { return offset ? (double)GVMOffsetPercent(value) : (double)GVMSizePercent(value); }
 uint64_t GVMEncodePhonePlacement(NSString *corner,id x,id y,NSString *layout) {
     if (![corner isKindOfClass:NSString.class]) corner=nil;
     NSUInteger mode=[layout isKindOfClass:NSString.class] ? ([layout isEqual:@"horizontal"] ? 1 : [layout isEqual:@"vertical"] ? 2 : 0) : 0;

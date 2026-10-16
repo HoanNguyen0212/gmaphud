@@ -19,7 +19,7 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
 "$test_dir/test-state"
 xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   -I"$source_dir/common" "$source_dir/common/speed-presentation.m" "$source_dir/common/placement-state.m" \
-  "$source_dir/tests/speed-presentation-tests.m" -o "$test_dir/presentation"
+  "$source_dir/common/guidance-state.m" "$source_dir/tests/speed-presentation-tests.m" -o "$test_dir/presentation"
 "$test_dir/presentation"
 
 xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
@@ -31,10 +31,12 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
   "$source_dir/tweak/layout/usr/share/gmaphud/gmaphud/speed_limit_60.png" \
   "$source_dir/tweak/layout/usr/share/gmaphud/gmaphud"
 
+package_version=$(sed -n 's/^Version: *//p' "$source_dir/tweak/control")
 xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
+  -DGVM_PACKAGE_VERSION="\"$package_version\"" \
   -I"$source_dir/common" "$source_dir/common/diagnostics.m" \
   "$source_dir/tests/diagnostics-tests.m" -o "$test_dir/diagnostics"
-"$test_dir/diagnostics"
+"$test_dir/diagnostics" "$package_version"
 
 xcrun clang -Wall -Wextra -Werror "$source_dir/tests/background-policy-tests.c" -o "$test_dir/background-policy"
 "$test_dir/background-policy"

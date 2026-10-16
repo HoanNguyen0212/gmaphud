@@ -1,4 +1,4 @@
-> Release 0.2.1 enables Waze alongside VietMap (one selected source only). Waze 5.25.0 ABI/UUID guards remain; GOFA4.2.1 build3 re-enabled experimentally; cold/locked GPS measured, current native limits held while stationary GPS is silent; red-light/no-right replay observed, long-idle/full alert coverage pending. Designed artwork replaces temporary Waze images. Cold mobile-only initialization supplied fresh native 0/60 to Full Map and Dashboard in device tests. Real-road speed, long-idle reliability and active alert coverage remain unverified. Published as 0.2.3.
+> Release 0.2.1 enables Waze alongside VietMap (one selected source only). Waze 5.25.0 ABI/UUID guards remain; GOFA4.2.1 build3 re-enabled experimentally; cold/locked GPS measured, current native limits held while stationary GPS is silent; red-light/no-right replay observed, long-idle/full alert coverage pending. Designed artwork replaces temporary Waze images. Cold mobile-only initialization supplied fresh native 0/60 to Full Map and Dashboard in device tests. Real-road speed, long-idle reliability and active alert coverage remain unverified. Published as 0.2.5.
 
 # Common source output · v1
 
@@ -46,6 +46,10 @@ documents the shape; IPC carries numeric states, not JSON or images.
 | alert `distance` | Integer 0–10000 **metres**, or null when unknown. Zero means at the point. |
 | alert `artworkID` | Legacy optional decoration ID, integer 0–127; defaults to 0. Ignored by the bubble renderer. |
 | alert `receivedAt` | Original receive time of that alert update; independent of scalar fields. |
+| `lanes` | Optional lane set for the next junction: `{distance, items, receivedAt}`. Expires at five seconds like the other fields. A malformed set is omitted whole. |
+| lanes `distance` | Integer 0–10000 **metres** to the junction, or null when unknown. |
+| lanes (VietMap) | The lanes VietMap Live shows: its overlay `laneInfo`, in effect on the stretch being driven, with a null distance. VietMap changes or clears them itself (a patch without `laneInfo` leaves them), so the adapter keeps them as they stand and publishes them with the publication time; if VietMap Live stops publishing, they expire at five seconds. Its `updateLaneInfo` countdown is not used. |
+| lanes `items` | 1–12 lanes, left to right. Each is `{code, enabled}`: `code` uses VietMap's direction bitmask (1 straight, 4 right, 16 U-turn left, 64 left, 256 U-turn right; other bits are dropped), `enabled` is a boolean and defaults to true. |
 
 Missing, null, invalid or expired scalar samples are omitted. Invalid individual
 alerts are omitted; malformed envelopes/containers are rejected. Numeric strings,
@@ -86,7 +90,7 @@ The VietMap response retains its existing two-second throttle.
 
 ## Numeric IPC
 
-Each source owns eight Darwin states at
+Each source owns eleven Darwin states at
 `com.chou.gmaphud.output.v1.<sourceID>.<slot>`:
 
 | Slot | Content |
@@ -96,8 +100,10 @@ Each source owns eight Darwin states at
 | `speed`, `limit` | Existing scalar numeric encoding and original timestamps. |
 | `alert.first`, `alert.second` | Original timestamp, source ID, **semantic type**, distance. |
 | `alert.first.value`, `alert.second.value` | Artwork ID plus optional numeric alert value. |
+| `lanes` | Original timestamp, lane count and distance (16383 when unknown); zero when there are no lanes. |
+| `lanes.first`, `lanes.second` | One byte per lane, eight lanes to a word: five direction bits and the enabled bit. |
 
-The writer begins an odd revision, writes selection and all six payload words,
+The writer begins an odd revision, writes selection and all nine payload words,
 then finishes an even revision. The reader checks commit and selection before and
 after; partial writes, source switches, old epochs and unknown schemas are
 unavailable. Each source has **one adapter writer process**; local operations are

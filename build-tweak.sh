@@ -21,7 +21,7 @@ cp "$source_dir"/common/source-output.[mh] "$source_dir"/common/source-transport
 cp "$source_dir"/common/cmu-hud-relay.[mh] "$source_dir"/common/cmu-wifi-autoconnect.[mh] "$source_dir"/common/tpms-state.[mh] "$build_dir/"
 cp "$source_dir/provider/gofa-payload.swift" "$build_dir/"
 cp "$source_dir"/provider/vietmap-output.[mh] "$source_dir"/provider/waze-output.[mh] "$build_dir/"
-cp "$source_dir"/common/placement-state.[mh] "$build_dir/"
+cp "$source_dir"/common/placement-state.[mh] "$source_dir"/common/guidance-state.[mh] "$build_dir/"
 cp "$source_dir/provider/vietmap-source.x" "$build_dir/vietmap-source.x"
 cp "$source_dir/provider/"background-location.[mh] "$build_dir/"
 cp "$source_dir/provider/"nav-source.[mh] "$source_dir/provider/"nav-payload.[mh] "$source_dir/provider/"vietmap-alert-assets.[mh] "$build_dir/"

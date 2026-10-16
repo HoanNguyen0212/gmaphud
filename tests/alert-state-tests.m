@@ -32,17 +32,71 @@ int main(int argc, const char **argv) { @autoreleasepool {
     assert([GVMVietMapAlertObservation(@[json],0)[@"items"][0][@"jsonString"] boolValue]);
     assert(![GVMVietMapAlertObservation(@"private-value",0)[@"array"] boolValue]);
     NSDictionary *overlay=GVMVietMapOverlayObservation(@[@{@"stickyAlerts":@[raw],@"latitude":@12.34,
-        @"parkingInfo":@{@"account":@"private-value"}},@NO]);
+        @"parkingInfo":@{@"account":@"private-value"},
+        @"laneGuidance":@[@{@"direction":@"straight",@"latitude":@1,@"userName":@"private-value"}],
+        @"junctionView":@{@"image":@"private-value",@"location":@"private-value"},
+        @"laneInfo":@[@"straight_right",@"Hẻm 71 private-value",@12,@YES,
+            @"{\"type\":\"straight\",\"highlight\":true,\"streetName\":\"private-value\",\"image\":\"QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ejAxMjM0NTY3ODk=\"}"]},@NO]);
     assert([overlay[@"fields"] count]==2);
     assert([overlay[@"fields"][@"stickyAlerts"][@"count"] isEqual:@1]);
+    // Unknown fields are listed by name and shape only; names that could point at a place or a person are left out.
+    NSArray *others=overlay[@"otherFields"];
+    assert(others.count==3 && [others[0][@"key"] isEqual:@"junctionView"] && [others[0][@"keys"] isEqual:@[@"image"]]);
+    assert([others[1][@"key"] isEqual:@"laneGuidance"] && [others[1][@"count"] isEqual:@1] && [others[1][@"itemKeys"] isEqual:@[@"direction"]]);
+    // Short codes show how a field is encoded; free text is replaced by "?".
+    assert([others[1][@"itemCodes"] isEqual:@{@"direction":@"straight"}]);
+    assert([others[2][@"key"] isEqual:@"laneInfo"] && [others[2][@"itemShape"] isEqual:@"string"]);
+    NSArray *laneCodes=others[2][@"codes"];
+    assert(laneCodes.count==5 && [laneCodes[0] isEqual:@"straight_right"] && [laneCodes[2] isEqual:@12] && [laneCodes[3] isEqual:@YES]);
+    assert([laneCodes[1] isEqual:(@{@"len":@20,@"kind":@"text"})]); // Free text: length only.
+    // A JSON lane string is decoded to its field names and short codes; the image is just a length.
+    assert([laneCodes[4][@"keys"] isEqual:(@[@"highlight",@"image",@"type"])]);
+    assert([laneCodes[4][@"codes"][@"type"] isEqual:@"straight"] && [laneCodes[4][@"codes"][@"highlight"] isEqual:@YES]);
+    assert([laneCodes[4][@"codes"][@"image"][@"kind"] isEqual:@"base64"]);
+    NSDictionary *laneValue=GVMVietMapValueObservation(@"[{\"type\":\"left\",\"streetName\":\"private-value\"},\"Hẻm 71 private-value\"]");
+    assert([laneValue[@"shape"] isEqual:@"string"] && [laneValue[@"value"][@"count"] isEqual:@2]);
+    assert([laneValue[@"value"][@"codes"][0][@"codes"][@"type"] isEqual:@"left"] && [laneValue[@"value"][@"codes"][1][@"kind"] isEqual:@"text"]);
+    // VietMap's lane message: a JSON string with the distance and a list of lane items three levels deep.
+    NSDictionary *laneMessage=GVMVietMapValueObservation(@"{\"distance\":58,\"laneItems\":[{\"type\":2,\"active\":true,\"streetName\":\"private-value\"},{\"type\":\"1\",\"active\":false}]}");
+    NSDictionary *items=laneMessage[@"value"][@"codes"][@"laneItems"];
+    assert([laneMessage[@"value"][@"codes"][@"distance"] isEqual:@58] && [items[@"count"] isEqual:@2]);
+    assert([items[@"codes"][0][@"codes"][@"type"] isEqual:@2] && [items[@"codes"][0][@"codes"][@"active"] isEqual:@YES]);
+    assert([items[@"codes"][1][@"codes"][@"type"] isEqual:@"1"] && ![items[@"codes"][0][@"keys"] containsObject:@"streetName"]);
+    // Images registered for CarPlay views are described by size and digest only.
+    NSDictionary *image=GVMVietMapValueObservation(@{@"5":[@"abc" dataUsingEncoding:NSUTF8StringEncoding]});
+    assert([image[@"value"][@"codes"][@"5"][@"bytes"] isEqual:@3]);
+    assert([image[@"value"][@"codes"][@"5"][@"sha256"] isEqual:@"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"]);
+    assert(GVMVietMapDataValue(@"text")==nil && GVMVietMapDataValue([NSData data]));
+    // VietMap sends its lane icons inside the overlay patch, keyed by the lane code.
+    NSArray *iconPatch=@[@{@"laneInfo":@[@"1",@"5"],@"5":[@"abc" dataUsingEncoding:NSUTF8StringEncoding]},@NO];
+    assert(GVMVietMapOverlayCarriesImages(iconPatch) && !GVMVietMapOverlayCarriesImages(@[@{@"laneInfo":@[]},@NO]));
+    NSDictionary *iconEntry=nil;
+    for (NSDictionary *entry in GVMVietMapOverlayObservation(iconPatch)[@"otherFields"]) if ([entry[@"key"] isEqual:@"5"]) iconEntry=entry;
+    assert([iconEntry[@"shape"] isEqual:@"data"] && [iconEntry[@"bytes"] isEqual:@3]);
+    assert([iconEntry[@"sha256"] isEqual:@"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"]);
+    // Single-character lane codes are kept as they are.
+    assert([GVMVietMapOverlayObservation(@[@{@"laneInfo":@[@"1",@"↑",@"3"]},@NO])[@"otherFields"][0][@"codes"] isEqual:(@[@"1",@"↑",@"3"])]);
     NSString *overlayJSON=[[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:overlay options:0 error:nil] encoding:NSUTF8StringEncoding];
-    assert(![overlayJSON containsString:@"latitude"] && ![overlayJSON containsString:@"private-value"]);
+    assert(![overlayJSON containsString:@"latitude"] && ![overlayJSON containsString:@"private-value"] && ![overlayJSON containsString:@"71"]);
     NSArray *nextLimit=GVMVietMapAlertsFromPayload(@[@{@"image":@"",@"speedLimit":@80,@"distance":@200}]);
     assert(nextLimit.count==1);
+    // The overlay's laneInfo: the lanes VietMap Live shows, in effect on the stretch being driven.
+    assert([GVMVietMapOverlayLaneCodes(@[@{@"laneInfo":@[@"1",@"1",@"1",@"5"]},@NO]) isEqual:(@[@1,@1,@1,@5])]);
+    assert([GVMVietMapOverlayLaneCodes(@[@{@"laneInfo":@[@257,@"85"]},@NO]) isEqual:(@[@257,@85])]);
+    assert(GVMVietMapOverlayLaneCodes(@[@{@"speed":@40},@NO])==nil && GVMVietMapOverlayLaneCodes(@[@{@"speed":@40},@YES]).count==0);
+    assert(GVMVietMapOverlayLaneCodes(@[@{@"laneInfo":NSNull.null},@NO]).count==0 && GVMVietMapOverlayLaneCodes(@[@{@"laneInfo":@[]},@NO]).count==0);
+    for (id bad in @[@[@"1",@"↑"],@[@"1",@"512"],@[@"1",@YES],@[@"-1"],@[@"1.5"],@"1"])
+        assert(GVMVietMapOverlayLaneCodes(@[@{@"laneInfo":bad},@NO]).count==0);
+    // updateLaneInfo (only observed) keeps its lane image ids whole in the log.
+    assert([GVMVietMapValueObservation(@{@"imageId":@"lane_STRAIGHT_RIGHT_STRAIGHT_RIGHT"})[@"value"][@"codes"][@"imageId"] isEqual:@"lane_STRAIGHT_RIGHT_STRAIGHT_RIGHT"]);
+    assert([GVMVietMapValueObservation(@{@"imageId":@"lane_STRAIGHT-RIGHT_STRAIGHT-RIGHT"})[@"value"][@"codes"][@"imageId"] isEqual:@"lane_STRAIGHT-RIGHT_STRAIGHT-RIGHT"]);
     assert(GVMVietMapOverlayStickyAlerts(@[@{},@NO])==nil);
     assert(GVMVietMapOverlayStickyAlerts(@[@{@"stickyAlerts":@[]},@NO]).count==0);
     assert(GVMVietMapOverlayStickyAlerts(@[@{@"stickyAlerts":NSNull.null},@NO]).count==0);
     assert(GVMVietMapOverlayStickyAlerts(@[@{@"stickyAlerts":@"invalid"},@NO])==nil);
+    // Overlay signs without images (as VietMap sends them) must not clear the sticky signs.
+    assert(GVMVietMapOverlayStickyAlerts(@[@{@"stickyAlerts":@[@{@"distance":@0}]},@NO])==nil);
+    assert(GVMVietMapOverlayStickyAlerts(@[@{@"stickyAlerts":@[@{@"distance":@0},@{@"speedLimit":@60,@"distance":NSNull.null}]},@NO])==nil);
     NSArray *overlaySigns=GVMVietMapOverlayStickyAlerts(@[@{@"stickyAlerts":@[@{@"speedLimit":@60,@"distance":NSNull.null}]},@NO]);
     assert(overlaySigns.count==1 && overlaySigns[0][@"distance"]==NSNull.null);
     NSArray *noDistance=GVMVietMapAlertsFromPayload(@[@{@"speedLimit":@60,@"distance":NSNull.null}]);
