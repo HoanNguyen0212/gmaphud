@@ -12,7 +12,7 @@ index d5bb60c..608a02d 100644
  # -D_GLIBCXX_USE_CXX11_ABI=0 selects the pre-C++11 (COW) std::string/std::list ABI:
  # the device ships libstdc++.so.6.0.14 (GCC 4.6 era) which only knows that ABI.
 diff --git a/mazda/patches/blmjcicarplay/hud/hud_send.cpp b/mazda/patches/blmjcicarplay/hud/hud_send.cpp
-index 87777f7..c904640 100644
+index 87777f7..c85c776 100644
 --- a/mazda/patches/blmjcicarplay/hud/hud_send.cpp
 +++ b/mazda/patches/blmjcicarplay/hud/hud_send.cpp
 @@ -51,6 +51,7 @@
@@ -45,7 +45,7 @@ index 87777f7..c904640 100644
      return static_cast<uint16_t>(limit);
  #endif
  }
-@@ -431,6 +442,43 @@ static bool read_over()
+@@ -431,6 +442,48 @@ static bool read_over()
  #endif
  }
  
@@ -77,8 +77,13 @@ index 87777f7..c904640 100644
 +
 +    std::memset(&outSnap, 0, sizeof(outSnap));
 +    outSnap.turn_number  = icon;                  // Carries direct Mazda HUD icon ID (1..60)
-+    outSnap.distance_dec = static_cast<int32_t>(dist * 10); // meters * 10 (Mazda HUD unit 1 uses decimeters)
-+    outSnap.distance_unit = 1;                    // Meters unit
++    if (dist < 1000) {
++        outSnap.distance_unit = 1;                // Meters unit (decimeters)
++        outSnap.distance_dec  = static_cast<int32_t>(dist * 10);
++    } else {
++        outSnap.distance_unit = 3;                // Kilometers unit (tenths of km: 1500m -> 15 = 1.5 km)
++        outSnap.distance_dec  = static_cast<int32_t>(dist / 100);
++    }
 +    if (n >= 4 && road[0] != '\0') {
 +        std::strncpy(outSnap.road_name, road, sizeof(outSnap.road_name) - 1);
 +        outSnap.road_name[sizeof(outSnap.road_name) - 1] = '\0';
@@ -89,7 +94,7 @@ index 87777f7..c904640 100644
  // Helper: snap vs prev → which OEM HUD calls to make. sender_main owns the
  // prev/sync_bit state and threads them through. Returns false on a send
  // error so the caller can log; the periodic re-assert retries next tick.
-@@ -516,7 +564,9 @@ bool send_one(const NaviSnapshot &cur,
+@@ -516,7 +569,9 @@ bool send_one(const NaviSnapshot &cur,
  
      if (distance_changed || splim_changed || force) {
          uint32_t icon = 0;
@@ -100,7 +105,7 @@ index 87777f7..c904640 100644
              int32_t side_lr = (cur.turn_side == 1) ? 0 : 1;
              icon = roundabout_icon(cur.turn_angle, side_lr);
          } else if (cur.turn_event < 20) {
-@@ -563,7 +613,7 @@ bool send_one(const NaviSnapshot &cur,
+@@ -563,7 +618,7 @@ bool send_one(const NaviSnapshot &cur,
      }
  
      if (distance_changed || splim_changed || force) {
@@ -109,7 +114,7 @@ index 87777f7..c904640 100644
               static_cast<unsigned>(disp.nextManeuverInfo),
               static_cast<unsigned>(disp.distanceValue),
               static_cast<unsigned>(disp.distanceUnit),
-@@ -573,7 +623,7 @@ bool send_one(const NaviSnapshot &cur,
+@@ -573,7 +628,7 @@ bool send_one(const NaviSnapshot &cur,
          if (rc != 0) { LOGE("hud_send: SetHUDDisplayMsgReq failed rc=%d", rc); return false; }
      }
      if (distance_changed || splim_changed || force) {   // [MIRROR NATIVE] Msg2 ALWAYS paired with Msg1, every push
@@ -118,7 +123,7 @@ index 87777f7..c904640 100644
               road.c_str(), static_cast<unsigned>(msg2.syncBit));
          int rc = VBS_NAVI_TMC_SetHUD_Display_Msg2(g_conn, &msg2, nullptr, nullptr, nullptr);
          if (rc != 0) { LOGE("hud_send: SetHUD_Display_Msg2 failed rc=%d", rc); return false; }
-@@ -684,9 +734,18 @@ void *splim_ticker_main(void *)
+@@ -684,9 +739,18 @@ void *splim_ticker_main(void *)
  void *sender_main(void *)
  {
      // All D-Bus bring-up on this thread -> session start is never blocked.
@@ -139,7 +144,7 @@ index 87777f7..c904640 100644
          return nullptr;
      }
      g_active.store(true, std::memory_order_release);
-@@ -770,18 +829,28 @@ void *sender_main(void *)
+@@ -770,18 +834,28 @@ void *sender_main(void *)
          // GATED OUT of no_splim (read_splim()==0 -> splim_changed never re-fires here, so it was
          // already correct) -> that build path is unchanged.
  #ifndef CARPLAY_NO_SPLIM
@@ -171,7 +176,7 @@ index 87777f7..c904640 100644
              // [KEEPALIVE] Ticker woke us with no AA/splim change -> re-assert the
              // last frame so the cluster ECU doesn't age out the maneuver OR the
              // speed-limit (native re-asserts ~2Hz). Active when a route is live
-@@ -809,20 +878,25 @@ void *sender_main(void *)
+@@ -809,20 +883,25 @@ void *sender_main(void *)
          bool full_req = g_fullclear_req.exchange(false, std::memory_order_relaxed);
          bool nav_req  = g_clear_req.exchange(false, std::memory_order_relaxed);
          if (full_req) {
@@ -209,7 +214,7 @@ index 87777f7..c904640 100644
                  if (send_one(blankSnap, prev, sync_bit, splim, /*splim_changed=*/true, /*force=*/true)) {
                      g_have_guidance.store(false, std::memory_order_relaxed);
                      prev       = blankSnap;
-@@ -830,14 +904,14 @@ void *sender_main(void *)
+@@ -830,14 +909,14 @@ void *sender_main(void *)
                      last_processed = g_seq.load(std::memory_order_acquire);
                      nav_request_reset();
                  }
