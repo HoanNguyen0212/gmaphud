@@ -105,6 +105,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.2.4", "Thêm mục Giao diện: Classic (mặc định) hoặc New UI (beta) với đồng hồ tốc độ tròn, biển giới hạn ghim trên đồng hồ và biển làn đường theo VietMap Live; khi dẫn đường trên CarPlay, biển hiệu lực và làn nằm dưới ô chỉ dẫn. Vẽ lại bộ biển báo theo QCVN 41:2024, kích cỡ bong bóng tới 250%. Sửa biển hiệu lực hiện 0 m và nhấp nháy.",
+         "Adds an Interface choice: Classic (default) or New UI (beta), with a round speed dial, the limit pinned on it and VietMap Live lane signs; while navigating on CarPlay, signs in effect and lanes sit under the maneuver card. Redraws road signs to QCVN 41:2024 and allows bubble sizes up to 250%. Fixes signs in effect showing 0 m and blinking."),
         ("0.2.3", "Đánh thức và duy trì nguồn cảnh báo khi chỉ dùng Google Maps trên iPhone, kể cả sau khi vừa ngắt CarPlay. Banner hay Trung tâm điều khiển không còn làm ngắt nguồn.",
          "Wakes and keeps the warning source when using Google Maps on iPhone only, including right after CarPlay disconnects. Banners or Control Center no longer end the source session."),
         ("0.2.2", "Giữ giới hạn tốc độ của Waze và GOFA ổn định khi điện thoại đứng yên; GOFA không còn mất giới hạn khi chạy nền. Cải thiện độ ổn định định vị nền.",

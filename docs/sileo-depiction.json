@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.2.4"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Thêm mục Giao diện: Classic (mặc định) hoặc New UI (beta) với đồng hồ tốc độ tròn, biển giới hạn ghim trên đồng hồ và biển làn đường theo VietMap Live; khi dẫn đường trên CarPlay, biển hiệu lực và làn nằm dưới ô chỉ dẫn. Vẽ lại bộ biển báo theo QCVN 41:2024, kích cỡ bong bóng tới 250%. Sửa biển hiệu lực hiện 0 m và nhấp nháy.\n\n**English:** Adds an Interface choice: Classic (default) or New UI (beta), with a round speed dial, the limit pinned on it and VietMap Live lane signs; while navigating on CarPlay, signs in effect and lanes sit under the maneuver card. Redraws road signs to QCVN 41:2024 and allows bubble sizes up to 250%. Fixes signs in effect showing 0 m and blinking."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.2.3"
         },
         {
