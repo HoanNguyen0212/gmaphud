@@ -13,6 +13,9 @@
 #ifndef GVM_CMU_HUD_TARGET_IP
 #define GVM_CMU_HUD_TARGET_IP "192.168.100.1"
 #endif
+#ifndef GVM_CMU_HUD_TARGET_IP_USB
+#define GVM_CMU_HUD_TARGET_IP_USB "192.168.53.1"
+#endif
 #ifndef GVM_CMU_HUD_TARGET_PORT
 #define GVM_CMU_HUD_TARGET_PORT 8888
 #endif
@@ -81,29 +84,47 @@ static void EnsureSocketOpen(void) {
     if (flags >= 0) fcntl(sSock, F_SETFL, flags | O_NONBLOCK);
     int opt = 1;
     setsockopt(sSock, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
+    int bcast = 1;
+    setsockopt(sSock, SOL_SOCKET, SO_BROADCAST, &bcast, sizeof(bcast));
     memset(&sTarget, 0, sizeof(sTarget));
     sTarget.sin_family = AF_INET;
     sTarget.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
-    inet_pton(AF_INET, GVM_CMU_HUD_TARGET_IP, &sTarget.sin_addr);
+    inet_pton(AF_INET, GVM_CMU_HUD_TARGET_IP_USB, &sTarget.sin_addr);
 }
 
 static BOOL SendDatagram(const char *buf, size_t len) {
     EnsureSocketOpen();
     if (sSock < 0 || len == 0) return NO;
-    ssize_t sent = sendto(sSock, buf, len, 0,
-                          (struct sockaddr *)&sTarget, sizeof(sTarget));
-    int err = (sent < 0) ? errno : 0;
-    LogRelay(buf, len, sent, err);
-    if (sent < 0 && (err == EHOSTUNREACH || err == ENETUNREACH || err == EPIPE || err == EADDRNOTAVAIL)) {
-        close(sSock);
-        sSock = -1;
-    } else if (sent >= 0) {
+
+    static const char * const kTargets[] = {
+        GVM_CMU_HUD_TARGET_IP_USB, // "192.168.53.1" - Wired USB Lightning CarPlay
+        GVM_CMU_HUD_TARGET_IP,     // "192.168.100.1" - Wireless CMU AP / Hotspot
+        "255.255.255.255"          // Subnet broadcast fallback
+    };
+
+    BOOL anySent = NO;
+    for (size_t i = 0; i < sizeof(kTargets)/sizeof(kTargets[0]); i++) {
+        struct sockaddr_in dst;
+        memset(&dst, 0, sizeof(dst));
+        dst.sin_family = AF_INET;
+        dst.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
+        inet_pton(AF_INET, kTargets[i], &dst.sin_addr);
+
+        ssize_t sent = sendto(sSock, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
+        int err = (sent < 0) ? errno : 0;
+        LogRelay(buf, len, sent, err);
+        if (sent >= 0) {
+            anySent = YES;
+        }
+    }
+
+    if (anySent) {
         @synchronized(sLock) {
             sLastDatagram = [[NSString alloc] initWithBytes:buf length:len
                                                   encoding:NSUTF8StringEncoding];
         }
     }
-    return sent >= 0;
+    return anySent;
 }
 
 // Format and send "LIMIT <kmh>\n".

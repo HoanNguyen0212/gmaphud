@@ -38,6 +38,7 @@ class CMUHudRelaySourceTests(unittest.TestCase):
 
     def test_target_address_defaults(self):
         self.assertIn("192.168.100.1", self.impl)
+        self.assertIn("192.168.53.1", self.impl)
         self.assertIn("8888", self.impl)
 
     def test_protocol_format_limit(self):

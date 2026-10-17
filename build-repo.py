@@ -105,6 +105,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.2.7", "Sửa định tuyến IP UDP Mazda CX-5 CMU: gửi đồng thời tới 192.168.53.1 (CarPlay USB cắm dây) và 192.168.100.1 (WiFi/AP) kèm broadcast để hiển thị tốc độ VietMap Live và dẫn đường Google Maps lên HUD.",
+         "Fixes Mazda CX-5 CMU UDP relay IP routing: dual-targets 192.168.53.1 (wired CarPlay USB) and 192.168.100.1 (WiFi/AP) with broadcast fallback to show VietMap Live speed limits and Google Maps navigation on HUD."),
         ("0.2.6", "Khôi phục hiển thị áp suất lốp 4 bánh (TPMS) từ VietMap Live trên Apple CarPlay và iPhone; thêm Darwin IPC dispatch cập nhật tức thì khi xe dừng đỗ. Khắc phục xung đột kính lái Mazda CX-5 HUD.",
          "Restores full TPMS 4-tire pressure monitoring from VietMap Live on CarPlay and iPhone; adds reactive Darwin IPC dispatch on vehicle stationary state. Fixes Mazda CX-5 HUD relay."),
         ("0.2.5", "Sửa thanh trượt Trái/phải và Lên/xuống của bong bóng trên iPhone: không kéo được ở 0.2.4, và hiện 100% khi mở lại Cài đặt nếu bong bóng lệch sang trái hoặc lên trên.",
