@@ -60,6 +60,7 @@ static void BridgeLog(NSString *message) {
 
 static void Publish(void) {
 #ifdef VM_GOOGLE_MAPS_RELAY
+    GVMScanUserDefaultsForTPMS();
     GVMRefreshLocationSession();
     NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
     NSMutableDictionary *samples=[[source freshSamplesAtUptime:now] mutableCopy] ?: [NSMutableDictionary new];
@@ -295,11 +296,32 @@ static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
         }
         
         if ([payload isKindOfClass:NSArray.class]) {
-            for (id item in (NSArray *)payload) {
-                if ([item isKindOfClass:NSDictionary.class]) GVMParseTireDict(item, nil);
+            NSArray *arr = (NSArray *)payload;
+            for (NSUInteger i = 0; i < [arr count]; i++) {
+                id item = arr[i];
+                NSString *pos = (i == 0) ? @"fl" : (i == 1) ? @"fr" : (i == 2) ? @"rl" : (i == 3) ? @"rr" : nil;
+                if ([item isKindOfClass:NSDictionary.class]) {
+                    GVMParseTireDict((NSDictionary *)item, pos);
+                } else if ([item isKindOfClass:NSNumber.class] || [item isKindOfClass:NSString.class]) {
+                    if (pos) {
+                        GVMParseTireDict(@{ @"pressure": item, @"position": pos }, pos);
+                    }
+                }
             }
         } else if ([payload isKindOfClass:NSDictionary.class]) {
-            GVMParseTireDict((NSDictionary *)payload, nil);
+            NSDictionary *d = (NSDictionary *)payload;
+            for (NSString *k in @[@"fl", @"fr", @"rl", @"rr", @"FL", @"FR", @"RL", @"RR", @"frontLeft", @"frontRight", @"rearLeft", @"rearRight"]) {
+                id v = d[k];
+                if (v && ([v isKindOfClass:NSNumber.class] || [v isKindOfClass:NSString.class])) {
+                    NSString *pos = [k lowercaseString];
+                    if ([pos containsString:@"frontleft"]) pos = @"fl";
+                    else if ([pos containsString:@"frontright"]) pos = @"fr";
+                    else if ([pos containsString:@"rearleft"]) pos = @"rl";
+                    else if ([pos containsString:@"rearright"]) pos = @"rr";
+                    GVMParseTireDict(@{ @"pressure": v, @"position": pos }, pos);
+                }
+            }
+            GVMParseTireDict(d, nil);
         }
         
         g_liveTPMS.hasData = (g_liveTPMS.fl.active || g_liveTPMS.fr.active || g_liveTPMS.rl.active || g_liveTPMS.rr.active);
@@ -309,6 +331,9 @@ static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
             if (received - lastNotifyPost >= 0.08) {
                 lastNotifyPost = received;
                 uint64_t encoded = GVMEncodeTPMS(&g_liveTPMS, received);
+                if (tpmsToken < 0) {
+                    notify_register_check(GVMTPMSStateName, &tpmsToken);
+                }
                 if (tpmsToken >= 0 && notify_set_state(tpmsToken, encoded) == NOTIFY_STATUS_OK) {
                     notify_post(GVMTPMSStateName);
                 }
@@ -376,6 +401,55 @@ static void SetEventStreamHandler(id channel, SEL selector, id handler) {
         class_replaceMethod(handlerClass, onListenSel, imp_implementationWithBlock(newImp), method_getTypeEncoding(m));
     }
     originalEventSetHandler(channel, selector, handler);
+}
+
+static void (*originalInvokeMethod)(id, SEL, NSString *, id) = NULL;
+static void HookedInvokeMethod(id selfChannel, SEL _cmd, NSString *method, id arguments) {
+    if (originalInvokeMethod) originalInvokeMethod(selfChannel, _cmd, method, arguments);
+    @try {
+        NSString *mLower = [method lowercaseString];
+        if ([mLower containsString:@"tpms"] || [mLower containsString:@"tire"] ||
+            [mLower containsString:@"pressure"] || [mLower containsString:@"ble"] ||
+            [mLower containsString:@"bluetooth"] || [mLower containsString:@"sensor"] ||
+            [mLower containsString:@"device"] || [mLower containsString:@"hardware"] ||
+            [mLower containsString:@"bt10"] || [mLower containsString:@"tw50"]) {
+            NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+            GVMProcessTirePayload(arguments, now);
+            BridgeLog([NSString stringWithFormat:@"[TPMS] invokeMethod: %@ args=%@", method, arguments]);
+        }
+    } @catch (__unused NSException *e) {}
+}
+
+static void (*originalInvokeMethodWithResult)(id, SEL, NSString *, id, id) = NULL;
+static void HookedInvokeMethodWithResult(id selfChannel, SEL _cmd, NSString *method, id arguments, id callback) {
+    if (originalInvokeMethodWithResult) originalInvokeMethodWithResult(selfChannel, _cmd, method, arguments, callback);
+    @try {
+        NSString *mLower = [method lowercaseString];
+        if ([mLower containsString:@"tpms"] || [mLower containsString:@"tire"] ||
+            [mLower containsString:@"pressure"] || [mLower containsString:@"ble"] ||
+            [mLower containsString:@"bluetooth"] || [mLower containsString:@"sensor"] ||
+            [mLower containsString:@"device"] || [mLower containsString:@"hardware"] ||
+            [mLower containsString:@"bt10"] || [mLower containsString:@"tw50"]) {
+            NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+            GVMProcessTirePayload(arguments, now);
+            BridgeLog([NSString stringWithFormat:@"[TPMS] invokeMethodWithResult: %@ args=%@", method, arguments]);
+        }
+    } @catch (__unused NSException *e) {}
+}
+
+static void GVMScanUserDefaultsForTPMS(void) {
+    @try {
+        NSUserDefaults *defs = [NSUserDefaults standardUserDefaults];
+        NSDictionary *dict = [defs dictionaryRepresentation];
+        for (NSString *key in dict) {
+            NSString *kLower = [key lowercaseString];
+            if ([kLower containsString:@"tpms"] || [kLower containsString:@"tire"] || [kLower containsString:@"bt10"]) {
+                id val = dict[key];
+                NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+                GVMProcessTirePayload(val, now);
+            }
+        }
+    } @catch (__unused NSException *e) {}
 }
 #endif
 
@@ -562,6 +636,14 @@ static void InstallHook(void) {
     channelNameIvar = name;
     MSHookMessageEx(target, selector, (IMP)SetMethodCallHandler, (IMP *)&originalSetHandler);
 #ifdef VM_GOOGLE_MAPS_RELAY
+    SEL invokeSel = NSSelectorFromString(@"invokeMethod:arguments:");
+    if (class_getInstanceMethod(target, invokeSel)) {
+        MSHookMessageEx(target, invokeSel, (IMP)HookedInvokeMethod, (IMP *)&originalInvokeMethod);
+    }
+    SEL invokeResultSel = NSSelectorFromString(@"invokeMethod:arguments:result:");
+    if (class_getInstanceMethod(target, invokeResultSel)) {
+        MSHookMessageEx(target, invokeResultSel, (IMP)HookedInvokeMethodWithResult, (IMP *)&originalInvokeMethodWithResult);
+    }
     // Also install EventChannel hook for tpmsDataStream
     Class eventTarget = NSClassFromString(@"FlutterEventChannel");
     SEL eventSelector = NSSelectorFromString(@"setStreamHandler:");
