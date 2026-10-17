@@ -205,6 +205,9 @@ class TPMSIntegrationFullTests(unittest.TestCase):
         self.assertIn("GVMEncodeTPMS", cli)
         self.assertIn("GVMTPMSStateName", cli)
 
+        hook = (root / "tweak/google-hook.m").read_text()
+        self.assertIn("notify_register_dispatch(GVMTPMSStateName", hook)
+
     def test_tpms_audit_remediations(self):
         vmsource = (root / "provider/vietmap-source.x").read_text()
         self.assertIn("GVMParseTireDict", vmsource)

@@ -16,6 +16,7 @@
 #import "vietmap-output.h"
 #import "cmu-hud-relay.h"
 #import "carplay-nav-hook.h"
+#import "tpms-state.h"
 #include <notify.h>
 
 static NSHashTable *views;
@@ -252,6 +253,12 @@ static void Install(void) {
         dispatch_get_main_queue(), ^(int token) {
             uint64_t state=0;
             if (notify_get_state(token,&state)==NOTIFY_STATUS_OK) GVMSetPlacementState(state);
+            for (UIView *view in views.allObjects) Apply(view,NO);
+        });
+    static int tpmsDispatchToken = -1;
+    notify_register_dispatch(GVMTPMSStateName, &tpmsDispatchToken,
+        dispatch_get_main_queue(), ^(int token) {
+            (void)token;
             for (UIView *view in views.allObjects) Apply(view,NO);
         });
     uint64_t placementState=0;
