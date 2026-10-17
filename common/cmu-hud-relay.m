@@ -25,6 +25,7 @@ static const NSTimeInterval kHeartbeatInterval = 2.5;
 // ── State (guarded by @synchronized on sLock) ──────────────────────────────
 static id sLock;
 static int sSock = -1;
+static struct sockaddr_in sTarget;
 static int sSock6 = -1;
 static struct sockaddr_in6 sTarget6;
 static BOOL sTarget6Resolved = NO;
