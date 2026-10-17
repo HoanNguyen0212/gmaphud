@@ -153,10 +153,17 @@ static void parse_telemetry_packet(const char *buf, size_t len, time_t now,
                                    const char *nav_out_path, const char *nav_tmp_path) {
     if (!buf || len == 0) return;
 
-    FILE *logf = fopen("/tmp/cmu_listener.log", "a");
-    if (logf) {
-        fprintf(logf, "[%ld] RX: %s\n", (long)now, buf);
-        fclose(logf);
+    static char last_logged_buf[256] = "";
+    static time_t last_log_time = 0;
+    if (strcmp(buf, last_logged_buf) != 0 || (now - last_log_time >= 3)) {
+        FILE *logf = fopen("/tmp/cmu_listener.log", "a");
+        if (logf) {
+            fprintf(logf, "[%ld] RX: %s\n", (long)now, buf);
+            fclose(logf);
+        }
+        strncpy(last_logged_buf, buf, sizeof(last_logged_buf) - 1);
+        last_logged_buf[sizeof(last_logged_buf) - 1] = '\0';
+        last_log_time = now;
     }
 
     if (strncmp(buf, "LIMIT", 5) == 0) {
@@ -348,6 +355,11 @@ int main(int argc, char **argv) {
             socklen_t client_tcp_len = sizeof(client_tcp);
             int cfd = accept(diag_sock, (struct sockaddr *)&client_tcp, &client_tcp_len);
             if (cfd >= 0) {
+                struct timeval tv;
+                tv.tv_sec = 0;
+                tv.tv_usec = 500000; // 500ms timeout to prevent slow/stalled clients from blocking HUD
+                setsockopt(cfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+                setsockopt(cfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
                 handle_diag_http_client(cfd, out_path, nav_out_path);
                 close(cfd);
             }
