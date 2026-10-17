@@ -24,6 +24,7 @@ static NSTimeInterval upcomingReceived, stickyReceived;
 static NSArray<NSNumber *> *laneCodes;
 static NSTimeInterval laneCodesReceived=-1;
 static GVMTPMSData g_liveTPMS;
+static void GVMScanUserDefaultsForTPMS(void);
 #endif
 
 @protocol VMFlutterMethodCall
