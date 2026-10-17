@@ -260,6 +260,16 @@ class VietMapNavigationHUDTests(unittest.TestCase):
     def test_hook_header_exports_instruction_mapper(self):
         self.assertIn("GVMMapInstructionTextToMazdaHUD", self.hook_header)
 
+    def test_tpms_safeguards_against_sensor_ids_and_stale_cache(self):
+        # Must guard Publish() from scanning NSUserDefaults when live data is already active
+        self.assertIn("if (!g_liveTPMS.hasData) GVMScanUserDefaultsForTPMS();", self.vmsource)
+        # GVMScanUserDefaultsForTPMS must return early if g_liveTPMS.hasData
+        self.assertIn("if (g_liveTPMS.hasData) return;", self.vmsource)
+        # Must specifically look for _storedTPMSDeviceCache rather than wildcards
+        self.assertIn("_storedTPMSDeviceCache", self.vmsource)
+        # GVMParseTireDict must reject strings with non-numeric characters (hex sensor IDs)
+        self.assertIn("nonNum", self.vmsource)
+
 
 if __name__ == "__main__":
     unittest.main()

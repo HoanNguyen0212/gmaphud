@@ -69,7 +69,7 @@ static void BridgeLog(NSString *message) {
 
 static void Publish(void) {
 #ifdef VM_GOOGLE_MAPS_RELAY
-    GVMScanUserDefaultsForTPMS();
+    if (!g_liveTPMS.hasData) GVMScanUserDefaultsForTPMS();
     GVMRefreshLocationSession();
     NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
     NSMutableDictionary *samples=[[source freshSamplesAtUptime:now] mutableCopy] ?: [NSMutableDictionary new];
@@ -264,8 +264,16 @@ static void GVMParseTireDict(NSDictionary *d, NSString *explicitPos) {
 
     if (pressVal != nil && pressVal != [NSNull null]) {
         float p = 0.0f;
-        if ([pressVal isKindOfClass:NSNumber.class]) p = [pressVal floatValue];
-        else if ([pressVal isKindOfClass:NSString.class]) p = (float)[pressVal doubleValue];
+        if ([pressVal isKindOfClass:NSNumber.class]) {
+            p = [pressVal floatValue];
+        } else if ([pressVal isKindOfClass:NSString.class]) {
+            NSString *pStr = (NSString *)pressVal;
+            NSCharacterSet *nonNum = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789."] invertedSet];
+            if ([pStr rangeOfCharacterFromSet:nonNum].location != NSNotFound) {
+                return; // Contains non-numeric characters (hex sensor ID e.g. "0361D") -> Ignore
+            }
+            p = (float)[pStr doubleValue];
+        }
         
         // Intelligent pressure unit conversion:
         if (p >= 70.0f) {
@@ -311,7 +319,7 @@ static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
                 NSString *pos = (i == 0) ? @"fl" : (i == 1) ? @"fr" : (i == 2) ? @"rl" : (i == 3) ? @"rr" : nil;
                 if ([item isKindOfClass:NSDictionary.class]) {
                     GVMParseTireDict((NSDictionary *)item, pos);
-                } else if ([item isKindOfClass:NSNumber.class] || [item isKindOfClass:NSString.class]) {
+                } else if ([item isKindOfClass:NSNumber.class]) {
                     if (pos) {
                         GVMParseTireDict(@{ @"pressure": item, @"position": pos }, pos);
                     }
@@ -467,16 +475,13 @@ static void HookedInvokeMethodWithResult(id selfChannel, SEL _cmd, NSString *met
 }
 
 static void GVMScanUserDefaultsForTPMS(void) {
+    if (g_liveTPMS.hasData) return;
     @try {
         NSUserDefaults *defs = [NSUserDefaults standardUserDefaults];
-        NSDictionary *dict = [defs dictionaryRepresentation];
-        for (NSString *key in dict) {
-            NSString *kLower = [key lowercaseString];
-            if ([kLower containsString:@"tpms"] || [kLower containsString:@"tire"] || [kLower containsString:@"bt10"]) {
-                id val = dict[key];
-                NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-                GVMProcessTirePayload(val, now);
-            }
+        id cacheVal = [defs objectForKey:@"flutter._storedTPMSDeviceCache"] ?: [defs objectForKey:@"_storedTPMSDeviceCache"];
+        if (cacheVal) {
+            NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+            GVMProcessTirePayload(cacheVal, now);
         }
     } @catch (__unused NSException *e) {}
 }

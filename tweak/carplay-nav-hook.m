@@ -1,5 +1,6 @@
 #import "carplay-nav-hook.h"
 #import "cmu-hud-relay.h"
+#import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
 #import <dlfcn.h>
@@ -240,22 +241,22 @@ NSString *GVMExtractRoadName(NSString *instruction) {
 uint16_t GVMMapInstructionTextToMazdaHUD(NSString *instruction) {
     if (!instruction || instruction.length == 0) return 0;
     NSString *clean = GVMStripVietnameseDiacritics(instruction).lowercaseString;
-    if ([clean containsString:@"quay dau"] || [clean containsString:@"u-turn"]) {
+    if ([clean containsString:@"quay dau"] || [clean containsString:@"u-turn"] || [clean containsString:@"uturn"] || [clean containsString:@"arrow.uturn"]) {
         return 13; // HUD_U_TURN_LEFT
     }
     if ([clean containsString:@"vong xuyen"] || [clean containsString:@"bung binh"] || [clean containsString:@"roundabout"]) {
         return 37; // HUD_ROUNDABOUT
     }
-    if ([clean containsString:@"gat sang trai"] || [clean containsString:@"gat trai"] || [clean containsString:@"sharp left"]) {
+    if ([clean containsString:@"gat sang trai"] || [clean containsString:@"gat trai"] || [clean containsString:@"sharp left"] || [clean containsString:@"sharp_left"]) {
         return 11; // HUD_SHARP_LEFT
     }
-    if ([clean containsString:@"gat sang phai"] || [clean containsString:@"gat phai"] || [clean containsString:@"sharp right"]) {
+    if ([clean containsString:@"gat sang phai"] || [clean containsString:@"gat phai"] || [clean containsString:@"sharp right"] || [clean containsString:@"sharp_right"]) {
         return 9; // HUD_SHARP_RIGHT
     }
-    if ([clean containsString:@"chech sang trai"] || [clean containsString:@"chech trai"] || [clean containsString:@"slight left"]) {
+    if ([clean containsString:@"chech sang trai"] || [clean containsString:@"chech trai"] || [clean containsString:@"slight left"] || [clean containsString:@"slight_left"]) {
         return 4; // HUD_SLIGHT_LEFT
     }
-    if ([clean containsString:@"chech sang phai"] || [clean containsString:@"chech phai"] || [clean containsString:@"slight right"]) {
+    if ([clean containsString:@"chech sang phai"] || [clean containsString:@"chech phai"] || [clean containsString:@"slight right"] || [clean containsString:@"slight_right"]) {
         return 5; // HUD_SLIGHT_RIGHT
     }
     if ([clean containsString:@"re sang trai"] || [clean containsString:@"re trai"] ||
@@ -263,7 +264,11 @@ uint16_t GVMMapInstructionTextToMazdaHUD(NSString *instruction) {
         [clean containsString:@"ngoat sang trai"] || [clean containsString:@"ngoat trai"] ||
         [clean containsString:@"sang trai"] || [clean containsString:@"qua trai"] ||
         [clean containsString:@"giu ben trai"] || [clean containsString:@"turn left"] ||
-        [clean containsString:@"keep left"]) {
+        [clean containsString:@"turn_left"] || [clean containsString:@"turn-left"] ||
+        [clean containsString:@"left_turn"] || [clean containsString:@"left-turn"] ||
+        [clean containsString:@"arrow_left"] || [clean containsString:@"arrow-left"] ||
+        [clean containsString:@"arrow.turn.up.left"] || [clean containsString:@"arrow.left"] ||
+        [clean containsString:@"keep left"] || [clean containsString:@"keep_left"]) {
         return 2; // HUD_LEFT
     }
     if ([clean containsString:@"re sang phai"] || [clean containsString:@"re phai"] ||
@@ -271,7 +276,11 @@ uint16_t GVMMapInstructionTextToMazdaHUD(NSString *instruction) {
         [clean containsString:@"ngoat sang phai"] || [clean containsString:@"ngoat phai"] ||
         [clean containsString:@"sang phai"] || [clean containsString:@"qua phai"] ||
         [clean containsString:@"giu ben phai"] || [clean containsString:@"turn right"] ||
-        [clean containsString:@"keep right"]) {
+        [clean containsString:@"turn_right"] || [clean containsString:@"turn-right"] ||
+        [clean containsString:@"right_turn"] || [clean containsString:@"right-turn"] ||
+        [clean containsString:@"arrow_right"] || [clean containsString:@"arrow-right"] ||
+        [clean containsString:@"arrow.turn.up.right"] || [clean containsString:@"arrow.right"] ||
+        [clean containsString:@"keep right"] || [clean containsString:@"keep_right"]) {
         return 3; // HUD_RIGHT
     }
     if ([clean containsString:@"loi ra"] || [clean containsString:@"exit"] || [clean containsString:@"off-ramp"]) {
@@ -283,7 +292,7 @@ uint16_t GVMMapInstructionTextToMazdaHUD(NSString *instruction) {
     if ([clean containsString:@"den noi"] || [clean containsString:@"diem den"] || [clean containsString:@"arrive"] || [clean containsString:@"destination"]) {
         return 8; // HUD_DESTINATION
     }
-    if ([clean containsString:@"di thang"] || [clean containsString:@"tiep tuc"] || [clean containsString:@"straight"] || [clean containsString:@"follow"]) {
+    if ([clean containsString:@"di thang"] || [clean containsString:@"tiep tuc"] || [clean containsString:@"straight"] || [clean containsString:@"follow"] || [clean containsString:@"arrow.up"]) {
         return 1; // HUD_STRAIGHT
     }
     return 0;
@@ -361,19 +370,166 @@ static NSString *GVMGetManeuverInstructionText(id maneuver) {
     return road ?: @"";
 }
 
-static uint16_t GVMGetManeuverHUDIcon(id maneuver, NSString **outText) {
-    if (!maneuver) return 0;
-    NSString *text = GVMGetManeuverInstructionText(maneuver);
-    if (outText) *outText = text;
-
-    uint16_t icon = GVMMapInstructionTextToMazdaHUD(text);
-    if (icon == 0 && [maneuver respondsToSelector:@selector(maneuverType)]) {
-        NSUInteger mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(maneuver, @selector(maneuverType));
-        if (mType != 255) {
-            icon = GVMMapCarPlayManeuverToMazdaHUD(mType);
+static uint16_t GVMDetectIconFromImage(id imageObj) {
+    if (!imageObj || ![imageObj isKindOfClass:[UIImage class]]) return 0;
+    UIImage *image = (UIImage *)imageObj;
+    
+    // Check accessibility identifier / label / asset name / description
+    NSMutableArray *identStrings = [NSMutableArray new];
+    if ([image respondsToSelector:@selector(accessibilityIdentifier)]) {
+        NSString *s = [image accessibilityIdentifier];
+        if (s && s.length > 0) [identStrings addObject:s];
+    }
+    if ([image respondsToSelector:@selector(accessibilityLabel)]) {
+        NSString *s = [image accessibilityLabel];
+        if (s && s.length > 0) [identStrings addObject:s];
+    }
+    if ([image respondsToSelector:@selector(imageAsset)]) {
+        id asset = [image performSelector:@selector(imageAsset)];
+        if (asset && [asset respondsToSelector:@selector(assetName)]) {
+            NSString *s = [asset performSelector:@selector(assetName)];
+            if (s && s.length > 0) [identStrings addObject:s];
         }
     }
-    return icon;
+    NSString *desc = [image description];
+    if (desc && desc.length > 0) [identStrings addObject:desc];
+    
+    for (NSString *str in identStrings) {
+        uint16_t mapped = GVMMapInstructionTextToMazdaHUD(str);
+        if (mapped > 0) return mapped;
+    }
+    
+    // Pixel/bitmap inspection using CGImage
+    CGImageRef cgImage = image.CGImage;
+    if (!cgImage) return 0;
+    
+    size_t width = CGImageGetWidth(cgImage);
+    size_t height = CGImageGetHeight(cgImage);
+    if (width < 8 || height < 8) return 0;
+    
+    uint8_t buffer[256] = {0}; // 16x16 thumbnail
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceGray();
+    CGContextRef ctx = CGBitmapContextCreate(buffer, 16, 16, 8, 16, colorSpace, (CGBitmapInfo)kCGImageAlphaOnly);
+    CGColorSpaceRelease(colorSpace);
+    if (!ctx) return 0;
+    
+    CGContextDrawImage(ctx, CGRectMake(0, 0, 16, 16), cgImage);
+    CGContextRelease(ctx);
+    
+    float leftWeight = 0;
+    float rightWeight = 0;
+    float centerWeight = 0;
+    float totalWeight = 0;
+    for (int y = 0; y < 16; y++) {
+        for (int x = 0; x < 16; x++) {
+            uint8_t a = buffer[y * 16 + x];
+            if (a > 30) {
+                totalWeight += a;
+                if (x <= 5) leftWeight += a;
+                else if (x >= 10) rightWeight += a;
+                else centerWeight += a;
+            }
+        }
+    }
+    if (totalWeight < 100) return 0;
+    
+    float leftRatio = leftWeight / totalWeight;
+    float rightRatio = rightWeight / totalWeight;
+    
+    if (leftRatio > 0.35f && rightRatio < 0.22f) return 2; // HUD_LEFT
+    if (rightRatio > 0.35f && leftRatio < 0.22f) return 3; // HUD_RIGHT
+    if (leftRatio > 0.28f && rightRatio < 0.18f) return 4; // HUD_SLIGHT_LEFT
+    if (rightRatio > 0.28f && leftRatio < 0.18f) return 5; // HUD_SLIGHT_RIGHT
+    if (fabsf(leftRatio - rightRatio) < 0.12f && (centerWeight / totalWeight) > 0.30f) return 1; // HUD_STRAIGHT
+    return 0;
+}
+
+static uint16_t GVMGetManeuverHUDIcon(id maneuver, NSString **outText) {
+    if (!maneuver) return 0;
+    NSString *road = GVMGetManeuverInstructionText(maneuver);
+    if (outText) *outText = road;
+
+    // 1. Gather all potential text sources
+    NSMutableArray *candidates = [NSMutableArray new];
+    if (road && road.length > 0) [candidates addObject:road];
+
+    if ([maneuver respondsToSelector:@selector(dashboardInstructionVariants)]) {
+        NSArray *dVars = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(dashboardInstructionVariants));
+        if ([dVars isKindOfClass:[NSArray class]]) {
+            for (id v in dVars) {
+                if ([v isKindOfClass:[NSString class]]) [candidates addObject:v];
+            }
+        }
+    }
+    if ([maneuver respondsToSelector:@selector(notificationInstructionVariants)]) {
+        NSArray *nVars = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(notificationInstructionVariants));
+        if ([nVars isKindOfClass:[NSArray class]]) {
+            for (id v in nVars) {
+                if ([v isKindOfClass:[NSString class]]) [candidates addObject:v];
+            }
+        }
+    }
+    if ([maneuver respondsToSelector:@selector(userInfo)]) {
+        id uInfo = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(userInfo));
+        if ([uInfo isKindOfClass:[NSDictionary class]]) {
+            for (id val in [(NSDictionary *)uInfo allValues]) {
+                if ([val isKindOfClass:[NSString class]]) [candidates addObject:val];
+            }
+        }
+    }
+
+    // Check all candidates for keywords
+    for (NSString *cand in candidates) {
+        uint16_t icon = GVMMapInstructionTextToMazdaHUD(cand);
+        if (icon > 0) return icon;
+    }
+
+    // 2. Check Apple CarPlay maneuverType enum
+    if ([maneuver respondsToSelector:@selector(maneuverType)]) {
+        NSUInteger mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(maneuver, @selector(maneuverType));
+        if (mType != 255) {
+            uint16_t icon = GVMMapCarPlayManeuverToMazdaHUD(mType);
+            if (icon > 0) return icon;
+        }
+    }
+
+    // 3. Check symbolImage, dashboardSymbolImage, notificationSymbolImage
+    NSArray *imageProps = @[@"symbolImage", @"dashboardSymbolImage", @"notificationSymbolImage"];
+    for (NSString *prop in imageProps) {
+        SEL sel = NSSelectorFromString(prop);
+        if ([maneuver respondsToSelector:sel]) {
+            id img = ((id (*)(id, SEL))objc_msgSend)(maneuver, sel);
+            uint16_t icon = GVMDetectIconFromImage(img);
+            if (icon > 0) return icon;
+        }
+    }
+
+    // 4. Check attributedInstructionVariants text attachments
+    if ([maneuver respondsToSelector:@selector(attributedInstructionVariants)]) {
+        NSArray *attrVariants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(attributedInstructionVariants));
+        if ([attrVariants isKindOfClass:[NSArray class]]) {
+            for (id item in attrVariants) {
+                if ([item isKindOfClass:[NSAttributedString class]]) {
+                    NSAttributedString *as = (NSAttributedString *)item;
+                    __block uint16_t attIcon = 0;
+                    [as enumerateAttributesInRange:NSMakeRange(0, as.length) options:0 usingBlock:^(NSDictionary *attrs, NSRange range, BOOL *stop) {
+                        id att = attrs[@"NSAttachment"];
+                        if (att && [att respondsToSelector:@selector(image)]) {
+                            id attImg = [att performSelector:@selector(image)];
+                            uint16_t found = GVMDetectIconFromImage(attImg);
+                            if (found > 0) {
+                                attIcon = found;
+                                *stop = YES;
+                            }
+                        }
+                    }];
+                    if (attIcon > 0) return attIcon;
+                }
+            }
+        }
+    }
+
+    return 0;
 }
 
 static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
