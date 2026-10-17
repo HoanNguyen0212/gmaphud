@@ -280,43 +280,81 @@ int main(int argc, char **argv) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    int is_v6 = 1;
+    int sock = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        sock = socket(AF_INET, SOCK_DGRAM, 0);
+        is_v6 = 0;
+    } else {
+        int v6only = 0;
+        setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only));
+    }
     if (sock < 0) {
         perror("socket");
         return 1;
     }
 
     int flags = fcntl(sock, F_GETFL, 0);
-    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+    if (flags >= 0) fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
     int opt = 1;
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(port);
+    int bind_ok = -1;
+    if (is_v6) {
+        struct sockaddr_in6 addr6;
+        memset(&addr6, 0, sizeof(addr6));
+        addr6.sin6_family = AF_INET6;
+        addr6.sin6_addr = in6addr_any;
+        addr6.sin6_port = htons(port);
+        bind_ok = bind(sock, (struct sockaddr *)&addr6, sizeof(addr6));
+    } else {
+        struct sockaddr_in addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_ANY);
+        addr.sin_port = htons(port);
+        bind_ok = bind(sock, (struct sockaddr *)&addr, sizeof(addr));
+    }
 
-    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (bind_ok < 0) {
         perror("bind");
         close(sock);
         return 1;
     }
 
-    // Micro HTTP / Diag server on TCP port 8889
-    int diag_sock = socket(AF_INET, SOCK_STREAM, 0);
+    // Micro HTTP / Diag server on TCP port 8889 (IPv6 dual-stack + IPv4 fallback)
+    int diag_is_v6 = 1;
+    int diag_sock = socket(AF_INET6, SOCK_STREAM, 0);
+    if (diag_sock < 0) {
+        diag_sock = socket(AF_INET, SOCK_STREAM, 0);
+        diag_is_v6 = 0;
+    } else {
+        int v6only = 0;
+        setsockopt(diag_sock, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only));
+    }
     if (diag_sock >= 0) {
         int dflags = fcntl(diag_sock, F_GETFL, 0);
         if (dflags >= 0) fcntl(diag_sock, F_SETFL, dflags | O_NONBLOCK);
         int dopt = 1;
         setsockopt(diag_sock, SOL_SOCKET, SO_REUSEADDR, &dopt, sizeof(dopt));
-        struct sockaddr_in daddr;
-        memset(&daddr, 0, sizeof(daddr));
-        daddr.sin_family = AF_INET;
-        daddr.sin_addr.s_addr = htonl(INADDR_ANY);
-        daddr.sin_port = htons(DIAG_PORT);
-        if (bind(diag_sock, (struct sockaddr *)&daddr, sizeof(daddr)) < 0 || listen(diag_sock, 4) < 0) {
+        int dbind_ok = -1;
+        if (diag_is_v6) {
+            struct sockaddr_in6 daddr6;
+            memset(&daddr6, 0, sizeof(daddr6));
+            daddr6.sin6_family = AF_INET6;
+            daddr6.sin6_addr = in6addr_any;
+            daddr6.sin6_port = htons(DIAG_PORT);
+            dbind_ok = bind(diag_sock, (struct sockaddr *)&daddr6, sizeof(daddr6));
+        } else {
+            struct sockaddr_in daddr;
+            memset(&daddr, 0, sizeof(daddr));
+            daddr.sin_family = AF_INET;
+            daddr.sin_addr.s_addr = htonl(INADDR_ANY);
+            daddr.sin_port = htons(DIAG_PORT);
+            dbind_ok = bind(diag_sock, (struct sockaddr *)&daddr, sizeof(daddr));
+        }
+        if (dbind_ok < 0 || listen(diag_sock, 4) < 0) {
             close(diag_sock);
             diag_sock = -1;
         }
@@ -336,7 +374,7 @@ int main(int argc, char **argv) {
 
     while (g_running) {
         time_t now = time(NULL);
-        struct sockaddr_in client_addr;
+        struct sockaddr_storage client_addr;
         socklen_t client_len;
 
         // Drain loop: zero latency ingestion of all pending datagrams
@@ -351,7 +389,7 @@ int main(int argc, char **argv) {
 
         // Service any incoming HTTP / Diag requests
         if (diag_sock >= 0) {
-            struct sockaddr_in client_tcp;
+            struct sockaddr_storage client_tcp;
             socklen_t client_tcp_len = sizeof(client_tcp);
             int cfd = accept(diag_sock, (struct sockaddr *)&client_tcp, &client_tcp_len);
             if (cfd >= 0) {

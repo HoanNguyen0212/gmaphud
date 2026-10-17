@@ -2,6 +2,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
@@ -24,7 +25,10 @@ static const NSTimeInterval kHeartbeatInterval = 2.5;
 // ── State (guarded by @synchronized on sLock) ──────────────────────────────
 static id sLock;
 static int sSock = -1;
-static struct sockaddr_in sTarget;
+static int sSock6 = -1;
+static struct sockaddr_in6 sTarget6;
+static BOOL sTarget6Resolved = NO;
+static time_t sTarget6LastResolve = 0;
 static dispatch_source_t sTimer;
 
 static NSUInteger sCurrentLimit;
@@ -78,44 +82,80 @@ static void LogRelay(const char *targetIP, int targetPort, const char *buf, size
 }
 
 static void EnsureSocketOpen(void) {
-    if (sSock >= 0) return;
-    sSock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sSock < 0) return;
-    int flags = fcntl(sSock, F_GETFL, 0);
-    if (flags >= 0) fcntl(sSock, F_SETFL, flags | O_NONBLOCK);
-    int opt = 1;
-    setsockopt(sSock, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
-    int bcast = 1;
-    setsockopt(sSock, SOL_SOCKET, SO_BROADCAST, &bcast, sizeof(bcast));
-    memset(&sTarget, 0, sizeof(sTarget));
-    sTarget.sin_family = AF_INET;
-    sTarget.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
-    inet_pton(AF_INET, GVM_CMU_HUD_TARGET_IP_USB, &sTarget.sin_addr);
+    if (sSock < 0) {
+        sSock = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sSock >= 0) {
+            int flags = fcntl(sSock, F_GETFL, 0);
+            if (flags >= 0) fcntl(sSock, F_SETFL, flags | O_NONBLOCK);
+            int opt = 1;
+            setsockopt(sSock, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
+            setsockopt(sSock, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt));
+        }
+    }
+    if (sSock6 < 0) {
+        sSock6 = socket(AF_INET6, SOCK_DGRAM, 0);
+        if (sSock6 >= 0) {
+            int flags = fcntl(sSock6, F_GETFL, 0);
+            if (flags >= 0) fcntl(sSock6, F_SETFL, flags | O_NONBLOCK);
+            int opt = 1;
+            setsockopt(sSock6, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
+        }
+    }
 }
 
 static BOOL SendDatagram(const char *buf, size_t len) {
     EnsureSocketOpen();
-    if (sSock < 0 || len == 0) return NO;
-
-    static const char * const kTargets[] = {
-        GVM_CMU_HUD_TARGET_IP_USB, // "192.168.53.1" - Wired USB Lightning CarPlay
-        GVM_CMU_HUD_TARGET_IP,     // "192.168.100.1" - Wireless CMU AP / Hotspot
-        "255.255.255.255"          // Subnet broadcast fallback
-    };
+    if ((sSock < 0 && sSock6 < 0) || len == 0) return NO;
 
     BOOL anySent = NO;
-    for (size_t i = 0; i < sizeof(kTargets)/sizeof(kTargets[0]); i++) {
-        struct sockaddr_in dst;
-        memset(&dst, 0, sizeof(dst));
-        dst.sin_family = AF_INET;
-        dst.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
-        inet_pton(AF_INET, kTargets[i], &dst.sin_addr);
 
-        ssize_t sent = sendto(sSock, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
-        int err = (sent < 0) ? errno : 0;
-        LogRelay(kTargets[i], GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
-        if (sent >= 0) {
-            anySent = YES;
+    // 1. IPv6 mDNS to cmu.local (native to wired Lightning CarPlay USB-NCM)
+    if (sSock6 >= 0) {
+        time_t now = time(NULL);
+        if (!sTarget6Resolved || (now - sTarget6LastResolve > 30)) {
+            struct addrinfo hints, *res = NULL;
+            memset(&hints, 0, sizeof(hints));
+            hints.ai_family = AF_INET6;
+            hints.ai_socktype = SOCK_DGRAM;
+            if (getaddrinfo("cmu.local", "8888", &hints, &res) == 0 && res != NULL) {
+                memcpy(&sTarget6, res->ai_addr, sizeof(sTarget6));
+                sTarget6Resolved = YES;
+                sTarget6LastResolve = now;
+                freeaddrinfo(res);
+            }
+        }
+        if (sTarget6Resolved) {
+            ssize_t sent = sendto(sSock6, buf, len, 0, (struct sockaddr *)&sTarget6, sizeof(sTarget6));
+            int err = (sent < 0) ? errno : 0;
+            LogRelay("cmu.local", GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
+            if (sent >= 0) {
+                anySent = YES;
+            }
+        }
+    }
+
+    // 2. IPv4 targets (Link-local subnet broadcast, Wi-Fi AP, USB fallback, Global broadcast)
+    if (sSock >= 0) {
+        static const char * const kTargets[] = {
+            "169.254.255.255",         // USB-NCM link-local subnet broadcast (reaches CMU on en3)
+            GVM_CMU_HUD_TARGET_IP_USB, // "192.168.53.1" - Wired USB Lightning CarPlay
+            GVM_CMU_HUD_TARGET_IP,     // "192.168.100.1" - Wireless CMU AP / Hotspot
+            "255.255.255.255"          // Subnet broadcast fallback
+        };
+
+        for (size_t i = 0; i < sizeof(kTargets)/sizeof(kTargets[0]); i++) {
+            struct sockaddr_in dst;
+            memset(&dst, 0, sizeof(dst));
+            dst.sin_family = AF_INET;
+            dst.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
+            inet_pton(AF_INET, kTargets[i], &dst.sin_addr);
+
+            ssize_t sent = sendto(sSock, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
+            int err = (sent < 0) ? errno : 0;
+            LogRelay(kTargets[i], GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
+            if (sent >= 0) {
+                anySent = YES;
+            }
         }
     }
 
