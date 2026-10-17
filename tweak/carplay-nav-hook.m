@@ -57,6 +57,7 @@ NSString *GVMExtractRoadName(NSString *instruction) {
         @"ngoat phai vao ", @"ngoat trai vao ",
         @"nhap vao ", @"nhap lan vao ", @"di vao ",
         @"di tiep tren ", @"tiep tuc tren ", @"di theo ",
+        @"di ve phia ", @"ve phia ", @"huong ve phia ", @"di ve huong ", @"ve huong ",
         @"re sang phai ", @"re sang trai ",
         @"re phai ", @"re trai ",
         @"queo phai ", @"queo trai ",
@@ -179,6 +180,47 @@ uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger type) {
 
 // ── Maneuver Extraction & UDP Relay Dispatcher ──────────────────────────────
 
+static NSString *GVMGetManeuverInstructionText(id maneuver) {
+    if (!maneuver) return @"";
+    NSString *road = @"";
+    if ([maneuver respondsToSelector:@selector(attributedInstructionVariants)]) {
+        NSArray *attrVariants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(attributedInstructionVariants));
+        if ([attrVariants isKindOfClass:[NSArray class]] && [attrVariants count] > 0) {
+            id firstAttr = [attrVariants firstObject];
+            if ([firstAttr respondsToSelector:@selector(string)]) {
+                road = [firstAttr string];
+            } else if ([firstAttr isKindOfClass:[NSString class]]) {
+                road = (NSString *)firstAttr;
+            }
+        }
+    }
+    if ((!road || road.length == 0) && [maneuver respondsToSelector:@selector(instructionVariants)]) {
+        NSArray *variants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(instructionVariants));
+        if ([variants isKindOfClass:[NSArray class]] && [variants count] > 0) {
+            id firstVar = [variants firstObject];
+            if ([firstVar isKindOfClass:[NSString class]]) {
+                road = (NSString *)firstVar;
+            }
+        }
+    }
+    return road ?: @"";
+}
+
+static uint16_t GVMGetManeuverHUDIcon(id maneuver, NSString **outText) {
+    if (!maneuver) return 0;
+    NSString *text = GVMGetManeuverInstructionText(maneuver);
+    if (outText) *outText = text;
+
+    uint16_t icon = GVMMapInstructionTextToMazdaHUD(text);
+    if (icon == 0 && [maneuver respondsToSelector:@selector(maneuverType)]) {
+        NSUInteger mType = ((NSUInteger (*)(id, SEL))objc_msgSend)(maneuver, @selector(maneuverType));
+        if (mType != 255) {
+            icon = GVMMapCarPlayManeuverToMazdaHUD(mType);
+        }
+    }
+    return icon;
+}
+
 static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     if (!maneuver) {
         GVMCMURelaySetNav(0, 0, @"");
@@ -234,38 +276,12 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
         }
     }
 
-    NSString *road = @"";
-    // 1. Try attributedInstructionVariants first (where Google Maps puts the turn text)
-    if ([maneuver respondsToSelector:@selector(attributedInstructionVariants)]) {
-        NSArray *attrVariants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(attributedInstructionVariants));
-        if ([attrVariants isKindOfClass:[NSArray class]] && [attrVariants count] > 0) {
-            id firstAttr = [attrVariants firstObject];
-            if ([firstAttr respondsToSelector:@selector(string)]) {
-                road = [firstAttr string];
-            } else if ([firstAttr isKindOfClass:[NSString class]]) {
-                road = (NSString *)firstAttr;
-            }
-        }
-    }
-    // 2. Fallback to standard instructionVariants
-    if ((!road || road.length == 0) && [maneuver respondsToSelector:@selector(instructionVariants)]) {
-        NSArray *variants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(instructionVariants));
-        if ([variants isKindOfClass:[NSArray class]] && [variants count] > 0) {
-            road = [variants firstObject];
-        }
-    }
+    NSString *road = GVMGetManeuverInstructionText(maneuver);
+    uint16_t hudIcon = GVMGetManeuverHUDIcon(maneuver, NULL);
 
-    // Multi-tier icon resolution:
-    // Tier 1: Semantic text analysis from instruction ("Rẽ trái", "Quẹo phải"...) - Most reliable
-    uint16_t hudIcon = GVMMapInstructionTextToMazdaHUD(road);
-    // Tier 2: Apple CarPlay CPManeuverType enum
-    if (hudIcon == 0) {
-        hudIcon = GVMMapCarPlayManeuverToMazdaHUD(mType);
-    }
-    
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(distMeters));
-    
-    // Tier 3: Fallback to Straight (1) when navigating with valid distance so HUD is never blank
+
+    // Fallback to Straight (1) when navigating with valid distance so HUD is never blank
     if (hudIcon == 0 && finalDist > 0) {
         hudIcon = 1; // HUD_STRAIGHT
     }
@@ -300,8 +316,26 @@ static void hook_updateTravelEstimates(id self, SEL _cmd, id estimates, id maneu
         orig_updateTravelEstimates(self, _cmd, estimates, maneuver);
     }
     @try {
-        // Direct processing of active maneuver - NO buggy lookahead skipping to upcoming[1]
-        ProcessManeuverAndEstimates(maneuver, estimates);
+        id targetManeuver = maneuver;
+        NSString *curText = nil;
+        uint16_t curIcon = GVMGetManeuverHUDIcon(maneuver, &curText);
+
+        // If current maneuver is just heading/depart (icon <= 1), look into upcomingManeuvers
+        // to display the approaching actionable turn (left/right/roundabout) to the driver!
+        if (curIcon <= 1 && [self respondsToSelector:@selector(upcomingManeuvers)]) {
+            NSArray *upcoming = ((id (*)(id, SEL))objc_msgSend)(self, @selector(upcomingManeuvers));
+            if ([upcoming isKindOfClass:[NSArray class]] && [upcoming count] > 0) {
+                for (id m in upcoming) {
+                    NSString *mText = nil;
+                    uint16_t mIcon = GVMGetManeuverHUDIcon(m, &mText);
+                    if (mIcon >= 2) {
+                        targetManeuver = m;
+                        break;
+                    }
+                }
+            }
+        }
+        ProcessManeuverAndEstimates(targetManeuver, estimates);
     } @catch (__unused NSException *e) {
         // Safe fail-safe: never disrupt CarPlay host application
     }
@@ -315,9 +349,24 @@ static void hook_setManeuvers(id self, SEL _cmd, id maneuvers) {
     @try {
         if ([maneuvers isKindOfClass:[NSArray class]] && [(NSArray *)maneuvers count] > 0) {
             NSArray *arr = (NSArray *)maneuvers;
-            // Immediate active maneuver is ALWAYS the first object in the array
-            id targetManeuver = [arr firstObject];
-            ProcessManeuverAndEstimates(targetManeuver, nil);
+            id chosenManeuver = [arr firstObject];
+            NSString *firstText = nil;
+            uint16_t firstIcon = GVMGetManeuverHUDIcon(chosenManeuver, &firstText);
+
+            // If the first item has no actionable turn (e.g. "Đi về phía...", mType=255/11/5, icon <= 1),
+            // look ahead for the first real actionable turn in the maneuvers window!
+            if (firstIcon <= 1) {
+                for (NSUInteger i = 1; i < [arr count]; i++) {
+                    id m = arr[i];
+                    NSString *mText = nil;
+                    uint16_t mIcon = GVMGetManeuverHUDIcon(m, &mText);
+                    if (mIcon >= 2) {
+                        chosenManeuver = m;
+                        break;
+                    }
+                }
+            }
+            ProcessManeuverAndEstimates(chosenManeuver, nil);
         }
     } @catch (__unused NSException *e) {}
 }
