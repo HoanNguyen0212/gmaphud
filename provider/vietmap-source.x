@@ -164,55 +164,117 @@ static void ObserveAlerts(NSString *method,id payload,NSUInteger accepted,NSTime
     });
 }
 
+static NSString *GetChannelName(id channel, Ivar ivar) {
+    if (!channel) return nil;
+    if ([channel respondsToSelector:@selector(name)]) {
+        @try {
+            id n = [channel performSelector:@selector(name)];
+            if ([n isKindOfClass:NSString.class]) return (NSString *)n;
+        } @catch (__unused NSException *e) {}
+    }
+    if (ivar) {
+        @try {
+            id n = object_getIvar(channel, ivar);
+            if ([n isKindOfClass:NSString.class]) return (NSString *)n;
+        } @catch (__unused NSException *e) {}
+    }
+    return nil;
+}
+
 static void GVMParseTireDict(NSDictionary *d, NSString *explicitPos) {
     if (!d || ![d isKindOfClass:NSDictionary.class]) return;
-    id codeVal = explicitPos ?: d[@"code"] ?: d[@"position"] ?: d[@"tireId"] ?: d[@"tire"] ?: d[@"id"] ?: d[@"deviceID"];
-    id pressVal = d[@"pressure"] ?: d[@"press"] ?: d[@"bar"] ?: d[@"kpa"] ?: d[@"p"];
-    id tempVal = d[@"temperature"] ?: d[@"temp"] ?: d[@"t"];
-    id warnVal = d[@"isPressureWarning"] ?: d[@"warning"] ?: d[@"warn"];
-    id xieYaVal = d[@"isXieYa"] ?: d[@"leak"];
+
+    // Check nested collections
+    for (NSString *key in @[@"tires", @"wheels", @"sensorList", @"sensors", @"data", @"list", @"tiresList"]) {
+        id nested = d[key];
+        if ([nested isKindOfClass:NSArray.class]) {
+            for (id item in (NSArray *)nested) {
+                if ([item isKindOfClass:NSDictionary.class]) GVMParseTireDict(item, nil);
+            }
+        } else if ([nested isKindOfClass:NSDictionary.class] && nested != d) {
+            GVMParseTireDict((NSDictionary *)nested, nil);
+        }
+    }
+
+    // Direct positions inside d
+    if (d[@"fl"] && [d[@"fl"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"fl"], @"fl");
+    if (d[@"fr"] && [d[@"fr"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"fr"], @"fr");
+    if (d[@"rl"] && [d[@"rl"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"rl"], @"rl");
+    if (d[@"rr"] && [d[@"rr"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"rr"], @"rr");
+
+    if (d[@"FL"] && [d[@"FL"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"FL"], @"fl");
+    if (d[@"FR"] && [d[@"FR"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"FR"], @"fr");
+    if (d[@"RL"] && [d[@"RL"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"RL"], @"rl");
+    if (d[@"RR"] && [d[@"RR"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"RR"], @"rr");
+
+    if (d[@"frontLeft"] && [d[@"frontLeft"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"frontLeft"], @"fl");
+    if (d[@"frontRight"] && [d[@"frontRight"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"frontRight"], @"fr");
+    if (d[@"rearLeft"] && [d[@"rearLeft"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"rearLeft"], @"rl");
+    if (d[@"rearRight"] && [d[@"rearRight"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"rearRight"], @"rr");
+
+    if (d[@"0"] && [d[@"0"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"0"], @"fl");
+    if (d[@"1"] && [d[@"1"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"1"], @"fr");
+    if (d[@"2"] && [d[@"2"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"2"], @"rl");
+    if (d[@"3"] && [d[@"3"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"3"], @"rr");
+
+    id codeVal = explicitPos ?: d[@"code"] ?: d[@"position"] ?: d[@"tirePosition"] ?: d[@"pos"] ?: 
+                 d[@"wheel"] ?: d[@"wheelPosition"] ?: d[@"tireId"] ?: d[@"tire"] ?: 
+                 d[@"id"] ?: d[@"deviceID"] ?: d[@"index"] ?: d[@"tire_index"] ?: d[@"location"];
     
+    id pressVal = d[@"pressure"] ?: d[@"press"] ?: d[@"bar"] ?: d[@"kpa"] ?: d[@"psi"] ?: 
+                  d[@"p"] ?: d[@"val"] ?: d[@"value"] ?: d[@"tirePressure"] ?: d[@"currentPressure"];
+                  
+    id tempVal = d[@"temperature"] ?: d[@"temp"] ?: d[@"t"] ?: d[@"celsius"] ?: d[@"tireTemperature"];
+    id warnVal = d[@"isPressureWarning"] ?: d[@"warning"] ?: d[@"warn"] ?: d[@"isWarning"];
+    id xieYaVal = d[@"isXieYa"] ?: d[@"leak"] ?: d[@"isLeak"];
+
+    if (!codeVal && !pressVal) return;
+
     GVMTPMSTire *target = NULL;
     NSString *codeStr = [codeVal description].lowercaseString;
-    if ([codeStr isEqualToString:@"0"] || [codeStr containsString:@"fl"] || [codeStr containsString:@"front_left"] || [codeStr containsString:@"frontleft"]) {
+    if ([codeStr isEqualToString:@"0"] || [codeStr isEqualToString:@"fl"] || 
+        [codeStr containsString:@"front_left"] || [codeStr containsString:@"frontleft"] ||
+        [codeStr containsString:@"truoc_trai"] || [codeStr containsString:@"tt"]) {
         target = &g_liveTPMS.fl;
-    } else if ([codeStr isEqualToString:@"1"] || [codeStr containsString:@"fr"] || [codeStr containsString:@"front_right"] || [codeStr containsString:@"frontright"]) {
+    } else if ([codeStr isEqualToString:@"1"] || [codeStr isEqualToString:@"fr"] || 
+               [codeStr containsString:@"front_right"] || [codeStr containsString:@"frontright"] ||
+               [codeStr containsString:@"truoc_phai"] || [codeStr containsString:@"tp"]) {
         target = &g_liveTPMS.fr;
-    } else if ([codeStr isEqualToString:@"2"] || [codeStr containsString:@"rl"] || [codeStr containsString:@"rear_left"] || [codeStr containsString:@"rearleft"]) {
+    } else if ([codeStr isEqualToString:@"2"] || [codeStr isEqualToString:@"rl"] || 
+               [codeStr containsString:@"rear_left"] || [codeStr containsString:@"rearleft"] ||
+               [codeStr containsString:@"sau_trai"] || [codeStr containsString:@"st"]) {
         target = &g_liveTPMS.rl;
-    } else if ([codeStr isEqualToString:@"3"] || [codeStr containsString:@"rr"] || [codeStr containsString:@"rear_right"] || [codeStr containsString:@"rearright"]) {
+    } else if ([codeStr isEqualToString:@"3"] || [codeStr isEqualToString:@"rr"] || 
+               [codeStr containsString:@"rear_right"] || [codeStr containsString:@"rearright"] ||
+               [codeStr containsString:@"sau_phai"] || [codeStr containsString:@"sp"]) {
         target = &g_liveTPMS.rr;
     }
-    
-    if (!target) {
-        if (d[@"fl"] && [d[@"fl"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"fl"], @"fl");
-        if (d[@"fr"] && [d[@"fr"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"fr"], @"fr");
-        if (d[@"rl"] && [d[@"rl"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"rl"], @"rl");
-        if (d[@"rr"] && [d[@"rr"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"rr"], @"rr");
-        if (d[@"0"] && [d[@"0"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"0"], @"0");
-        if (d[@"1"] && [d[@"1"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"1"], @"1");
-        if (d[@"2"] && [d[@"2"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"2"], @"2");
-        if (d[@"3"] && [d[@"3"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"3"], @"3");
-        return;
-    }
-    
+
+    if (!target) return;
+
     if (pressVal != nil && pressVal != [NSNull null]) {
         float p = 0.0f;
         if ([pressVal isKindOfClass:NSNumber.class]) p = [pressVal floatValue];
         else if ([pressVal isKindOfClass:NSString.class]) p = (float)[pressVal doubleValue];
-        if (p > 50.0f) p = p / 100.0f; // kpa to bar conversion
+        
+        // Intelligent pressure unit conversion:
+        if (p >= 70.0f) {
+            p = p / 100.0f; // kPa to bar (e.g. 230 kPa -> 2.3 bar)
+        } else if (p >= 15.0f && p < 70.0f) {
+            p = p / 14.5038f; // PSI to bar (e.g. 32 PSI -> 2.2 bar)
+        }
         if (p < 0.0f) p = 0.0f;
         target->pressure = p;
-        target->active = YES;
+        target->active = (p > 0.05f);
     }
     if ([tempVal respondsToSelector:@selector(intValue)]) {
         target->temperature = [tempVal intValue];
     }
     BOOL isWarn = [warnVal respondsToSelector:@selector(boolValue)] && [warnVal boolValue];
     BOOL isLeak = [xieYaVal respondsToSelector:@selector(boolValue)] && [xieYaVal boolValue];
-    if (isLeak || (target->active && target->pressure <= 0.05f)) target->warning = 2; // Flat tire or leak = Critical Red
+    if (isLeak || (target->active && target->pressure <= 0.05f)) target->warning = 2;
     else if (isWarn) target->warning = (target->pressure < 1.8f) ? 1 : 2;
-    else if (target->pressure < 1.8f) target->warning = 1;
+    else if (target->pressure < 1.8f && target->active) target->warning = 1;
     else if (target->pressure > 2.8f) target->warning = 2;
     else target->warning = 0;
 }
@@ -251,8 +313,12 @@ static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
                     notify_post(GVMTPMSStateName);
                 }
             }
-            BridgeLog([NSString stringWithFormat:@"tpms update fl=%.1f fr=%.1f rl=%.1f rr=%.1f",
-                g_liveTPMS.fl.pressure, g_liveTPMS.fr.pressure, g_liveTPMS.rl.pressure, g_liveTPMS.rr.pressure]);
+            static NSTimeInterval lastBridgeLog = 0;
+            if (received - lastBridgeLog >= 2.0) {
+                lastBridgeLog = received;
+                BridgeLog([NSString stringWithFormat:@"[TPMS] LIVE UPDATE FL=%.1f FR=%.1f RL=%.1f RR=%.1f",
+                    g_liveTPMS.fl.pressure, g_liveTPMS.fr.pressure, g_liveTPMS.rl.pressure, g_liveTPMS.rr.pressure]);
+            }
         }
     }
 }
@@ -261,14 +327,31 @@ static void (*originalEventSetHandler)(id, SEL, id);
 static Ivar eventChannelNameIvar = NULL;
 
 static void SetEventStreamHandler(id channel, SEL selector, id handler) {
-    id name = object_getIvar(channel, eventChannelNameIvar);
-    if (!handler || ![name isKindOfClass:NSString.class] ||
-        ([name rangeOfString:@"tpms" options:NSCaseInsensitiveSearch].location == NSNotFound &&
-         [name rangeOfString:@"tire" options:NSCaseInsensitiveSearch].location == NSNotFound)) {
+    NSString *name = GetChannelName(channel, eventChannelNameIvar);
+    if (!handler) {
         originalEventSetHandler(channel, selector, handler);
         return;
     }
-    BridgeLog([NSString stringWithFormat:@"Hooking TPMS EventChannel: %@", name]);
+    
+    BOOL isTargetChannel = NO;
+    if (name) {
+        NSString *lower = [name lowercaseString];
+        isTargetChannel = [lower containsString:@"tpms"] || [lower containsString:@"tire"] ||
+                          [lower containsString:@"ble"] || [lower containsString:@"bluetooth"] ||
+                          [lower containsString:@"device"] || [lower containsString:@"hardware"] ||
+                          [lower containsString:@"sensor"] || [lower containsString:@"bt10"] ||
+                          [lower containsString:@"tw50"] || [lower containsString:@"vml"] ||
+                          [lower containsString:@"vietmap"];
+    } else {
+        isTargetChannel = YES;
+    }
+    
+    if (!isTargetChannel) {
+        originalEventSetHandler(channel, selector, handler);
+        return;
+    }
+    
+    BridgeLog([NSString stringWithFormat:@"Hooking TPMS EventChannel: %@", name ?: @"unknown"]);
     Class handlerClass = [handler class];
     SEL onListenSel = NSSelectorFromString(@"onListenWithArguments:eventSink:");
     Method m = class_getInstanceMethod(handlerClass, onListenSel);
@@ -276,8 +359,9 @@ static void SetEventStreamHandler(id channel, SEL selector, id handler) {
     if (m && !objc_getAssociatedObject(handlerClass, kGVMStreamHookedKey)) {
         objc_setAssociatedObject(handlerClass, kGVMStreamHookedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         __block id (*origOnListen)(id, SEL, id, id) = (id (*)(id, SEL, id, id))method_getImplementation(m);
+        NSString *chanName = [name copy];
         id newImp = ^(id selfHandler, id args, id eventSink) {
-            BridgeLog(@"TPMS event sink registered");
+            BridgeLog([NSString stringWithFormat:@"TPMS event sink registered on %@", chanName ?: @"channel"]);
             id wrappedSink = ^(id event) {
                 @try {
                     NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
@@ -296,15 +380,35 @@ static void SetEventStreamHandler(id channel, SEL selector, id handler) {
 #endif
 
 static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler handler) {
-    id name = object_getIvar(channel, channelNameIvar);
-    BOOL isKnownChannel = [name isEqualToString:@"vietmap_car_method_channel"] || [name isEqualToString:@"vml_main_channel"] ||
-        [name rangeOfString:@"tpms" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-        [name rangeOfString:@"tire" options:NSCaseInsensitiveSearch].location != NSNotFound;
-    if (!handler || ![name isKindOfClass:NSString.class] || !isKnownChannel) {
+    NSString *name = GetChannelName(channel, channelNameIvar);
+    if (!handler) {
         originalSetHandler(channel, selector, handler);
         return;
     }
-    dispatch_async(dispatch_get_main_queue(), ^{ BridgeLog(@"VietMap overlay handler registered"); GVMDiagnosticsRecord(GVMDiagnosticChannel,1); });
+    
+    BOOL isTargetChannel = NO;
+    if (name) {
+        NSString *lower = [name lowercaseString];
+        isTargetChannel = [lower isEqualToString:@"vietmap_car_method_channel"] ||
+                          [lower isEqualToString:@"vml_main_channel"] ||
+                          [lower containsString:@"tpms"] || [lower containsString:@"tire"] ||
+                          [lower containsString:@"ble"] || [lower containsString:@"bluetooth"] ||
+                          [lower containsString:@"device"] || [lower containsString:@"hardware"] ||
+                          [lower containsString:@"sensor"] || [lower containsString:@"bt10"] ||
+                          [lower containsString:@"tw50"];
+    } else {
+        isTargetChannel = YES;
+    }
+    
+    if (!isTargetChannel) {
+        originalSetHandler(channel, selector, handler);
+        return;
+    }
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        BridgeLog([NSString stringWithFormat:@"VietMap channel handler registered: %@", name ?: @"unknown"]);
+        GVMDiagnosticsRecord(GVMDiagnosticChannel,1);
+    });
     VMFlutterHandler wrapped = ^(id<VMFlutterMethodCall> call, VMFlutterResult result) {
         NSArray *update = nil;
 #ifdef VM_GOOGLE_MAPS_RELAY
@@ -314,12 +418,26 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
         id mainLimit=nil; BOOL hasMainLimit=NO;
         NSTimeInterval received = NSProcessInfo.processInfo.systemUptime;
         @try {
-    #ifdef VM_GOOGLE_MAPS_RELAY
+#ifdef VM_GOOGLE_MAPS_RELAY
             NSString *cMethod = [call method];
-            if ([cMethod rangeOfString:@"tpms" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-                [cMethod rangeOfString:@"tire" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-                [cMethod rangeOfString:@"pressure" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+            NSString *methodLower = [cMethod lowercaseString];
+            BOOL isTireCall = [methodLower containsString:@"tpms"] ||
+                              [methodLower containsString:@"tire"] ||
+                              [methodLower containsString:@"pressure"] ||
+                              [methodLower containsString:@"ble"] ||
+                              [methodLower containsString:@"bluetooth"] ||
+                              [methodLower containsString:@"sensor"] ||
+                              [methodLower containsString:@"device"] ||
+                              [methodLower containsString:@"hardware"] ||
+                              [methodLower containsString:@"bt10"] ||
+                              [methodLower containsString:@"tw50"];
+            if (isTireCall) {
                 GVMProcessTirePayload([call arguments], received);
+                static NSTimeInterval lastCandidateLog = 0;
+                if (received - lastCandidateLog > 2.0) {
+                    lastCandidateLog = received;
+                    BridgeLog([NSString stringWithFormat:@"[TPMS] Method candidate: %@ (channel: %@)", cMethod, name ?: @"unknown"]);
+                }
             }
             if ([name isEqualToString:@"vml_main_channel"] && ([[call method] isEqualToString:@"updateLaneInfo"] ||
                 [[call method] isEqualToString:@"cacheImage"]))
@@ -449,7 +567,7 @@ static void InstallHook(void) {
     SEL eventSelector = NSSelectorFromString(@"setStreamHandler:");
     Method eventMethod = class_getInstanceMethod(eventTarget, eventSelector);
     Ivar eventName = class_getInstanceVariable(eventTarget, "_name");
-    if (eventMethod && eventName) {
+    if (eventMethod) {
         eventChannelNameIvar = eventName;
         MSHookMessageEx(eventTarget, eventSelector, (IMP)SetEventStreamHandler, (IMP *)&originalEventSetHandler);
         BridgeLog(@"EventChannel hook installed");
