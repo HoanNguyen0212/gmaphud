@@ -14,6 +14,7 @@
 #import "vietmap-alert-assets.h"
 #import "cmu-hud-relay.h"
 #import "tpms-state.h"
+#import "carplay-nav-hook.h"
 static int requestToken=-1, tpmsToken=-1;
 static NSTimeInterval lastRequestHandled=-1;
 static BOOL forceOutput;
@@ -25,6 +26,13 @@ static NSArray<NSNumber *> *laneCodes;
 static NSTimeInterval laneCodesReceived=-1;
 static GVMTPMSData g_liveTPMS;
 static void GVMScanUserDefaultsForTPMS(void);
+static uint16_t g_vmNavIcon = 0;
+static NSUInteger g_vmNavDistance = 0;
+static NSString *g_vmNavRoad = nil;
+static NSTimeInterval g_vmNavLastReceived = 0;
+static void GVMHandleVietMapManeuver(id args, NSTimeInterval received);
+static void GVMHandleVietMapProgress(id args, NSTimeInterval received);
+static void GVMHandleVietMapNavEnd(void);
 #endif
 
 @protocol VMFlutterMethodCall
@@ -409,14 +417,24 @@ static void HookedInvokeMethod(id selfChannel, SEL _cmd, NSString *method, id ar
     if (originalInvokeMethod) originalInvokeMethod(selfChannel, _cmd, method, arguments);
     @try {
         NSString *mLower = [method lowercaseString];
+        NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
         if ([mLower containsString:@"tpms"] || [mLower containsString:@"tire"] ||
             [mLower containsString:@"pressure"] || [mLower containsString:@"ble"] ||
             [mLower containsString:@"bluetooth"] || [mLower containsString:@"sensor"] ||
             [mLower containsString:@"device"] || [mLower containsString:@"hardware"] ||
             [mLower containsString:@"bt10"] || [mLower containsString:@"tw50"]) {
-            NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
             GVMProcessTirePayload(arguments, now);
             BridgeLog([NSString stringWithFormat:@"[TPMS] invokeMethod: %@ args=%@", method, arguments]);
+        }
+        if ([mLower isEqualToString:@"updatemaneuver"]) {
+            GVMHandleVietMapManeuver(arguments, now);
+        } else if ([mLower isEqualToString:@"updateultraprogress"]) {
+            GVMHandleVietMapProgress(arguments, now);
+        } else if ([mLower isEqualToString:@"clearmaneuver"] ||
+                   [mLower isEqualToString:@"stopnavigation"] ||
+                   [mLower isEqualToString:@"finishnavigation"] ||
+                   [mLower isEqualToString:@"cancelnavigation"]) {
+            GVMHandleVietMapNavEnd();
         }
     } @catch (__unused NSException *e) {}
 }
@@ -426,14 +444,24 @@ static void HookedInvokeMethodWithResult(id selfChannel, SEL _cmd, NSString *met
     if (originalInvokeMethodWithResult) originalInvokeMethodWithResult(selfChannel, _cmd, method, arguments, callback);
     @try {
         NSString *mLower = [method lowercaseString];
+        NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
         if ([mLower containsString:@"tpms"] || [mLower containsString:@"tire"] ||
             [mLower containsString:@"pressure"] || [mLower containsString:@"ble"] ||
             [mLower containsString:@"bluetooth"] || [mLower containsString:@"sensor"] ||
             [mLower containsString:@"device"] || [mLower containsString:@"hardware"] ||
             [mLower containsString:@"bt10"] || [mLower containsString:@"tw50"]) {
-            NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
             GVMProcessTirePayload(arguments, now);
             BridgeLog([NSString stringWithFormat:@"[TPMS] invokeMethodWithResult: %@ args=%@", method, arguments]);
+        }
+        if ([mLower isEqualToString:@"updatemaneuver"]) {
+            GVMHandleVietMapManeuver(arguments, now);
+        } else if ([mLower isEqualToString:@"updateultraprogress"]) {
+            GVMHandleVietMapProgress(arguments, now);
+        } else if ([mLower isEqualToString:@"clearmaneuver"] ||
+                   [mLower isEqualToString:@"stopnavigation"] ||
+                   [mLower isEqualToString:@"finishnavigation"] ||
+                   [mLower isEqualToString:@"cancelnavigation"]) {
+            GVMHandleVietMapNavEnd();
         }
     } @catch (__unused NSException *e) {}
 }
@@ -451,6 +479,178 @@ static void GVMScanUserDefaultsForTPMS(void) {
             }
         }
     } @catch (__unused NSException *e) {}
+}
+
+static uint16_t GVMParseVietMapIcon(id iconVal) {
+    if (!iconVal || iconVal == [NSNull null]) return 0;
+    if ([iconVal isKindOfClass:[NSNumber class]]) {
+        int v = [iconVal intValue];
+        switch (v) {
+            case 1:  return 1;  // HUD_STRAIGHT
+            case 2:  return 2;  // HUD_LEFT
+            case 3:  return 3;  // HUD_RIGHT
+            case 4:  return 4;  // HUD_SLIGHT_LEFT
+            case 5:  return 5;  // HUD_SLIGHT_RIGHT
+            case 6:  return 11; // HUD_SHARP_LEFT
+            case 7:  return 9;  // HUD_SHARP_RIGHT
+            case 8:  return 13; // HUD_U_TURN_LEFT
+            case 9:  return 16; // HUD_MERGE_LEFT
+            case 10: return 10; // HUD_U_TURN_RIGHT
+            case 11: return 8;  // HUD_DESTINATION
+            default:
+                if (v >= 1 && v <= 60) return (uint16_t)v;
+                return 1;
+        }
+    } else if ([iconVal isKindOfClass:[NSString class]]) {
+        NSString *s = [(NSString *)iconVal lowercaseString];
+        if ([s containsString:@"straight"] || [s containsString:@"thang"]) return 1;
+        if ([s containsString:@"slight-left"] || [s containsString:@"slight_left"] || [s containsString:@"chech trai"] || [s containsString:@"nhe trai"]) return 4;
+        if ([s containsString:@"slight-right"] || [s containsString:@"slight_right"] || [s containsString:@"chech phai"] || [s containsString:@"nhe phai"]) return 5;
+        if ([s containsString:@"sharp-left"] || [s containsString:@"sharp_left"] || [s containsString:@"gat trai"]) return 11;
+        if ([s containsString:@"sharp-right"] || [s containsString:@"sharp_right"] || [s containsString:@"gat phai"]) return 9;
+        if ([s containsString:@"u-turn"] || [s containsString:@"uturn"] || [s containsString:@"quay dau"]) return 13;
+        if ([s containsString:@"turn-left"] || [s containsString:@"left"] || [s containsString:@"re trai"] || [s containsString:@"queo trai"]) return 2;
+        if ([s containsString:@"turn-right"] || [s containsString:@"right"] || [s containsString:@"re phai"] || [s containsString:@"queo phai"]) return 3;
+        if ([s containsString:@"roundabout"] || [s containsString:@"rotary"] || [s containsString:@"vong xuyen"] || [s containsString:@"bung binh"]) return 37;
+        if ([s containsString:@"fork-left"] || [s containsString:@"ramp-left"]) return 6;
+        if ([s containsString:@"fork-right"] || [s containsString:@"ramp-right"]) return 7;
+        if ([s containsString:@"merge-left"]) return 16;
+        if ([s containsString:@"merge-right"]) return 15;
+        if ([s containsString:@"arrive"] || [s containsString:@"destination"] || [s containsString:@"dich den"] || [s containsString:@"den noi"]) return 8;
+        int v = [s intValue];
+        if (v > 0) return GVMParseVietMapIcon(@(v));
+    }
+    return 0;
+}
+
+static void GVMHandleVietMapNavEnd(void) {
+    if (g_vmNavIcon > 0 || g_vmNavDistance > 0) {
+        g_vmNavIcon = 0;
+        g_vmNavDistance = 0;
+        g_vmNavRoad = @"";
+        g_vmNavLastReceived = 0;
+        GVMCMURelaySetNav(0, 0, @"");
+        BridgeLog(@"[VM_NAV] Cleared navigation on HUD");
+    }
+}
+
+static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
+    if (!args || args == [NSNull null]) {
+        GVMHandleVietMapNavEnd();
+        return;
+    }
+
+    id payload = args;
+    if ([payload isKindOfClass:[NSString class]]) {
+        NSData *data = [(NSString *)payload dataUsingEncoding:NSUTF8StringEncoding];
+        if (data) {
+            id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            if (parsed) payload = parsed;
+        }
+    }
+
+    uint16_t icon = 0;
+    double dist = 0.0;
+    NSString *road = nil;
+    NSString *instruction = nil;
+
+    if ([payload isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *dict = (NSDictionary *)payload;
+        id iconObj = dict[@"icon"] ?: dict[@"iconId"] ?: dict[@"icon_id"] ?: dict[@"action"] ?: dict[@"maneuver"] ?: dict[@"type"] ?: dict[@"modifier"] ?: dict[@"turn"];
+        icon = GVMParseVietMapIcon(iconObj);
+
+        id roadObj = dict[@"road"] ?: dict[@"street"] ?: dict[@"streetName"] ?: dict[@"street_name"] ?: dict[@"nextRoad"] ?: dict[@"next_street"] ?: dict[@"roadName"] ?: dict[@"target"] ?: dict[@"name"];
+        if ([roadObj isKindOfClass:[NSString class]]) {
+            road = (NSString *)roadObj;
+        }
+
+        id instObj = dict[@"instruction"] ?: dict[@"text"] ?: dict[@"description"] ?: dict[@"title"] ?: dict[@"bannerText"] ?: dict[@"primaryText"];
+        if ([instObj isKindOfClass:[NSString class]]) {
+            instruction = (NSString *)instObj;
+            if (icon == 0) {
+                icon = GVMMapInstructionTextToMazdaHUD(instruction);
+            }
+            if (!road || road.length == 0) {
+                road = GVMExtractRoadName(instruction);
+            }
+        }
+
+        id distObj = dict[@"distance"] ?: dict[@"length"] ?: dict[@"meters"] ?: dict[@"distanceRemaining"] ?: dict[@"dist"] ?: dict[@"remain"];
+        if ([distObj respondsToSelector:@selector(doubleValue)]) {
+            dist = [distObj doubleValue];
+        }
+    } else if ([payload isKindOfClass:[NSString class]]) {
+        instruction = (NSString *)payload;
+        icon = GVMMapInstructionTextToMazdaHUD(instruction);
+        road = GVMExtractRoadName(instruction);
+    } else if ([payload isKindOfClass:[NSNumber class]]) {
+        icon = GVMParseVietMapIcon(payload);
+    }
+
+    if (icon == 0 && (dist > 0 || (road && road.length > 0))) {
+        icon = 1; // Fallback to Straight
+    }
+
+    NSString *cleanRoad = GVMExtractRoadName(road ?: instruction ?: @"");
+    if (!cleanRoad || cleanRoad.length == 0) {
+        cleanRoad = road ?: instruction ?: @"";
+    }
+    cleanRoad = GVMNormalizeVietnameseForHUD(cleanRoad);
+
+    NSUInteger finalDist = (NSUInteger)fmax(0.0, round(dist));
+    if (finalDist == 0 && g_vmNavDistance > 0 && (received - g_vmNavLastReceived < 15.0)) {
+        finalDist = g_vmNavDistance;
+    }
+
+    g_vmNavIcon = icon;
+    g_vmNavDistance = finalDist;
+    g_vmNavRoad = [cleanRoad copy];
+    g_vmNavLastReceived = received;
+
+    char navLog[512];
+    time_t now = (time_t)received;
+    struct tm *tm_info = localtime(&now);
+    char timeStr[32];
+    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
+    snprintf(navLog, sizeof(navLog), "[%s] [VM_NAV_INTERCEPT] icon=%u dist=%lu road=\"%s\"\n",
+             timeStr, (unsigned int)icon, (unsigned long)finalDist, cleanRoad.UTF8String ?: "");
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-relay.log"];
+    FILE *f = fopen(path.UTF8String, "a");
+    if (f) {
+        fputs(navLog, f);
+        fclose(f);
+    }
+
+    GVMCMURelaySetNav(icon, finalDist, cleanRoad);
+}
+
+static void GVMHandleVietMapProgress(id args, NSTimeInterval received) {
+    if (!args || args == [NSNull null]) return;
+    double dist = 0.0;
+    if ([args respondsToSelector:@selector(doubleValue)]) {
+        dist = [args doubleValue];
+    } else if ([args isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *dict = (NSDictionary *)args;
+        id distObj = dict[@"distance"] ?: dict[@"distanceRemaining"] ?: dict[@"meters"] ?: dict[@"remain"] ?: dict[@"stepDistance"];
+        if ([distObj respondsToSelector:@selector(doubleValue)]) {
+            dist = [distObj doubleValue];
+        }
+    } else if ([args isKindOfClass:[NSString class]]) {
+        dist = [(NSString *)args doubleValue];
+    }
+
+    NSUInteger finalDist = (NSUInteger)fmax(0.0, round(dist));
+    g_vmNavDistance = finalDist;
+    g_vmNavLastReceived = received;
+
+    uint16_t icon = g_vmNavIcon;
+    if (icon == 0 && finalDist > 0) {
+        icon = 1; // Fallback to Straight
+        g_vmNavIcon = icon;
+    }
+
+    NSString *road = g_vmNavRoad ?: @"";
+    GVMCMURelaySetNav(icon, finalDist, road);
 }
 #endif
 
@@ -519,6 +719,20 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
                 ObserveAlerts([call method],[call arguments],0,received);
             if ([name isEqualToString:@"vietmap_car_method_channel"] && [[call method] isEqualToString:@"setNavigationImage"])
                 ObserveAlerts(@"setNavigationImage",[call arguments],0,received);
+            if ([name isEqualToString:@"vml_main_channel"] || [name isEqualToString:@"vietmap_car_method_channel"]) {
+                NSString *cMethod = [call method];
+                NSString *mLower = [cMethod lowercaseString];
+                if ([mLower isEqualToString:@"updatemaneuver"]) {
+                    GVMHandleVietMapManeuver([call arguments], received);
+                } else if ([mLower isEqualToString:@"updateultraprogress"]) {
+                    GVMHandleVietMapProgress([call arguments], received);
+                } else if ([mLower isEqualToString:@"clearmaneuver"] ||
+                           [mLower isEqualToString:@"stopnavigation"] ||
+                           [mLower isEqualToString:@"finishnavigation"] ||
+                           [mLower isEqualToString:@"cancelnavigation"]) {
+                    GVMHandleVietMapNavEnd();
+                }
+            }
             if ([name isEqualToString:@"vml_main_channel"] &&
                 ([[call method] isEqualToString:@"updateUpcommingAlerts"] ||
                  [[call method] isEqualToString:@"updateStickyAlerts"])) {
@@ -701,7 +915,15 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
             heartbeat = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
             dispatch_source_set_timer(heartbeat, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
                 2 * NSEC_PER_SEC, NSEC_PER_SEC / 4);
-            dispatch_source_set_event_handler(heartbeat, ^{ Publish(); });
+            dispatch_source_set_event_handler(heartbeat, ^{
+                Publish();
+#ifdef VM_GOOGLE_MAPS_RELAY
+                if (g_vmNavIcon > 0 && g_vmNavLastReceived > 0 &&
+                    (NSProcessInfo.processInfo.systemUptime - g_vmNavLastReceived > 25.0)) {
+                    GVMHandleVietMapNavEnd();
+                }
+#endif
+            });
             dispatch_resume(heartbeat);
             [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification
                 object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) { Publish(); }];
@@ -709,6 +931,7 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
                 object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
 #ifdef VM_GOOGLE_MAPS_RELAY
                     upcomingAlerts=@[]; stickyAlerts=@[]; laneCodes=nil; forceOutput=YES;
+                    GVMHandleVietMapNavEnd();
 #endif
                     source = [VMNavSource new]; Publish();
                 }];

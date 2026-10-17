@@ -230,5 +230,36 @@ class TPMSIntegrationFullTests(unittest.TestCase):
         self.assertIn("GVMCardCanvasSize(style, alertCount, compact)", style)
 
 
+class VietMapNavigationHUDTests(unittest.TestCase):
+    """Verify VietMap Live navigation maneuvers and progress are captured and forwarded to CMU HUD."""
+
+    def setUp(self):
+        self.vmsource = (root / "provider/vietmap-source.x").read_text()
+        self.makefile = (root / "tweak/Makefile").read_text()
+        self.hook_header = (root / "tweak/carplay-nav-hook.h").read_text()
+
+    def test_vietmap_source_handles_navigation_methods(self):
+        self.assertIn("GVMHandleVietMapManeuver", self.vmsource)
+        self.assertIn("GVMHandleVietMapProgress", self.vmsource)
+        self.assertIn("GVMHandleVietMapNavEnd", self.vmsource)
+        self.assertIn("GVMParseVietMapIcon", self.vmsource)
+        self.assertIn("updatemaneuver", self.vmsource.lower())
+        self.assertIn("updateultraprogress", self.vmsource.lower())
+
+    def test_vietmap_source_normalizes_vietnamese_road_for_hud(self):
+        self.assertIn("GVMNormalizeVietnameseForHUD", self.vmsource)
+        self.assertIn("GVMExtractRoadName", self.vmsource)
+
+    def test_makefile_links_nav_hook_in_vietmap_provider(self):
+        self.assertIn("VietMapGoogleMapsSource_FILES", self.makefile)
+        self.assertIn("carplay-nav-hook.m", self.makefile)
+        # Both targets should link carplay-nav-hook.m
+        matches = re.findall(r"carplay-nav-hook\.m", self.makefile)
+        self.assertGreaterEqual(len(matches), 2)
+
+    def test_hook_header_exports_instruction_mapper(self):
+        self.assertIn("GVMMapInstructionTextToMazdaHUD", self.hook_header)
+
+
 if __name__ == "__main__":
     unittest.main()

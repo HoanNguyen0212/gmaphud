@@ -13,7 +13,7 @@ GVM_VERSION_CFLAGS = -DGVM_PACKAGE_VERSION='"$(GVM_PACKAGE_VERSION)"'
 
 TWEAK_NAME = VietMapGoogleMapsSource GoogleMapsVietMap GMapHUDPlacementRelay GMapHUDOverspeedScreen WazeGMapHUDSource GofaGMapHUDSource GMapHUDGuidanceRelay
 
-VietMapGoogleMapsSource_FILES = source-output.m source-transport.m vietmap-output.m diagnostics.m background-location.m vietmap-source.x nav-source.m nav-payload.m speed-state.m alert-state.m vietmap-alert-assets.m tpms-state.m cmu-hud-relay.m
+VietMapGoogleMapsSource_FILES = source-output.m source-transport.m vietmap-output.m diagnostics.m background-location.m vietmap-source.x nav-source.m nav-payload.m speed-state.m alert-state.m vietmap-alert-assets.m tpms-state.m cmu-hud-relay.m carplay-nav-hook.m
 VietMapGoogleMapsSource_CFLAGS = -fobjc-arc -DVM_GOOGLE_MAPS_RELAY=1 $(GVM_VERSION_CFLAGS)
 VietMapGoogleMapsSource_FRAMEWORKS = UIKit Foundation CoreLocation
 

@@ -7,6 +7,9 @@ void GVMInstallCarPlayNavHook(void);
 // Helper for mapping Apple CarPlay maneuverType to Mazda HUD turn icon code (exposed for tests)
 uint16_t GVMMapCarPlayManeuverToMazdaHUD(NSUInteger maneuverType);
 
+// Helper for mapping instruction text to Mazda HUD icon code
+uint16_t GVMMapInstructionTextToMazdaHUD(NSString *instruction);
+
 // Helper for stripping Vietnamese diacritics for Mazda CMU HUD font compatibility (exposed for tests)
 NSString *GVMStripVietnameseDiacritics(NSString *str);
 
