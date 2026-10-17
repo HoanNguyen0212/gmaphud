@@ -475,6 +475,28 @@ static uint16_t GVMGetManeuverHUDIcon(id maneuver, NSString **outText) {
             for (id val in [(NSDictionary *)uInfo allValues]) {
                 if ([val isKindOfClass:[NSString class]]) [candidates addObject:val];
             }
+        } else if (uInfo) {
+            // Google Maps ManeuverUserInfo / GMSNavigationStepInfo
+            @try {
+                id stepInfo = nil;
+                if ([uInfo respondsToSelector:@selector(stepInfo)]) {
+                    stepInfo = ((id (*)(id, SEL))objc_msgSend)(uInfo, @selector(stepInfo));
+                }
+                if (stepInfo && [stepInfo respondsToSelector:@selector(maneuver)]) {
+                    NSUInteger gmsManeuver = ((NSUInteger (*)(id, SEL))objc_msgSend)(stepInfo, @selector(maneuver));
+                    switch (gmsManeuver) {
+                        case 5: return 1; // HUD_STRAIGHT
+                        case 6: case 12: case 17: case 19: return 2; // HUD_LEFT
+                        case 7: case 13: case 18: case 20: return 3; // HUD_RIGHT
+                        case 8: case 10: return 4; // HUD_SLIGHT_LEFT
+                        case 9: case 11: return 5; // HUD_SLIGHT_RIGHT
+                        case 14: case 15: return 6; // HUD_UTURN
+                        default: break;
+                    }
+                }
+                NSString *uDesc = [uInfo description];
+                if (uDesc && uDesc.length > 0) [candidates addObject:uDesc];
+            } @catch (__unused NSException *e) {}
         }
     }
 
