@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.2.6"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Khôi phục hiển thị áp suất lốp 4 bánh (TPMS) từ VietMap Live trên Apple CarPlay và iPhone; thêm Darwin IPC dispatch cập nhật tức thì khi xe dừng đỗ. Khắc phục xung đột kính lái Mazda CX-5 HUD.\n\n**English:** Restores full TPMS 4-tire pressure monitoring from VietMap Live on CarPlay and iPhone; adds reactive Darwin IPC dispatch on vehicle stationary state. Fixes Mazda CX-5 HUD relay."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.2.5"
         },
         {

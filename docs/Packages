@@ -8,18 +8,18 @@ Section: Tweaks
 Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm
-Version: 0.2.5
-Installed-Size: 6220
-Filename: pool/com.chou.googlemaps.vietmap_0.2.5_iphoneos-arm.deb
-Size: 3089492
-MD5sum: b957e1c2c65cb1d9b052b0d39d82ca2f
-SHA1: be1e172d730d42e4b400e8f18f654a4f1f198285
-SHA256: 9f7b43525d29be9aed26571b388f734f7910f3d81640a8b7e3a89c5287bde6f5
-SHA512: 48df39d3815f328002af05fc5256aa16d2aae57d43d1f7d4a0804e5b21170d1c732afa4d3c83485aba6f8f70c359dad7e215cffe3218f3dc4d4242521e1d5649
-Depiction: https://bechou0410.github.io/gmaphud/
-SileoDepiction: https://bechou0410.github.io/gmaphud/sileo-depiction.json
-Homepage: https://github.com/bechou0410/gmaphud
-Bugs: https://github.com/bechou0410/gmaphud/issues
+Version: 0.2.6
+Installed-Size: 6356
+Filename: pool/com.chou.googlemaps.vietmap_0.2.6_iphoneos-arm.deb
+Size: 3111108
+MD5sum: 8d723790d50a74069c0ae74fb564a995
+SHA1: cc3e656ee83ce582582567203b9605d72fd9b0ae
+SHA256: 1a68b4c90a5c18e86e23ebff790132631458c428342ef7d2eb4874089aa07b7b
+SHA512: 330c35ab28e70f7d1b254001ad54d9e5ba4e753dc6e13e835185998a61c934b3d51b1d80d70a966c363200e15817cb2d4eba02eafbe92077c7d16cab69d8f502
+Depiction: https://hoannguyen0212.github.io/gmaphud/
+SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
+Homepage: https://github.com/HoanNguyen0212/gmaphud
+Bugs: https://github.com/HoanNguyen0212/gmaphud/issues
 
 Package: com.chou.googlemaps.vietmap
 Name: GMapHUD
@@ -31,15 +31,15 @@ Section: Tweaks
 Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm64
-Version: 0.2.5
-Installed-Size: 6220
-Filename: pool/com.chou.googlemaps.vietmap_0.2.5_iphoneos-arm64.deb
-Size: 3089570
-MD5sum: 3502e63951f6a8a951aa84159bc0cd36
-SHA1: 0e8023949bc0c9c942db5231af8f0a92fd8ab72e
-SHA256: 3d8fd99c894efeccc7e4dd99bbd4c6ced0ef7b5f71731bb3b804edf7f13c502b
-SHA512: fb542025d470bf26959537f5c02a6fbabbad5fa080a419deb8cc0cfaa4be2cdf31ab25687271eb9e64fd371f0c1b28de4b9d37c3da250b234f7b876b6703869d
-Depiction: https://bechou0410.github.io/gmaphud/
-SileoDepiction: https://bechou0410.github.io/gmaphud/sileo-depiction.json
-Homepage: https://github.com/bechou0410/gmaphud
-Bugs: https://github.com/bechou0410/gmaphud/issues
+Version: 0.2.6
+Installed-Size: 6356
+Filename: pool/com.chou.googlemaps.vietmap_0.2.6_iphoneos-arm64.deb
+Size: 3109942
+MD5sum: c19120929e52fb68923cd918b7e92e47
+SHA1: 5cd28b933434b6b96a8d283d6884b589f8d2c8f7
+SHA256: cb2ac1cbc23bbc4f707e5b2b178f6bfd1d623001549d0011e44261dd019d3e25
+SHA512: 640a125a1aa04a7a6729f2078ebea29ee88a9902ba41aaf9ae870305521ca5a14839fa3e831e7492ba227c32a3213827e73f609b5ea74bbc6620c18f415d4d18
+Depiction: https://hoannguyen0212.github.io/gmaphud/
+SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
+Homepage: https://github.com/HoanNguyen0212/gmaphud
+Bugs: https://github.com/HoanNguyen0212/gmaphud/issues

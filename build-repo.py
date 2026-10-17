@@ -105,6 +105,8 @@ def build_sileo_depiction():
         },
     }
     changelog = (
+        ("0.2.6", "Khôi phục hiển thị áp suất lốp 4 bánh (TPMS) từ VietMap Live trên Apple CarPlay và iPhone; thêm Darwin IPC dispatch cập nhật tức thì khi xe dừng đỗ. Khắc phục xung đột kính lái Mazda CX-5 HUD.",
+         "Restores full TPMS 4-tire pressure monitoring from VietMap Live on CarPlay and iPhone; adds reactive Darwin IPC dispatch on vehicle stationary state. Fixes Mazda CX-5 HUD relay."),
         ("0.2.5", "Sửa thanh trượt Trái/phải và Lên/xuống của bong bóng trên iPhone: không kéo được ở 0.2.4, và hiện 100% khi mở lại Cài đặt nếu bong bóng lệch sang trái hoặc lên trên.",
          "Fixes the iPhone bubble's left/right and up/down sliders: they could not be dragged in 0.2.4, and showed 100% on reopening Settings for a left or up offset."),
         ("0.2.4", "Thêm mục Giao diện: Classic (mặc định) hoặc New UI (beta) với đồng hồ tốc độ tròn, biển giới hạn ghim trên đồng hồ và biển làn đường theo VietMap Live; khi dẫn đường trên CarPlay, biển hiệu lực và làn nằm dưới ô chỉ dẫn. Vẽ lại bộ biển báo theo QCVN 41:2024, kích cỡ bong bóng tới 250%. Sửa biển hiệu lực hiện 0 m và nhấp nháy.",
