@@ -159,6 +159,14 @@
         },
         {
           "class": "DepictionSubheaderView",
+          "title": "0.2.7"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "**Tiếng Việt:** Sửa định tuyến IP UDP Mazda CX-5 CMU: gửi đồng thời tới 192.168.53.1 (CarPlay USB cắm dây) và 192.168.100.1 (WiFi/AP) kèm broadcast để hiển thị tốc độ VietMap Live và dẫn đường Google Maps lên HUD.\n\n**English:** Fixes Mazda CX-5 CMU UDP relay IP routing: dual-targets 192.168.53.1 (wired CarPlay USB) and 192.168.100.1 (WiFi/AP) with broadcast fallback to show VietMap Live speed limits and Google Maps navigation on HUD."
+        },
+        {
+          "class": "DepictionSubheaderView",
           "title": "0.2.6"
         },
         {

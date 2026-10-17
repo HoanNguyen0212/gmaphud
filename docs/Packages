@@ -8,14 +8,14 @@ Section: Tweaks
 Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm
-Version: 0.2.6
+Version: 0.2.7
 Installed-Size: 6356
-Filename: pool/com.chou.googlemaps.vietmap_0.2.6_iphoneos-arm.deb
-Size: 3111108
-MD5sum: 8d723790d50a74069c0ae74fb564a995
-SHA1: cc3e656ee83ce582582567203b9605d72fd9b0ae
-SHA256: 1a68b4c90a5c18e86e23ebff790132631458c428342ef7d2eb4874089aa07b7b
-SHA512: 330c35ab28e70f7d1b254001ad54d9e5ba4e753dc6e13e835185998a61c934b3d51b1d80d70a966c363200e15817cb2d4eba02eafbe92077c7d16cab69d8f502
+Filename: pool/com.chou.googlemaps.vietmap_0.2.7_iphoneos-arm.deb
+Size: 3111132
+MD5sum: 08a91d889dc02618984f42000cf0153c
+SHA1: 99744d6611f3e911e5d076282f91f26126e5361c
+SHA256: bfc57a2a90c5cd3c2c8481f3bcf1318323ff98b012ef3d4732121dcc2e3ff0fa
+SHA512: 34c2822f9d2dec93fcbc62d6cf7461c89d12829e73e31d9469425b018f86409e5f4546c96be44834f3dfd32b5c338d11e81e6806bcf9444a330aa01cf3abe2cb
 Depiction: https://hoannguyen0212.github.io/gmaphud/
 SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/HoanNguyen0212/gmaphud
@@ -31,14 +31,14 @@ Section: Tweaks
 Depends: mobilesubstrate, preferenceloader
 Conflicts: com.chou.vietmapbridge.truedash, com.chou.vietmapbridge.probe, com.chou.googlemaps.vietmap-probe
 Architecture: iphoneos-arm64
-Version: 0.2.6
+Version: 0.2.7
 Installed-Size: 6356
-Filename: pool/com.chou.googlemaps.vietmap_0.2.6_iphoneos-arm64.deb
-Size: 3109942
-MD5sum: c19120929e52fb68923cd918b7e92e47
-SHA1: 5cd28b933434b6b96a8d283d6884b589f8d2c8f7
-SHA256: cb2ac1cbc23bbc4f707e5b2b178f6bfd1d623001549d0011e44261dd019d3e25
-SHA512: 640a125a1aa04a7a6729f2078ebea29ee88a9902ba41aaf9ae870305521ca5a14839fa3e831e7492ba227c32a3213827e73f609b5ea74bbc6620c18f415d4d18
+Filename: pool/com.chou.googlemaps.vietmap_0.2.7_iphoneos-arm64.deb
+Size: 3111096
+MD5sum: 120d6b734da7357082be82e5f968f4b9
+SHA1: 9468b876ae55a9a2a08809f190daf7c3ccc9930a
+SHA256: d024f8164a43a63658816aa907c6c8af19b2bb3e86717c3debe450d5deb0e0f2
+SHA512: 21084a0fca25a9986d1183f493a29fa168d98d577cc33e982df1c43a03ec68e4871ded341fc0ccbbcf15a7571f98256e83aaf65efe31f7da83dc33f6c8ba4e07
 Depiction: https://hoannguyen0212.github.io/gmaphud/
 SileoDepiction: https://hoannguyen0212.github.io/gmaphud/sileo-depiction.json
 Homepage: https://github.com/HoanNguyen0212/gmaphud
