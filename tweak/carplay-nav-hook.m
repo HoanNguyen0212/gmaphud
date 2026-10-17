@@ -512,7 +512,7 @@ static uint16_t GVMGetManeuverHUDIcon(id maneuver, NSString **outText) {
                 if ([item isKindOfClass:[NSAttributedString class]]) {
                     NSAttributedString *as = (NSAttributedString *)item;
                     __block uint16_t attIcon = 0;
-                    [as enumerateAttributesInRange:NSMakeRange(0, as.length) options:0 usingBlock:^(NSDictionary *attrs, NSRange range, BOOL *stop) {
+                    [as enumerateAttributesInRange:NSMakeRange(0, as.length) options:0 usingBlock:^(NSDictionary *attrs, __unused NSRange range, BOOL *stop) {
                         id att = attrs[@"NSAttachment"];
                         if (att && [att respondsToSelector:@selector(image)]) {
                             id attImg = [att performSelector:@selector(image)];
