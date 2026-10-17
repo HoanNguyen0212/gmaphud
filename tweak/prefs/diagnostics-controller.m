@@ -5,6 +5,8 @@
 @property(nonatomic,strong) UITextView *reportView;
 @property(nonatomic,strong) UISwitch *includeCrashes;
 @property(nonatomic,copy) NSArray<NSURL *> *crashFiles;
+@property(nonatomic,copy) NSArray<NSURL *> *logFiles;
+@property(nonatomic,copy) NSString *cmuDiagReport;
 @property(nonatomic,copy) NSArray<UIButton *> *reportButtons;
 @property(nonatomic) BOOL refreshing;
 @end
@@ -73,17 +75,40 @@
     if (self.refreshing) return;
     self.refreshing=YES;
     for (UIButton *button in self.reportButtons) button.enabled=NO;
-    self.reportView.text=@"Đang lấy báo cáo và kiểm tra crash…";
+    self.reportView.text=@"Đang lấy báo cáo và kiểm tra kết nối CMU xe (192.168.53.1 & 192.168.100.1)…";
     __weak GVMDiagnosticsController *weakSelf=self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0), ^{
         NSString *status=nil;
         NSArray *crashes=GVMDiagnosticsCrashFiles(&status);
+        NSArray *logs=GVMDiagnosticsContainerLogs();
+        NSString *activeIP=nil;
+        NSString *cmuReport=GVMDiagnosticsFetchCMULog(&activeIP);
+
         NSMutableString *report=[GVMDiagnosticsReport() mutableCopy];
+
+        if (cmuReport && cmuReport.length > 0) {
+            [report appendFormat:@"\n=== BÁO CÁO TRỰC TIẾP TỪ CMU XE (%@) ===\n%@\n", activeIP ?: @"192.168.53.1", cmuReport];
+        } else {
+            [report appendString:@"\n=== TRẠNG THÁI KẾT NỐI CMU XE ===\nChưa phát hiện phản hồi từ 192.168.53.1 (USB) và 192.168.100.1 (Wi-Fi) cổng 8889.\n(Nếu cắm cáp hoặc bật Wi-Fi xe, bấm 'Làm mới' để kiểm tra lại).\n"];
+        }
+
+        [report appendFormat:@"\n=== Log ứng dụng phát hiện được (%lu file) ===\n", (unsigned long)logs.count];
+        for (NSURL *file in logs) {
+            NSDictionary *attrs = [NSFileManager.defaultManager attributesOfItemAtPath:file.path error:nil];
+            unsigned long long size = [attrs[NSFileSize] unsignedLongLongValue];
+            [report appendFormat:@"- %@ (%llu bytes)\n", file.lastPathComponent, size];
+        }
+
         [report appendFormat:@"\n=== Crash đính kèm khi xuất ===\n%@\n",status];
         for (NSURL *file in crashes) [report appendFormat:@"- %@\n",file.lastPathComponent];
+
         dispatch_async(dispatch_get_main_queue(), ^{
             GVMDiagnosticsController *controller=weakSelf;
-            controller.crashFiles=crashes; controller.reportView.text=report;
+            if (!controller) return;
+            controller.crashFiles=crashes;
+            controller.logFiles=logs;
+            controller.cmuDiagReport=cmuReport;
+            controller.reportView.text=report;
             controller.includeCrashes.enabled=crashes.count>0;
             controller.refreshing=NO;
             for (UIButton *button in controller.reportButtons) button.enabled=YES;
@@ -108,6 +133,24 @@
     }
     NSMutableArray *files=[NSMutableArray new];
     NSMutableString *report=[self.reportView.text mutableCopy];
+
+    // Include detected app log files
+    for (NSURL *source in self.logFiles) {
+        NSDictionary *attributes=[manager attributesOfItemAtPath:source.path error:nil];
+        if ([attributes[NSFileSize] unsignedLongLongValue]>5*1024*1024 || ![attributes[NSFileType] isEqual:NSFileTypeRegular]) continue;
+        NSURL *destination=[directory URLByAppendingPathComponent:source.lastPathComponent];
+        if ([manager copyItemAtURL:source toURL:destination error:nil]) [files addObject:destination];
+        else [report appendFormat:@"Không sao chép được log: %@\n",source.lastPathComponent];
+    }
+
+    // Include CMU diagnostic report if available
+    if (self.cmuDiagReport && self.cmuDiagReport.length > 0) {
+        NSURL *cmuFile = [directory URLByAppendingPathComponent:@"cmu_diag.log"];
+        if ([self.cmuDiagReport writeToURL:cmuFile atomically:YES encoding:NSUTF8StringEncoding error:nil]) {
+            [files addObject:cmuFile];
+        }
+    }
+
     if (self.includeCrashes.on && self.includeCrashes.enabled) {
         for (NSURL *source in self.crashFiles) {
             NSDictionary *attributes=[manager attributesOfItemAtPath:source.path error:nil];
@@ -117,7 +160,7 @@
             else [report appendFormat:@"Không sao chép được crash: %@\n",source.lastPathComponent];
         }
     }
-    [report appendFormat:@"\nSố crash thực tế đính kèm: %lu\n",(unsigned long)files.count];
+    [report appendFormat:@"\nSố file đính kèm: %lu (logs + crashes)\n",(unsigned long)files.count];
     NSURL *file=[directory URLByAppendingPathComponent:@"GMapHUD-diagnostics.txt"];
     if (![report writeToURL:file atomically:YES encoding:NSUTF8StringEncoding error:&error]) {
         [manager removeItemAtURL:directory error:nil];

@@ -11,3 +11,5 @@ NSString *GVMDescribeDiagnostic(uint64_t state, NSTimeInterval now);
 NSString *GVMDiagnosticsAppVersion(NSString *bundleID);
 NSArray<NSURL *> *GVMDiagnosticsFindCrashes(NSArray<NSString *> *directories,NSDate *now,NSString **status);
 NSArray<NSURL *> *GVMDiagnosticsCrashFiles(NSString **status);
+NSArray<NSURL *> *GVMDiagnosticsContainerLogs(void);
+NSString *GVMDiagnosticsFetchCMULog(NSString **activeIP);

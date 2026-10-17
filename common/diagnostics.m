@@ -180,3 +180,104 @@ NSArray<NSURL *> *GVMDiagnosticsFindCrashes(NSArray<NSString *> *directories,NSD
 NSArray<NSURL *> *GVMDiagnosticsCrashFiles(NSString **status) {
     return GVMDiagnosticsFindCrashes(@[@"/var/mobile/Library/Logs/CrashReporter",@"/Library/Logs/CrashReporter"],NSDate.date,status);
 }
+
+NSArray<NSURL *> *GVMDiagnosticsContainerLogs(void) {
+    NSFileManager *manager = NSFileManager.defaultManager;
+    NSMutableArray<NSURL *> *logs = [NSMutableArray new];
+    NSMutableSet<NSString *> *seen = [NSMutableSet new];
+
+    NSArray<NSString *> *fixedPaths = @[
+        @"/var/mobile/Library/Logs/gmaphud-background.log",
+        @"/var/mobile/Library/Logs/gmaphud-carplay-bootstrap.log",
+        @"/var/mobile/Library/Logs/gmaphud-wifi.log",
+        [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-relay.log"],
+        [NSTemporaryDirectory() stringByAppendingPathComponent:@"googlemaps-vietmap.log"],
+        [NSTemporaryDirectory() stringByAppendingPathComponent:@"googlemaps-vietmap-source.log"],
+        [NSTemporaryDirectory() stringByAppendingPathComponent:@"truedash-vietmap.log"]
+    ];
+
+    for (NSString *fp in fixedPaths) {
+        if ([manager fileExistsAtPath:fp]) {
+            NSString *canonical = [fp stringByStandardizingPath];
+            if (![seen containsObject:canonical]) {
+                [seen addObject:canonical];
+                [logs addObject:[NSURL fileURLWithPath:fp]];
+            }
+        }
+    }
+
+    NSString *containers = @"/var/mobile/Containers/Data/Application";
+    NSArray *uuids = [manager contentsOfDirectoryAtPath:containers error:nil];
+    if (uuids) {
+        NSArray<NSString *> *targetNames = @[
+            @"gmaphud-relay.log",
+            @"googlemaps-vietmap-source.log",
+            @"googlemaps-vietmap.log",
+            @"truedash-vietmap.log",
+            @"gmaphud-phone.log"
+        ];
+        for (NSString *uuid in uuids) {
+            NSString *tmpDir = [containers stringByAppendingPathComponent:[uuid stringByAppendingPathComponent:@"tmp"]];
+            for (NSString *target in targetNames) {
+                NSString *logPath = [tmpDir stringByAppendingPathComponent:target];
+                if ([manager fileExistsAtPath:logPath]) {
+                    NSString *canonical = [logPath stringByStandardizingPath];
+                    if (![seen containsObject:canonical]) {
+                        [seen addObject:canonical];
+                        [logs addObject:[NSURL fileURLWithPath:logPath]];
+                    }
+                }
+            }
+        }
+    }
+
+    return logs;
+}
+
+NSString *GVMDiagnosticsFetchCMULog(NSString **activeIP) {
+    if (activeIP) *activeIP = nil;
+    static NSString * const kCandidates[] = {
+        @"192.168.53.1",   // Wired USB CarPlay
+        @"192.168.100.1"   // Wireless CMU AP
+    };
+
+    for (size_t i = 0; i < 2; i++) {
+        NSString *ip = kCandidates[i];
+        NSString *urlStr = [NSString stringWithFormat:@"http://%@:8889/diag", ip];
+        NSURL *url = [NSURL URLWithString:urlStr];
+        if (!url) continue;
+
+        NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url
+                                                           cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                       timeoutInterval:1.5];
+        req.HTTPMethod = @"GET";
+
+        dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+        __block NSString *result = nil;
+        __block NSInteger statusCode = 0;
+
+        NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+        config.timeoutIntervalForRequest = 1.5;
+        config.timeoutIntervalForResource = 2.0;
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+
+        [[session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+            if (!error && [response isKindOfClass:[NSHTTPURLResponse class]]) {
+                statusCode = [(NSHTTPURLResponse *)response statusCode];
+                if (statusCode == 200 && data.length > 0) {
+                    result = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+                }
+            }
+            dispatch_semaphore_signal(sem);
+        }] resume];
+
+        dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)));
+        [session finishTasksAndInvalidate];
+
+        if (result && result.length > 0) {
+            if (activeIP) *activeIP = ip;
+            return result;
+        }
+    }
+    return nil;
+}
