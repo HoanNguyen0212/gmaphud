@@ -3,12 +3,21 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <net/if.h>
+#include <ifaddrs.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
 #include <math.h>
 #include <time.h>
 #include <errno.h>
+
+#ifndef IP_BOUND_IF
+#define IP_BOUND_IF 25
+#endif
+#ifndef IPV6_BOUND_IF
+#define IPV6_BOUND_IF 125
+#endif
 
 // ── Configuration ──────────────────────────────────────────────────────────
 #ifndef GVM_CMU_HUD_TARGET_IP
@@ -25,6 +34,7 @@ static const NSTimeInterval kHeartbeatInterval = 2.5;
 // ── State (guarded by @synchronized on sLock) ──────────────────────────────
 static id sLock;
 static int sSock = -1;
+static int sSockUSB = -1; // Socket bound strictly to Lightning USB-NCM (en3)
 static struct sockaddr_in sTarget;
 static int sSock6 = -1;
 static struct sockaddr_in6 sTarget6;
@@ -82,7 +92,35 @@ static void LogRelay(const char *targetIP, int targetPort, const char *buf, size
     }
 }
 
+static unsigned int GetUSBInterfaceIndex(char *outName, size_t maxLen) {
+    unsigned int idx = if_nametoindex("en3");
+    if (idx > 0) {
+        if (outName && maxLen > 3) strncpy(outName, "en3", maxLen);
+        return idx;
+    }
+    // Dynamic scan fallback for any other USB-Ethernet interface on iOS
+    struct ifaddrs *ifas = NULL;
+    if (getifaddrs(&ifas) == 0 && ifas != NULL) {
+        for (struct ifaddrs *ifa = ifas; ifa; ifa = ifa->ifa_next) {
+            if (!ifa->ifa_name || !ifa->ifa_addr) continue;
+            if (strncmp(ifa->ifa_name, "en", 2) == 0 && strcmp(ifa->ifa_name, "en0") != 0) {
+                idx = if_nametoindex(ifa->ifa_name);
+                if (idx > 0) {
+                    if (outName && maxLen > 0) strncpy(outName, ifa->ifa_name, maxLen);
+                    freeifaddrs(ifas);
+                    return idx;
+                }
+            }
+        }
+        freeifaddrs(ifas);
+    }
+    return 0;
+}
+
 static void EnsureSocketOpen(void) {
+    char usbIfName[IFNAMSIZ] = {0};
+    unsigned int usbIdx = GetUSBInterfaceIndex(usbIfName, sizeof(usbIfName));
+
     if (sSock < 0) {
         sSock = socket(AF_INET, SOCK_DGRAM, 0);
         if (sSock >= 0) {
@@ -93,6 +131,17 @@ static void EnsureSocketOpen(void) {
             setsockopt(sSock, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt));
         }
     }
+    if (usbIdx > 0 && sSockUSB < 0) {
+        sSockUSB = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sSockUSB >= 0) {
+            int flags = fcntl(sSockUSB, F_GETFL, 0);
+            if (flags >= 0) fcntl(sSockUSB, F_SETFL, flags | O_NONBLOCK);
+            int opt = 1;
+            setsockopt(sSockUSB, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
+            setsockopt(sSockUSB, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt));
+            setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &usbIdx, sizeof(usbIdx));
+        }
+    }
     if (sSock6 < 0) {
         sSock6 = socket(AF_INET6, SOCK_DGRAM, 0);
         if (sSock6 >= 0) {
@@ -100,15 +149,20 @@ static void EnsureSocketOpen(void) {
             if (flags >= 0) fcntl(sSock6, F_SETFL, flags | O_NONBLOCK);
             int opt = 1;
             setsockopt(sSock6, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
+            if (usbIdx > 0) {
+                setsockopt(sSock6, IPPROTO_IPV6, IPV6_BOUND_IF, &usbIdx, sizeof(usbIdx));
+            }
         }
     }
 }
 
 static BOOL SendDatagram(const char *buf, size_t len) {
     EnsureSocketOpen();
-    if ((sSock < 0 && sSock6 < 0) || len == 0) return NO;
+    if ((sSock < 0 && sSockUSB < 0 && sSock6 < 0) || len == 0) return NO;
 
     BOOL anySent = NO;
+    char usbIfName[IFNAMSIZ] = {0};
+    unsigned int usbIdx = GetUSBInterfaceIndex(usbIfName, sizeof(usbIfName));
 
     // 1. IPv6 mDNS to cmu.local (native to wired Lightning CarPlay USB-NCM)
     if (sSock6 >= 0) {
@@ -126,6 +180,10 @@ static BOOL SendDatagram(const char *buf, size_t len) {
             }
         }
         if (sTarget6Resolved) {
+            // Mandate for Darwin IPv6 Link-Local: scope_id MUST point to USB interface!
+            if (usbIdx > 0 && IN6_IS_ADDR_LINKLOCAL(&sTarget6.sin6_addr)) {
+                sTarget6.sin6_scope_id = usbIdx;
+            }
             ssize_t sent = sendto(sSock6, buf, len, 0, (struct sockaddr *)&sTarget6, sizeof(sTarget6));
             int err = (sent < 0) ? errno : 0;
             LogRelay("cmu.local", GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
@@ -135,10 +193,25 @@ static BOOL SendDatagram(const char *buf, size_t len) {
         }
     }
 
-    // 2. IPv4 targets (Link-local subnet broadcast, Wi-Fi AP, USB fallback, Global broadcast)
+    // 2. IPv4 USB-NCM link-local subnet broadcast via dedicated bound socket
+    if (sSockUSB >= 0) {
+        struct sockaddr_in dstUSB;
+        memset(&dstUSB, 0, sizeof(dstUSB));
+        dstUSB.sin_family = AF_INET;
+        dstUSB.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
+        inet_pton(AF_INET, "169.254.255.255", &dstUSB.sin_addr);
+
+        ssize_t sent = sendto(sSockUSB, buf, len, 0, (struct sockaddr *)&dstUSB, sizeof(dstUSB));
+        int err = (sent < 0) ? errno : 0;
+        LogRelay("169.254.255.255", GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
+        if (sent >= 0) {
+            anySent = YES;
+        }
+    }
+
+    // 3. IPv4 targets (Wi-Fi AP, USB fallback, Global broadcast)
     if (sSock >= 0) {
         static const char * const kTargets[] = {
-            "169.254.255.255",         // USB-NCM link-local subnet broadcast (reaches CMU on en3)
             GVM_CMU_HUD_TARGET_IP_USB, // "192.168.53.1" - Wired USB Lightning CarPlay
             GVM_CMU_HUD_TARGET_IP,     // "192.168.100.1" - Wireless CMU AP / Hotspot
             "255.255.255.255"          // Subnet broadcast fallback
@@ -299,12 +372,22 @@ void GVMCMURelayStop(void) {
             dispatch_source_cancel(sTimer);
             sTimer = nil;
         }
-        if (sSock >= 0) {
+        if (sSock >= 0 || sSockUSB >= 0 || sSock6 >= 0) {
             // Send final "LIMIT 0" and "NAV 0 0" to clear the CMU display
             SendLimit(0);
             SendNav(0, 0, @"");
-            close(sSock);
-            sSock = -1;
+            if (sSock >= 0) {
+                close(sSock);
+                sSock = -1;
+            }
+            if (sSockUSB >= 0) {
+                close(sSockUSB);
+                sSockUSB = -1;
+            }
+            if (sSock6 >= 0) {
+                close(sSock6);
+                sSock6 = -1;
+            }
         }
         sCurrentLimit = 0;
         sLimitSentOnce = NO;
