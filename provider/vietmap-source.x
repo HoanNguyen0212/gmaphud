@@ -688,10 +688,7 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
         icon = GVMParseVietMapIcon(payload);
     }
 
-    if (icon == 0 && (dist > 0 || (road && road.length > 0))) {
-        icon = 1; // Fallback to Straight
-    }
-
+    // Do NOT force Straight (1) if icon is 0: prevents false straight arrows at turns
     NSString *cleanRoad = GVMExtractRoadName(road ?: instruction ?: @"");
     if (!cleanRoad || cleanRoad.length == 0) {
         cleanRoad = road ?: instruction ?: @"";
@@ -752,10 +749,7 @@ static void GVMHandleVietMapProgress(id args, NSTimeInterval received) {
     g_vmNavLastReceived = received;
 
     uint16_t icon = g_vmNavIcon;
-    if (icon == 0 && finalDist > 0) {
-        icon = 1; // Fallback to Straight
-        g_vmNavIcon = icon;
-    }
+    // Do NOT force Straight (1) if icon is 0: prevents false straight arrows at turns
 
     NSString *road = g_vmNavRoad ?: @"";
     GVMCMURelaySetNav(icon, finalDist, road);

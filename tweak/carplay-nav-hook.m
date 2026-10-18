@@ -475,41 +475,100 @@ static uint16_t GVMDetectIconFromImage(id imageObj) {
     size_t height = CGImageGetHeight(cgImage);
     if (width < 8 || height < 8) return 0;
     
-    uint8_t buffer[256] = {0}; // 16x16 thumbnail
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceGray();
-    CGContextRef ctx = CGBitmapContextCreate(buffer, 16, 16, 8, 16, colorSpace, (CGBitmapInfo)kCGImageAlphaOnly);
+    uint32_t rgbaBuffer[256] = {0}; // 16x16 RGBA thumbnail
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(rgbaBuffer, 16, 16, 8, 16 * 4, colorSpace, (CGBitmapInfo)(kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big));
     CGColorSpaceRelease(colorSpace);
     if (!ctx) return 0;
     
     CGContextDrawImage(ctx, CGRectMake(0, 0, 16, 16), cgImage);
     CGContextRelease(ctx);
     
-    float leftWeight = 0;
-    float rightWeight = 0;
-    float centerWeight = 0;
+    // Check if image uses transparency or is opaque
+    BOOL hasTransparency = NO;
+    for (int i = 0; i < 256; i++) {
+        uint8_t a = rgbaBuffer[i] & 0xFF;
+        if (a < 50) {
+            hasTransparency = YES;
+            break;
+        }
+    }
+    
+    // Determine background luminance if opaque
+    float cornerLumSum = 0;
+    int corners[4] = {0, 15, 240, 255};
+    for (int i = 0; i < 4; i++) {
+        uint32_t px = rgbaBuffer[corners[i]];
+        float r = (float)((px >> 24) & 0xFF);
+        float g = (float)((px >> 16) & 0xFF);
+        float b = (float)((px >> 8) & 0xFF);
+        cornerLumSum += 0.299f * r + 0.587f * g + 0.114f * b;
+    }
+    float bgLum = cornerLumSum / 4.0f;
+    BOOL isWhiteBg = (bgLum > 128.0f);
+    
+    float topSumX = 0, topMass = 0;
+    float botSumX = 0, botMass = 0;
+    float leftMass = 0, rightMass = 0;
     float totalWeight = 0;
+    
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
-            uint8_t a = buffer[y * 16 + x];
-            if (a > 30) {
-                totalWeight += a;
-                if (x <= 5) leftWeight += a;
-                else if (x >= 10) rightWeight += a;
-                else centerWeight += a;
+            uint32_t px = rgbaBuffer[y * 16 + x];
+            float r = (float)((px >> 24) & 0xFF);
+            float g = (float)((px >> 16) & 0xFF);
+            float b = (float)((px >> 8) & 0xFF);
+            uint8_t a = px & 0xFF;
+            
+            float w = 0;
+            if (hasTransparency) {
+                w = (a > 30) ? (float)a : 0;
+            } else {
+                float lum = 0.299f * r + 0.587f * g + 0.114f * b;
+                w = isWhiteBg ? fmaxf(0.0f, 255.0f - lum) : lum;
+                if (w < 40.0f) w = 0;
+            }
+            
+            if (w > 30.0f) {
+                totalWeight += w;
+                if (x < 8) leftMass += w;
+                else rightMass += w;
+                
+                if (y < 8) { // Top half: arrow head and bend direction
+                    topSumX += (float)x * w;
+                    topMass += w;
+                } else {     // Bottom half: arrow stalk
+                    botSumX += (float)x * w;
+                    botMass += w;
+                }
             }
         }
     }
-    if (totalWeight < 80) return 0;
     
-    float leftRatio = leftWeight / totalWeight;
-    float rightRatio = rightWeight / totalWeight;
+    if (totalWeight < 50.0f) return 0;
     
-    if (leftRatio > 0.32f && rightRatio < 0.25f) return 2; // HUD_LEFT
-    if (rightRatio > 0.32f && leftRatio < 0.25f) return 3; // HUD_RIGHT
-    if (leftRatio > 0.26f && rightRatio < 0.20f) return 4; // HUD_SLIGHT_LEFT
-    if (rightRatio > 0.26f && leftRatio < 0.20f) return 5; // HUD_SLIGHT_RIGHT
-    if (fabsf(leftRatio - rightRatio) < 0.15f && (centerWeight / totalWeight) > 0.28f) return 1; // HUD_STRAIGHT
-    return 0;
+    // Centroid Vector Analysis (Top Centroid vs Bottom Centroid)
+    if (topMass > 0 && botMass > 0) {
+        float cxTop = topSumX / topMass;
+        float cxBot = botSumX / botMass;
+        float deltaX = cxTop - cxBot; // Head position relative to stalk
+        
+        // Negative deltaX = Top bends LEFT relative to stalk
+        if (deltaX < -1.5f) return 2; // HUD_LEFT
+        if (deltaX < -0.7f) return 4; // HUD_SLIGHT_LEFT
+        
+        // Positive deltaX = Top bends RIGHT relative to stalk
+        if (deltaX > 1.5f) return 3;  // HUD_RIGHT
+        if (deltaX > 0.7f) return 5;  // HUD_SLIGHT_RIGHT
+        
+        return 1; // HUD_STRAIGHT
+    } else {
+        // Fallback for single-mass or compact symbols: compare left vs right mass
+        float diff = (leftMass - rightMass) / totalWeight;
+        if (diff > 0.18f) return 2; // HUD_LEFT
+        if (diff < -0.18f) return 3; // HUD_RIGHT
+        return 1; // HUD_STRAIGHT
+    }
     }
 }
 
@@ -719,16 +778,39 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
 
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(distMeters));
 
-    // Fallback to Straight (1) when navigating with valid distance so HUD is never blank
-    if (hudIcon == 0 && finalDist > 0) {
-        hudIcon = 1; // HUD_STRAIGHT
-    }
-
     NSString *cleanRoad = GVMExtractRoadName(road);
     if (!cleanRoad || [cleanRoad length] == 0) {
         cleanRoad = road;
     }
     cleanRoad = GVMNormalizeVietnameseForHUD(cleanRoad);
+
+    // State Memory Hysteresis (Drop-frame protection without false straight arrows):
+    static uint16_t sLastActiveTurnIcon = 0;
+    static NSUInteger sLastTurnDist = 0;
+    static time_t sLastTurnTime = 0;
+    static char sLastTurnRoad[128] = {0};
+
+    time_t now = time(NULL);
+
+    if (hudIcon >= 2) {
+        // Active actionable turn (Left, Right, Roundabout, U-turn)
+        sLastActiveTurnIcon = hudIcon;
+        sLastTurnDist = finalDist;
+        sLastTurnTime = now;
+        strncpy(sLastTurnRoad, cleanRoad.UTF8String ?: "", sizeof(sLastTurnRoad) - 1);
+        sLastTurnRoad[sizeof(sLastTurnRoad) - 1] = '\0';
+    } else if (hudIcon == 0 && finalDist > 0) {
+        // If a single frame dropped the icon but vehicle is approaching the turn (< 15s, dist decreasing),
+        // preserve the true turn icon rather than showing 0 or lying with Straight (1)!
+        if (sLastActiveTurnIcon >= 2 && (now - sLastTurnTime <= 15) &&
+            (finalDist <= sLastTurnDist + 50) &&
+            (sLastTurnRoad[0] == '\0' || strcmp(sLastTurnRoad, cleanRoad.UTF8String ?: "") == 0)) {
+            hudIcon = sLastActiveTurnIcon;
+        } else {
+            // Never force Straight (1)! Leave as 0 so HUD shows distance and street without misleading arrow.
+            hudIcon = 0;
+        }
+    }
 
     char navLog[512];
     time_t now = time(NULL);
