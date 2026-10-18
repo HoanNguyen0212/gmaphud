@@ -702,10 +702,7 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
 
     // Do NOT force Straight (1) if icon is 0: prevents false straight arrows at turns
     NSString *cleanRoad = GVMExtractRoadName(road ?: instruction ?: @"");
-    if (!cleanRoad || cleanRoad.length == 0) {
-        cleanRoad = road ?: instruction ?: @"";
-    }
-    cleanRoad = GVMNormalizeVietnameseForHUD(cleanRoad);
+    cleanRoad = GVMNormalizeVietnameseForHUD(cleanRoad ?: @"");
 
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(dist));
     if (finalDist == 0 && g_vmNavDistance > 0 && (received - g_vmNavLastReceived < 15.0)) {

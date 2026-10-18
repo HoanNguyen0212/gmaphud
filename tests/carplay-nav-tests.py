@@ -96,6 +96,13 @@ class CarPlayNavHookSourceTests(unittest.TestCase):
         self.assertIn("⬅", self.impl)
         self.assertIn("➡", self.impl)
 
+    def test_clean_road_name_filters_pure_directions_and_maneuvers(self):
+        self.assertIn("GVMIsDirectionOrManeuverOnly", self.impl)
+        self.assertIn("dong nam", self.impl)
+        self.assertIn("re trai", self.impl)
+        self.assertIn("re phai", self.impl)
+        self.assertIn("head southeast", self.impl)
+
 
 if __name__ == "__main__":
     unittest.main()
