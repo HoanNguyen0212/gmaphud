@@ -227,12 +227,34 @@ static void GVMParseTireDict(NSDictionary *d, NSString *explicitPos) {
     if (d[@"2"] && [d[@"2"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"2"], @"rl");
     if (d[@"3"] && [d[@"3"] isKindOfClass:NSDictionary.class]) GVMParseTireDict(d[@"3"], @"rr");
 
-    id codeVal = explicitPos ?: d[@"code"] ?: d[@"position"] ?: d[@"tirePosition"] ?: d[@"pos"] ?: 
-                 d[@"wheel"] ?: d[@"wheelPosition"] ?: d[@"tireId"] ?: d[@"tire"] ?: 
-                 d[@"id"] ?: d[@"deviceID"] ?: d[@"index"] ?: d[@"tire_index"] ?: d[@"location"];
+    // Priority 1: Check internal keys in dictionary first
+    id posInDict = d[@"position"] ?: d[@"tirePosition"] ?: d[@"pos"] ?: 
+                   d[@"wheel"] ?: d[@"wheelPosition"] ?: d[@"code"] ?: 
+                   d[@"location"] ?: d[@"index"] ?: d[@"tire_index"] ?: 
+                   d[@"tireId"] ?: d[@"tire"];
     
-    id pressVal = d[@"pressure"] ?: d[@"press"] ?: d[@"bar"] ?: d[@"kpa"] ?: d[@"psi"] ?: 
-                  d[@"p"] ?: d[@"val"] ?: d[@"value"] ?: d[@"tirePressure"] ?: d[@"currentPressure"];
+    // Priority 2: Fallback to explicitPos only if no position inside d
+    id codeVal = posInDict ?: explicitPos;
+    
+    // Extract pressure value and explicit unit tag if available
+    id pressVal = nil;
+    NSString *detectedUnit = nil;
+    if (d[@"bar"] != nil && d[@"bar"] != [NSNull null]) {
+        pressVal = d[@"bar"];
+        detectedUnit = @"bar";
+    } else if (d[@"kpa"] != nil && d[@"kpa"] != [NSNull null]) {
+        pressVal = d[@"kpa"];
+        detectedUnit = @"kpa";
+    } else if (d[@"psi"] != nil && d[@"psi"] != [NSNull null]) {
+        pressVal = d[@"psi"];
+        detectedUnit = @"psi";
+    } else {
+        pressVal = d[@"pressure"] ?: d[@"press"] ?: d[@"p"] ?: d[@"val"] ?: d[@"value"] ?: 
+                   d[@"tirePressure"] ?: d[@"currentPressure"];
+    }
+
+    if (!detectedUnit && d[@"unit"]) detectedUnit = [d[@"unit"] description].lowercaseString;
+    if (!detectedUnit && d[@"pressureUnit"]) detectedUnit = [d[@"pressureUnit"] description].lowercaseString;
                   
     id tempVal = d[@"temperature"] ?: d[@"temp"] ?: d[@"t"] ?: d[@"celsius"] ?: d[@"tireTemperature"];
     id warnVal = d[@"isPressureWarning"] ?: d[@"warning"] ?: d[@"warn"] ?: d[@"isWarning"];
@@ -241,23 +263,31 @@ static void GVMParseTireDict(NSDictionary *d, NSString *explicitPos) {
     if (!codeVal && !pressVal) return;
 
     GVMTPMSTire *target = NULL;
-    NSString *codeStr = [codeVal description].lowercaseString;
-    if ([codeStr isEqualToString:@"0"] || [codeStr isEqualToString:@"fl"] || 
+    NSString *codeStr = [[codeVal description] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].lowercaseString;
+    if ([codeStr isEqualToString:@"0"] || [codeStr isEqualToString:@"fl"] || [codeStr isEqualToString:@"lf"] ||
+        [codeStr isEqualToString:@"tt"] || [codeStr isEqualToString:@"fl_wheel"] ||
         [codeStr containsString:@"front_left"] || [codeStr containsString:@"frontleft"] ||
-        [codeStr containsString:@"truoc_trai"] || [codeStr containsString:@"tt"]) {
+        [codeStr containsString:@"left_front"] || [codeStr containsString:@"truoc_trai"]) {
         target = &g_liveTPMS.fl;
-    } else if ([codeStr isEqualToString:@"1"] || [codeStr isEqualToString:@"fr"] || 
+    } else if ([codeStr isEqualToString:@"1"] || [codeStr isEqualToString:@"fr"] || [codeStr isEqualToString:@"rf"] ||
+               [codeStr isEqualToString:@"tp"] || [codeStr isEqualToString:@"fr_wheel"] ||
                [codeStr containsString:@"front_right"] || [codeStr containsString:@"frontright"] ||
-               [codeStr containsString:@"truoc_phai"] || [codeStr containsString:@"tp"]) {
+               [codeStr containsString:@"right_front"] || [codeStr containsString:@"truoc_phai"]) {
         target = &g_liveTPMS.fr;
-    } else if ([codeStr isEqualToString:@"2"] || [codeStr isEqualToString:@"rl"] || 
+    } else if ([codeStr isEqualToString:@"2"] || [codeStr isEqualToString:@"rl"] || [codeStr isEqualToString:@"lr"] ||
+               [codeStr isEqualToString:@"st"] || [codeStr isEqualToString:@"rl_wheel"] ||
                [codeStr containsString:@"rear_left"] || [codeStr containsString:@"rearleft"] ||
-               [codeStr containsString:@"sau_trai"] || [codeStr containsString:@"st"]) {
+               [codeStr containsString:@"left_rear"] || [codeStr containsString:@"back_left"] ||
+               [codeStr containsString:@"sau_trai"]) {
         target = &g_liveTPMS.rl;
-    } else if ([codeStr isEqualToString:@"3"] || [codeStr isEqualToString:@"rr"] || 
+    } else if ([codeStr isEqualToString:@"3"] || [codeStr isEqualToString:@"rr"] ||
+               [codeStr isEqualToString:@"sp"] || [codeStr isEqualToString:@"rr_wheel"] ||
                [codeStr containsString:@"rear_right"] || [codeStr containsString:@"rearright"] ||
-               [codeStr containsString:@"sau_phai"] || [codeStr containsString:@"sp"]) {
+               [codeStr containsString:@"right_rear"] || [codeStr containsString:@"back_right"] ||
+               [codeStr containsString:@"sau_phai"]) {
         target = &g_liveTPMS.rr;
+    } else if ([codeStr isEqualToString:@"4"]) {
+        target = &g_liveTPMS.rr; // 1-based index support (1=FL, 2=FR, 3=RL, 4=RR)
     }
 
     if (!target) return;
@@ -267,19 +297,54 @@ static void GVMParseTireDict(NSDictionary *d, NSString *explicitPos) {
         if ([pressVal isKindOfClass:NSNumber.class]) {
             p = [pressVal floatValue];
         } else if ([pressVal isKindOfClass:NSString.class]) {
-            NSString *pStr = (NSString *)pressVal;
-            NSCharacterSet *nonNum = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789."] invertedSet];
+            NSString *pStr = [(NSString *)pressVal lowercaseString];
+            NSCharacterSet *nonNum = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789.,kKapPbsSiI- "] invertedSet];
             if ([pStr rangeOfCharacterFromSet:nonNum].location != NSNotFound) {
                 return; // Contains non-numeric characters (hex sensor ID e.g. "0361D") -> Ignore
             }
-            p = (float)[pStr doubleValue];
+            pStr = [pStr stringByReplacingOccurrencesOfString:@"," withString:@"."];
+            if (!detectedUnit) {
+                if ([pStr containsString:@"kpa"]) detectedUnit = @"kpa";
+                else if ([pStr containsString:@"psi"]) detectedUnit = @"psi";
+                else if ([pStr containsString:@"bar"]) detectedUnit = @"bar";
+            }
+            NSScanner *scanner = [NSScanner scannerWithString:pStr];
+            scanner.charactersToBeSkipped = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789.-"] invertedSet];
+            double dVal = 0.0;
+            if ([scanner scanDouble:&dVal] && isfinite(dVal)) {
+                p = (float)dVal;
+            } else {
+                return;
+            }
         }
         
         // Intelligent pressure unit conversion:
-        if (p >= 70.0f) {
-            p = p / 100.0f; // kPa to bar (e.g. 230 kPa -> 2.3 bar)
-        } else if (p >= 15.0f && p < 70.0f) {
-            p = p / 14.5038f; // PSI to bar (e.g. 32 PSI -> 2.2 bar)
+        if ([detectedUnit containsString:@"kpa"]) {
+            p = p / 100.0f; // e.g. 230 kPa -> 2.3 bar
+        } else if ([detectedUnit containsString:@"psi"]) {
+            if (p > 100.0f) p = p / 10.0f; // e.g. 335 -> 33.5 psi
+            p = p / 14.50377f; // e.g. 33 psi -> 2.27 bar
+        } else if ([detectedUnit containsString:@"bar"]) {
+            if (p >= 100.0f) p = p / 100.0f; // centibar: 230 -> 2.3 bar
+            else if (p >= 10.0f) p = p / 10.0f; // decibar: 23 -> 2.3 bar
+        } else {
+            // Auto-detect unit when no explicit tag
+            if (p >= 80.0f && p <= 600.0f) {
+                p = p / 100.0f; // kPa: 230 -> 2.3 bar
+            } else if (p > 600.0f) {
+                p = p / 1000.0f;
+            } else if (p >= 15.0f && p < 80.0f) {
+                BOOL isExactInteger = (fabsf(p - roundf(p)) < 0.001f);
+                BOOL hasBleRawKeys = (d[@"isXieYa"] != nil || d[@"leak"] != nil || d[@"deviceID"] != nil || d[@"sensorID"] != nil || d[@"bt10"] != nil || d[@"tw50"] != nil);
+                if (isExactInteger && (hasBleRawKeys || (p >= 18.0f && p <= 32.0f))) {
+                    p = p / 10.0f; // Decibar: 23 -> 2.3 bar
+                } else {
+                    p = p / 14.50377f; // PSI: 32.5 -> 2.24 bar
+                }
+            } else if (p >= 8.0f && p < 15.0f) {
+                p = p / 10.0f; // Low pressure decibar: 12 -> 1.2 bar
+            }
+            // If 0.0 <= p < 8.0: already in Bar (e.g. 2.2, 2.3)
         }
         if (p < 0.0f) p = 0.0f;
         target->pressure = p;
@@ -304,6 +369,11 @@ static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
     dispatch_once(&lockOnce, ^{ s_tpmsLock = [NSObject new]; });
 
     @synchronized(s_tpmsLock) {
+        static NSTimeInterval lastRawLog = 0;
+        if (received - lastRawLog >= 5.0) {
+            lastRawLog = received;
+            BridgeLog([NSString stringWithFormat:@"[TPMS] Raw payload: %@", payload]);
+        }
         if ([payload isKindOfClass:NSString.class]) {
             NSData *data = [(NSString *)payload dataUsingEncoding:NSUTF8StringEncoding];
             if (data) {
