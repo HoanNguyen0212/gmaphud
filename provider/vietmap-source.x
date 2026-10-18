@@ -652,17 +652,29 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
 
     if ([payload isKindOfClass:[NSDictionary class]]) {
         NSDictionary *dict = (NSDictionary *)payload;
-        id iconObj = dict[@"icon"] ?: dict[@"iconId"] ?: dict[@"icon_id"] ?: dict[@"action"] ?: dict[@"maneuver"] ?: dict[@"type"] ?: dict[@"modifier"] ?: dict[@"turn"];
-        icon = GVMParseVietMapIcon(iconObj);
+        // Check nested dictionary: guideInfo / maneuver / navInfo / turnInfo
+        NSDictionary *guide = dict[@"guideInfo"] ?: dict[@"maneuver"] ?: dict[@"navInfo"] ?: dict[@"turnInfo"] ?: dict;
+        if (![guide isKindOfClass:[NSDictionary class]]) guide = dict;
 
-        id roadObj = dict[@"road"] ?: dict[@"street"] ?: dict[@"streetName"] ?: dict[@"street_name"] ?: dict[@"nextRoad"] ?: dict[@"next_street"] ?: dict[@"roadName"] ?: dict[@"target"] ?: dict[@"name"] ?: dict[@"destinationStreetName"];
+        id iconObj = guide[@"icon"] ?: guide[@"iconId"] ?: guide[@"icon_id"] ?: guide[@"turnIcon"] ?: guide[@"action"] ?: guide[@"maneuver"] ?: guide[@"type"] ?: guide[@"modifier"] ?: guide[@"turn"] ?: dict[@"icon"] ?: dict[@"action"] ?: dict[@"modifier"];
+        icon = GVMParseVietMapIcon(iconObj);
+        if (icon == 0) {
+            NSString *action = guide[@"action"] ?: dict[@"action"];
+            NSString *modifier = guide[@"modifier"] ?: dict[@"modifier"];
+            if (action || modifier) {
+                NSString *combined = [NSString stringWithFormat:@"%@ %@", action ?: @"", modifier ?: @""];
+                icon = GVMParseVietMapIcon(combined);
+            }
+        }
+
+        id roadObj = guide[@"streetName"] ?: guide[@"nextStreetName"] ?: guide[@"road"] ?: guide[@"street"] ?: guide[@"street_name"] ?: guide[@"nextRoad"] ?: guide[@"next_street"] ?: guide[@"roadName"] ?: guide[@"target"] ?: guide[@"name"] ?: guide[@"destinationStreetName"] ?: dict[@"streetName"] ?: dict[@"nextRoad"] ?: dict[@"street"];
         if ([roadObj isKindOfClass:[NSString class]]) {
             road = (NSString *)roadObj;
         } else if ([roadObj isKindOfClass:[NSDictionary class]]) {
             road = ((NSDictionary *)roadObj)[@"name"] ?: @"";
         }
 
-        id instObj = dict[@"instruction"] ?: dict[@"text"] ?: dict[@"description"] ?: dict[@"title"] ?: dict[@"bannerText"] ?: dict[@"primaryText"];
+        id instObj = guide[@"instruction"] ?: guide[@"text"] ?: guide[@"description"] ?: guide[@"title"] ?: guide[@"bannerText"] ?: guide[@"primaryText"] ?: dict[@"instruction"] ?: dict[@"text"];
         if ([instObj isKindOfClass:[NSString class]]) {
             instruction = (NSString *)instObj;
             if (icon == 0) {
@@ -673,7 +685,7 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
             }
         }
 
-        id distObj = dict[@"distance"] ?: dict[@"length"] ?: dict[@"meters"] ?: dict[@"distanceRemaining"] ?: dict[@"dist"] ?: dict[@"remain"] ?: dict[@"stepDistance"] ?: dict[@"remainDistance"] ?: dict[@"remainingDistance"];
+        id distObj = guide[@"distance"] ?: guide[@"length"] ?: guide[@"meters"] ?: guide[@"distanceRemaining"] ?: guide[@"dist"] ?: guide[@"remain"] ?: guide[@"stepDistance"] ?: guide[@"remainDistance"] ?: guide[@"remainingDistance"] ?: dict[@"distance"] ?: dict[@"meters"];
         if ([distObj respondsToSelector:@selector(doubleValue)]) {
             dist = [distObj doubleValue];
             if (dist > 50000.0) {
@@ -893,6 +905,13 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
                     dispatch_async(dispatch_get_main_queue(), ^{ GVMDiagnosticsRecord(GVMDiagnosticShape,shape); });
                 }
                 dispatch_async(dispatch_get_main_queue(), ^{ GVMDiagnosticsRecord(GVMDiagnosticPayload,valid ? 1 : 2); });
+
+                // Extract and dispatch navigation maneuver from updateMapOverlayData
+                id rawArgs = [call arguments];
+                id overlayPatch = ([rawArgs isKindOfClass:[NSArray class]] && [rawArgs count] > 0) ? rawArgs[0] : rawArgs;
+                if ([overlayPatch isKindOfClass:[NSDictionary class]]) {
+                    GVMHandleVietMapManeuver(overlayPatch, received);
+                }
             }
         } @catch (__unused NSException *exception) {}
         // Forward every call and its original reply block exactly once.
@@ -1004,6 +1023,9 @@ static void ImageLoaded(const struct mach_header *header, intptr_t slide) {
             BridgeLog(@"bridge loaded 0.3.1");
 #endif
             InstallHook();
+#ifdef VM_GOOGLE_MAPS_RELAY
+            GVMInstallCarPlayNavHook();
+#endif
             Publish();
             heartbeat = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
             dispatch_source_set_timer(heartbeat, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
