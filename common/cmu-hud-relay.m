@@ -92,29 +92,102 @@ static void LogRelay(const char *targetIP, int targetPort, const char *buf, size
     }
 }
 
+static BOOL IsCandidateUSBInterface(struct ifaddrs *ifa) {
+    if (!ifa || !ifa->ifa_name) return NO;
+    if (strncmp(ifa->ifa_name, "en", 2) != 0) return NO;
+    if (strcmp(ifa->ifa_name, "en0") == 0) return NO; // Skip main Wi-Fi (en0)
+
+    unsigned int flags = ifa->ifa_flags;
+    if ((flags & IFF_LOOPBACK) != 0) return NO;
+    if ((flags & (IFF_UP | IFF_RUNNING)) != (IFF_UP | IFF_RUNNING)) return NO;
+
+    return YES;
+}
+
 static unsigned int GetUSBInterfaceIndex(char *outName, size_t maxLen) {
-    unsigned int idx = if_nametoindex("en3");
-    if (idx > 0) {
-        if (outName && maxLen > 3) strncpy(outName, "en3", maxLen);
-        return idx;
-    }
-    // Dynamic scan fallback for any other USB-Ethernet interface on iOS
     struct ifaddrs *ifas = NULL;
-    if (getifaddrs(&ifas) == 0 && ifas != NULL) {
-        for (struct ifaddrs *ifa = ifas; ifa; ifa = ifa->ifa_next) {
-            if (!ifa->ifa_name || !ifa->ifa_addr) continue;
-            if (strncmp(ifa->ifa_name, "en", 2) == 0 && strcmp(ifa->ifa_name, "en0") != 0) {
-                idx = if_nametoindex(ifa->ifa_name);
-                if (idx > 0) {
-                    if (outName && maxLen > 0) strncpy(outName, ifa->ifa_name, maxLen);
-                    freeifaddrs(ifas);
-                    return idx;
+    if (getifaddrs(&ifas) != 0 || ifas == NULL) {
+        return 0;
+    }
+
+    char bestName[IFNAMSIZ] = {0};
+    int bestScore = 0;
+
+    for (struct ifaddrs *ifa = ifas; ifa != NULL; ifa = ifa->ifa_next) {
+        if (!IsCandidateUSBInterface(ifa)) continue;
+
+        int score = 1; // en* (not en0) and IFF_UP | IFF_RUNNING
+        if (ifa->ifa_addr) {
+            sa_family_t family = ifa->ifa_addr->sa_family;
+            if (family == AF_INET) {
+                struct sockaddr_in *sin = (struct sockaddr_in *)ifa->ifa_addr;
+                uint32_t ip = ntohl(sin->sin_addr.s_addr);
+                if ((ip & 0xFFFFFF00) == 0xC0A83500) {
+                    // IPv4 192.168.53.0/24 -> Definitely Mazda CMU USB link
+                    score = 4;
+                } else if ((ip & 0xFFFF0000) == 0xA9FE0000) {
+                    // APIPA 169.254.0.0/16 -> Standard CarPlay USB-NCM
+                    score = 3;
+                } else {
+                    score = 2;
                 }
+            } else if (family == AF_INET6 && score < 2) {
+                score = 2; // Active IPv6 Link-Local (fe80::)
             }
         }
-        freeifaddrs(ifas);
+
+        if (score > bestScore) {
+            bestScore = score;
+            strncpy(bestName, ifa->ifa_name, sizeof(bestName) - 1);
+            bestName[sizeof(bestName) - 1] = '\0';
+        }
+    }
+
+    freeifaddrs(ifas);
+
+    if (bestScore > 0 && bestName[0] != '\0') {
+        unsigned int idx = if_nametoindex(bestName);
+        if (idx > 0) {
+            if (outName && maxLen > 0) {
+                strncpy(outName, bestName, maxLen - 1);
+                outName[maxLen - 1] = '\0';
+            }
+            return idx;
+        }
     }
     return 0;
+}
+
+static size_t GetAllActiveUSBInterfaces(unsigned int *outIndices, char outNames[][IFNAMSIZ], size_t maxCount) {
+    struct ifaddrs *ifas = NULL;
+    if (getifaddrs(&ifas) != 0 || ifas == NULL || maxCount == 0) return 0;
+
+    size_t count = 0;
+    for (struct ifaddrs *ifa = ifas; ifa != NULL && count < maxCount; ifa = ifa->ifa_next) {
+        if (!IsCandidateUSBInterface(ifa)) continue;
+
+        unsigned int idx = if_nametoindex(ifa->ifa_name);
+        if (idx == 0) continue;
+
+        BOOL exists = NO;
+        for (size_t i = 0; i < count; i++) {
+            if (outIndices[i] == idx) {
+                exists = YES;
+                break;
+            }
+        }
+        if (!exists) {
+            outIndices[count] = idx;
+            if (outNames) {
+                strncpy(outNames[count], ifa->ifa_name, IFNAMSIZ - 1);
+                outNames[count][IFNAMSIZ - 1] = '\0';
+            }
+            count++;
+        }
+    }
+
+    freeifaddrs(ifas);
+    return count;
 }
 
 static void EnsureSocketOpen(void) {
@@ -131,7 +204,7 @@ static void EnsureSocketOpen(void) {
             setsockopt(sSock, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt));
         }
     }
-    if (usbIdx > 0 && sSockUSB < 0) {
+    if (sSockUSB < 0) {
         sSockUSB = socket(AF_INET, SOCK_DGRAM, 0);
         if (sSockUSB >= 0) {
             int flags = fcntl(sSockUSB, F_GETFL, 0);
@@ -139,7 +212,9 @@ static void EnsureSocketOpen(void) {
             int opt = 1;
             setsockopt(sSockUSB, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
             setsockopt(sSockUSB, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt));
-            setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &usbIdx, sizeof(usbIdx));
+            if (usbIdx > 0) {
+                setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &usbIdx, sizeof(usbIdx));
+            }
         }
     }
     if (sSock6 < 0) {
@@ -158,11 +233,22 @@ static void EnsureSocketOpen(void) {
 
 static BOOL SendDatagram(const char *buf, size_t len) {
     EnsureSocketOpen();
-    if ((sSock < 0 && sSockUSB < 0 && sSock6 < 0) || len == 0) return NO;
+    if ((sSock < 0 && sSockUSB < 0 && sSock6 < 0) || !buf || len == 0) return NO;
 
     BOOL anySent = NO;
     char usbIfName[IFNAMSIZ] = {0};
     unsigned int usbIdx = GetUSBInterfaceIndex(usbIfName, sizeof(usbIfName));
+
+    // Full target list for Mazda CMU
+    static const char * const kAllTargets[] = {
+        GVM_CMU_HUD_TARGET_IP_USB, // "192.168.53.1" (CMU USB gateway)
+        "192.168.53.255",          // (USB subnet broadcast)
+        GVM_CMU_HUD_TARGET_IP,     // "192.168.100.1" (CMU Wi-Fi gateway)
+        "192.168.100.255",         // (Wi-Fi subnet broadcast)
+        "169.254.255.255",         // (USB-NCM APIPA link-local broadcast)
+        "255.255.255.255"          // (Global broadcast)
+    };
+    const size_t kNumTargets = sizeof(kAllTargets) / sizeof(kAllTargets[0]);
 
     // 1. IPv6 mDNS to cmu.local (native to wired Lightning CarPlay USB-NCM)
     if (sSock6 >= 0) {
@@ -180,7 +266,6 @@ static BOOL SendDatagram(const char *buf, size_t len) {
             }
         }
         if (sTarget6Resolved) {
-            // Mandate for Darwin IPv6 Link-Local: scope_id MUST point to USB interface!
             if (usbIdx > 0 && IN6_IS_ADDR_LINKLOCAL(&sTarget6.sin6_addr)) {
                 sTarget6.sin6_scope_id = usbIdx;
             }
@@ -193,40 +278,74 @@ static BOOL SendDatagram(const char *buf, size_t len) {
         }
     }
 
-    // 2. IPv4 USB-NCM link-local subnet broadcast via dedicated bound socket
+    // 2. Direct send via sSockUSB (Bound directly to active USB-NCM interfaces)
     if (sSockUSB >= 0) {
-        struct sockaddr_in dstUSB;
-        memset(&dstUSB, 0, sizeof(dstUSB));
-        dstUSB.sin_family = AF_INET;
-        dstUSB.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
-        inet_pton(AF_INET, "169.254.255.255", &dstUSB.sin_addr);
+        int one = 1;
+        setsockopt(sSockUSB, SOL_SOCKET, SO_BROADCAST, &one, sizeof(one));
+        setsockopt(sSockUSB, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 
-        ssize_t sent = sendto(sSockUSB, buf, len, 0, (struct sockaddr *)&dstUSB, sizeof(dstUSB));
-        int err = (sent < 0) ? errno : 0;
-        LogRelay("169.254.255.255", GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
-        if (sent >= 0) {
-            anySent = YES;
+        unsigned int activeUSBIndices[8] = {0};
+        char activeUSBNames[8][IFNAMSIZ] = {{0}};
+        size_t usbCount = GetAllActiveUSBInterfaces(activeUSBIndices, activeUSBNames, 8);
+        if (usbCount == 0 && usbIdx > 0) {
+            activeUSBIndices[0] = usbIdx;
+            strncpy(activeUSBNames[0], usbIfName, IFNAMSIZ - 1);
+            usbCount = 1;
+        }
+
+        size_t loopCount = (usbCount > 0) ? usbCount : 1;
+        for (size_t u = 0; u < loopCount; u++) {
+            if (usbCount > 0) {
+                unsigned int bindIdx = activeUSBIndices[u];
+                // Dynamic re-bind to handle cable disconnect/reconnect cleanly
+                setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &bindIdx, sizeof(bindIdx));
+            }
+
+            for (size_t i = 0; i < kNumTargets; i++) {
+                struct sockaddr_in dstUSB;
+                memset(&dstUSB, 0, sizeof(dstUSB));
+                dstUSB.sin_family = AF_INET;
+                dstUSB.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
+                if (inet_pton(AF_INET, kAllTargets[i], &dstUSB.sin_addr) != 1) continue;
+
+                ssize_t sent = sendto(sSockUSB, buf, len, 0, (struct sockaddr *)&dstUSB, sizeof(dstUSB));
+                int err = (sent < 0) ? errno : 0;
+
+                // Off-subnet bypass on XNU: force packet down USB link with MSG_DONTROUTE
+                if (sent < 0 && (err == ENETUNREACH || err == EHOSTUNREACH || err == EADDRNOTAVAIL)) {
+                    sent = sendto(sSockUSB, buf, len, MSG_DONTROUTE, (struct sockaddr *)&dstUSB, sizeof(dstUSB));
+                    err = (sent < 0) ? errno : 0;
+                }
+
+                LogRelay(kAllTargets[i], GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
+                if (sent >= 0) {
+                    anySent = YES;
+                }
+            }
         }
     }
 
-    // 3. IPv4 targets (Wi-Fi AP, USB fallback, Global broadcast)
+    // 3. Send via sSock (Unbound / Wi-Fi fallback)
     if (sSock >= 0) {
-        static const char * const kTargets[] = {
-            GVM_CMU_HUD_TARGET_IP_USB, // "192.168.53.1" - Wired USB Lightning CarPlay
-            GVM_CMU_HUD_TARGET_IP,     // "192.168.100.1" - Wireless CMU AP / Hotspot
-            "255.255.255.255"          // Subnet broadcast fallback
-        };
+        int one = 1;
+        setsockopt(sSock, SOL_SOCKET, SO_BROADCAST, &one, sizeof(one));
+        setsockopt(sSock, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 
-        for (size_t i = 0; i < sizeof(kTargets)/sizeof(kTargets[0]); i++) {
+        for (size_t i = 0; i < kNumTargets; i++) {
             struct sockaddr_in dst;
             memset(&dst, 0, sizeof(dst));
             dst.sin_family = AF_INET;
             dst.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
-            inet_pton(AF_INET, kTargets[i], &dst.sin_addr);
+            if (inet_pton(AF_INET, kAllTargets[i], &dst.sin_addr) != 1) continue;
 
             ssize_t sent = sendto(sSock, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
             int err = (sent < 0) ? errno : 0;
-            LogRelay(kTargets[i], GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
+            if (sent < 0 && (err == ENETUNREACH || err == EHOSTUNREACH)) {
+                sent = sendto(sSock, buf, len, MSG_DONTROUTE, (struct sockaddr *)&dst, sizeof(dst));
+                err = (sent < 0) ? errno : 0;
+            }
+
+            LogRelay(kAllTargets[i], GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
             if (sent >= 0) {
                 anySent = YES;
             }
