@@ -82,14 +82,19 @@ class CarPlayNavHookSourceTests(unittest.TestCase):
 
     def test_detects_turns_from_symbol_image_and_variants(self):
         self.assertIn("GVMDetectIconFromImage", self.impl)
+        self.assertIn("GVMExtractUIImage", self.impl)
+        self.assertIn("symbolSet", self.impl)
         self.assertIn("symbolImage", self.impl)
         self.assertIn("dashboardSymbolImage", self.impl)
+        self.assertIn("instructionVariants", self.impl)
         self.assertIn("dashboardInstructionVariants", self.impl)
         self.assertIn("notificationInstructionVariants", self.impl)
         self.assertIn("turn_left", self.impl)
         self.assertIn("turn_right", self.impl)
         self.assertIn("arrow_left", self.impl)
         self.assertIn("arrow_right", self.impl)
+        self.assertIn("⬅", self.impl)
+        self.assertIn("➡", self.impl)
 
 
 if __name__ == "__main__":
