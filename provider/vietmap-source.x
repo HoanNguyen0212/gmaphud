@@ -33,6 +33,7 @@ static NSTimeInterval g_vmNavLastReceived = 0;
 static void GVMHandleVietMapManeuver(id args, NSTimeInterval received);
 static void GVMHandleVietMapProgress(id args, NSTimeInterval received);
 static void GVMHandleVietMapNavEnd(void);
+static void GVMDispatchVietMapNavMethod(NSString *mLower, id args, NSTimeInterval ts);
 #endif
 
 @protocol VMFlutterMethodCall
@@ -498,6 +499,30 @@ static void SetEventStreamHandler(id channel, SEL selector, id handler) {
     originalEventSetHandler(channel, selector, handler);
 }
 
+static void GVMDispatchVietMapNavMethod(NSString *mLower, id args, NSTimeInterval ts) {
+    BOOL isManeuverCall = [mLower isEqualToString:@"updatemaneuver"] ||
+                          [mLower isEqualToString:@"updatenavigationinfo"] ||
+                          [mLower isEqualToString:@"onnavigationupdate"] ||
+                          [mLower isEqualToString:@"updateturninfo"] ||
+                          [mLower containsString:@"maneuver"] ||
+                          [mLower isEqualToString:@"updatenavinfo"];
+    BOOL isProgressCall = [mLower isEqualToString:@"updateultraprogress"] ||
+                          [mLower isEqualToString:@"updateprogress"] ||
+                          [mLower isEqualToString:@"onprogressupdate"];
+    BOOL isEndNavCall   = [mLower isEqualToString:@"clearmaneuver"] ||
+                          [mLower isEqualToString:@"stopnavigation"] ||
+                          [mLower isEqualToString:@"finishnavigation"] ||
+                          [mLower isEqualToString:@"cancelnavigation"] ||
+                          [mLower isEqualToString:@"clearnavigation"];
+    if (isManeuverCall) {
+        GVMHandleVietMapManeuver(args, ts);
+    } else if (isProgressCall) {
+        GVMHandleVietMapProgress(args, ts);
+    } else if (isEndNavCall) {
+        GVMHandleVietMapNavEnd();
+    }
+}
+
 static void (*originalInvokeMethod)(id, SEL, NSString *, id) = NULL;
 static void HookedInvokeMethod(id selfChannel, SEL _cmd, NSString *method, id arguments) {
     if (originalInvokeMethod) originalInvokeMethod(selfChannel, _cmd, method, arguments);
@@ -512,16 +537,7 @@ static void HookedInvokeMethod(id selfChannel, SEL _cmd, NSString *method, id ar
             GVMProcessTirePayload(arguments, now);
             BridgeLog([NSString stringWithFormat:@"[TPMS] invokeMethod: %@ args=%@", method, arguments]);
         }
-        if ([mLower isEqualToString:@"updatemaneuver"]) {
-            GVMHandleVietMapManeuver(arguments, now);
-        } else if ([mLower isEqualToString:@"updateultraprogress"]) {
-            GVMHandleVietMapProgress(arguments, now);
-        } else if ([mLower isEqualToString:@"clearmaneuver"] ||
-                   [mLower isEqualToString:@"stopnavigation"] ||
-                   [mLower isEqualToString:@"finishnavigation"] ||
-                   [mLower isEqualToString:@"cancelnavigation"]) {
-            GVMHandleVietMapNavEnd();
-        }
+        GVMDispatchVietMapNavMethod(mLower, arguments, now);
     } @catch (__unused NSException *e) {}
 }
 
@@ -539,16 +555,7 @@ static void HookedInvokeMethodWithResult(id selfChannel, SEL _cmd, NSString *met
             GVMProcessTirePayload(arguments, now);
             BridgeLog([NSString stringWithFormat:@"[TPMS] invokeMethodWithResult: %@ args=%@", method, arguments]);
         }
-        if ([mLower isEqualToString:@"updatemaneuver"]) {
-            GVMHandleVietMapManeuver(arguments, now);
-        } else if ([mLower isEqualToString:@"updateultraprogress"]) {
-            GVMHandleVietMapProgress(arguments, now);
-        } else if ([mLower isEqualToString:@"clearmaneuver"] ||
-                   [mLower isEqualToString:@"stopnavigation"] ||
-                   [mLower isEqualToString:@"finishnavigation"] ||
-                   [mLower isEqualToString:@"cancelnavigation"]) {
-            GVMHandleVietMapNavEnd();
-        }
+        GVMDispatchVietMapNavMethod(mLower, arguments, now);
     } @catch (__unused NSException *e) {}
 }
 
@@ -580,6 +587,9 @@ static uint16_t GVMParseVietMapIcon(id iconVal) {
             case 9:  return 16; // HUD_MERGE_LEFT
             case 10: return 10; // HUD_U_TURN_RIGHT
             case 11: return 8;  // HUD_DESTINATION
+            case 12:
+            case 37:
+            case 38: return 37; // HUD_ROUNDABOUT
             default:
                 if (v >= 1 && v <= 60) return (uint16_t)v;
                 return 1;
@@ -631,6 +641,9 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
             if (parsed) payload = parsed;
         }
     }
+    if ([payload isKindOfClass:[NSArray class]] && [(NSArray *)payload count] > 0) {
+        payload = [(NSArray *)payload firstObject];
+    }
 
     uint16_t icon = 0;
     double dist = 0.0;
@@ -642,9 +655,11 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
         id iconObj = dict[@"icon"] ?: dict[@"iconId"] ?: dict[@"icon_id"] ?: dict[@"action"] ?: dict[@"maneuver"] ?: dict[@"type"] ?: dict[@"modifier"] ?: dict[@"turn"];
         icon = GVMParseVietMapIcon(iconObj);
 
-        id roadObj = dict[@"road"] ?: dict[@"street"] ?: dict[@"streetName"] ?: dict[@"street_name"] ?: dict[@"nextRoad"] ?: dict[@"next_street"] ?: dict[@"roadName"] ?: dict[@"target"] ?: dict[@"name"];
+        id roadObj = dict[@"road"] ?: dict[@"street"] ?: dict[@"streetName"] ?: dict[@"street_name"] ?: dict[@"nextRoad"] ?: dict[@"next_street"] ?: dict[@"roadName"] ?: dict[@"target"] ?: dict[@"name"] ?: dict[@"destinationStreetName"];
         if ([roadObj isKindOfClass:[NSString class]]) {
             road = (NSString *)roadObj;
+        } else if ([roadObj isKindOfClass:[NSDictionary class]]) {
+            road = ((NSDictionary *)roadObj)[@"name"] ?: @"";
         }
 
         id instObj = dict[@"instruction"] ?: dict[@"text"] ?: dict[@"description"] ?: dict[@"title"] ?: dict[@"bannerText"] ?: dict[@"primaryText"];
@@ -658,9 +673,12 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
             }
         }
 
-        id distObj = dict[@"distance"] ?: dict[@"length"] ?: dict[@"meters"] ?: dict[@"distanceRemaining"] ?: dict[@"dist"] ?: dict[@"remain"];
+        id distObj = dict[@"distance"] ?: dict[@"length"] ?: dict[@"meters"] ?: dict[@"distanceRemaining"] ?: dict[@"dist"] ?: dict[@"remain"] ?: dict[@"stepDistance"] ?: dict[@"remainDistance"] ?: dict[@"remainingDistance"];
         if ([distObj respondsToSelector:@selector(doubleValue)]) {
             dist = [distObj doubleValue];
+            if (dist > 50000.0) {
+                dist = dist / 10.0; // decimeter to meter conversion
+            }
         }
     } else if ([payload isKindOfClass:[NSString class]]) {
         instruction = (NSString *)payload;
@@ -709,17 +727,24 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
 
 static void GVMHandleVietMapProgress(id args, NSTimeInterval received) {
     if (!args || args == [NSNull null]) return;
+    id payload = args;
+    if ([payload isKindOfClass:[NSArray class]] && [(NSArray *)payload count] > 0) {
+        payload = [(NSArray *)payload firstObject];
+    }
     double dist = 0.0;
-    if ([args respondsToSelector:@selector(doubleValue)]) {
-        dist = [args doubleValue];
-    } else if ([args isKindOfClass:[NSDictionary class]]) {
-        NSDictionary *dict = (NSDictionary *)args;
-        id distObj = dict[@"distance"] ?: dict[@"distanceRemaining"] ?: dict[@"meters"] ?: dict[@"remain"] ?: dict[@"stepDistance"];
+    if ([payload respondsToSelector:@selector(doubleValue)]) {
+        dist = [payload doubleValue];
+    } else if ([payload isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *dict = (NSDictionary *)payload;
+        id distObj = dict[@"distance"] ?: dict[@"distanceRemaining"] ?: dict[@"meters"] ?: dict[@"remain"] ?: dict[@"stepDistance"] ?: dict[@"dist"] ?: dict[@"remainDistance"] ?: dict[@"remainingDistance"];
         if ([distObj respondsToSelector:@selector(doubleValue)]) {
             dist = [distObj doubleValue];
         }
-    } else if ([args isKindOfClass:[NSString class]]) {
-        dist = [(NSString *)args doubleValue];
+    } else if ([payload isKindOfClass:[NSString class]]) {
+        dist = [(NSString *)payload doubleValue];
+    }
+    if (dist > 50000.0) {
+        dist = dist / 10.0; // decimeter to meter conversion
     }
 
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(dist));
@@ -805,16 +830,7 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
             if ([name isEqualToString:@"vml_main_channel"] || [name isEqualToString:@"vietmap_car_method_channel"]) {
                 NSString *cMethod = [call method];
                 NSString *mLower = [cMethod lowercaseString];
-                if ([mLower isEqualToString:@"updatemaneuver"]) {
-                    GVMHandleVietMapManeuver([call arguments], received);
-                } else if ([mLower isEqualToString:@"updateultraprogress"]) {
-                    GVMHandleVietMapProgress([call arguments], received);
-                } else if ([mLower isEqualToString:@"clearmaneuver"] ||
-                           [mLower isEqualToString:@"stopnavigation"] ||
-                           [mLower isEqualToString:@"finishnavigation"] ||
-                           [mLower isEqualToString:@"cancelnavigation"]) {
-                    GVMHandleVietMapNavEnd();
-                }
+                GVMDispatchVietMapNavMethod(mLower, [call arguments], received);
             }
             if ([name isEqualToString:@"vml_main_channel"] &&
                 ([[call method] isEqualToString:@"updateUpcommingAlerts"] ||
