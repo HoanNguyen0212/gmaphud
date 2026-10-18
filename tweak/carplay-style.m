@@ -325,10 +325,14 @@ void GVMUpdateSpeedCard(UIView *map, NSDictionary *output, BOOL night) {
     NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
     GVMTPMSData tpmsData = GVMDecodeTPMS(tpmsState, now);
     BOOL tpmsChanged = (card.tpms.hasData != tpmsData.hasData) ||
-        fabsf(card.tpms.fl.pressure - tpmsData.fl.pressure) > 0.05f ||
-        fabsf(card.tpms.fr.pressure - tpmsData.fr.pressure) > 0.05f ||
-        fabsf(card.tpms.rl.pressure - tpmsData.rl.pressure) > 0.05f ||
-        fabsf(card.tpms.rr.pressure - tpmsData.rr.pressure) > 0.05f ||
+        card.tpms.fl.active != tpmsData.fl.active ||
+        card.tpms.fr.active != tpmsData.fr.active ||
+        card.tpms.rl.active != tpmsData.rl.active ||
+        card.tpms.rr.active != tpmsData.rr.active ||
+        fabsf(card.tpms.fl.pressure - tpmsData.fl.pressure) >= 0.015f ||
+        fabsf(card.tpms.fr.pressure - tpmsData.fr.pressure) >= 0.015f ||
+        fabsf(card.tpms.rl.pressure - tpmsData.rl.pressure) >= 0.015f ||
+        fabsf(card.tpms.rr.pressure - tpmsData.rr.pressure) >= 0.015f ||
         card.tpms.fl.warning != tpmsData.fl.warning ||
         card.tpms.fr.warning != tpmsData.fr.warning ||
         card.tpms.rl.warning != tpmsData.rl.warning ||

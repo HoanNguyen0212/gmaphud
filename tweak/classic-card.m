@@ -57,7 +57,15 @@ static UIImage *AlertArtwork(NSUInteger type,NSNumber *value) {
     return image;
 }
 static void DrawTire(NSString *pos, float press, uint8_t warn, BOOL active, CGRect rect, BOOL night) {
-    if (!active) return;
+    if (!active) {
+        UIColor *bg = RGB(night ? 0x181c22 : 0x323842, 0.6);
+        UIBezierPath *box = [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:6];
+        [bg setFill]; [box fill];
+        [RGB(0x404854, 0.5) setStroke]; box.lineWidth = 1; [box stroke];
+        Text(@"--", CGRectMake(rect.origin.x, rect.origin.y + 2, rect.size.width, 13), 11, UIFontWeightMedium, RGB(0x888e99, 1));
+        Text(pos, CGRectMake(rect.origin.x, rect.origin.y + 15, rect.size.width, 10), 8, UIFontWeightBold, RGB(0x666c77, 1));
+        return;
+    }
     UIColor *bg = warn == 1 ? RGB(0xff9f0a, 0.95) :  // warning low (amber)
                   warn >= 2 ? RGB(0xff3b30, 0.95) :  // warning high/leak/flat (red)
                   RGB(night ? 0x242b35 : 0x48515f, 0.85); // normal

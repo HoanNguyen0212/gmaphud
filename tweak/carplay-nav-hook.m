@@ -411,6 +411,14 @@ static UIImage *GVMExtractUIImage(id obj) {
 
 static uint16_t GVMDetectIconFromImage(id imageObj) {
     if (!imageObj) return 0;
+    if (![NSThread isMainThread]) {
+        __block uint16_t bgRes = 0;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            bgRes = GVMDetectIconFromImage(imageObj);
+        });
+        return bgRes;
+    }
+    @autoreleasepool {
     UIImage *image = GVMExtractUIImage(imageObj);
     
     // Check accessibility identifier / label / asset name / description
@@ -502,6 +510,7 @@ static uint16_t GVMDetectIconFromImage(id imageObj) {
     if (rightRatio > 0.26f && leftRatio < 0.20f) return 5; // HUD_SLIGHT_RIGHT
     if (fabsf(leftRatio - rightRatio) < 0.15f && (centerWeight / totalWeight) > 0.28f) return 1; // HUD_STRAIGHT
     return 0;
+    }
 }
 
 static uint16_t GVMGetManeuverHUDIcon(id maneuver, NSString **outText) {

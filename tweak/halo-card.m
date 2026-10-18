@@ -13,7 +13,22 @@ static NSString *AlertKey(NSDictionary *alert) {
 }
 
 static void DrawTire(NSString *pos, float press, uint8_t warn, BOOL active, CGRect rect, BOOL night) {
-    if (!active) return;
+    if (!active) {
+        UIColor *bg = night ? [UIColor colorWithRed:0.10 green:0.12 blue:0.15 alpha:0.6] :
+                              [UIColor colorWithRed:0.20 green:0.23 blue:0.27 alpha:0.5];
+        UIBezierPath *box = [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:6];
+        [bg setFill]; [box fill];
+        [[UIColor colorWithWhite:0.4 alpha:0.4] setStroke]; box.lineWidth = 1; [box stroke];
+        NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
+        paragraph.alignment = NSTextAlignmentCenter;
+        [@"--" drawInRect:CGRectMake(rect.origin.x, rect.origin.y + 2, rect.size.width, 13) withAttributes:@{
+            NSFontAttributeName:[UIFont boldSystemFontOfSize:11],
+            NSForegroundColorAttributeName:[UIColor colorWithWhite:0.5 alpha:0.8], NSParagraphStyleAttributeName:paragraph}];
+        [pos drawInRect:CGRectMake(rect.origin.x, rect.origin.y + 15, rect.size.width, 10) withAttributes:@{
+            NSFontAttributeName:[UIFont boldSystemFontOfSize:8],
+            NSForegroundColorAttributeName:[UIColor colorWithWhite:0.4 alpha:0.8], NSParagraphStyleAttributeName:paragraph}];
+        return;
+    }
     UIColor *bg = warn == 1 ? [UIColor colorWithRed:1.0 green:0.62 blue:0.04 alpha:0.95] :
                   warn >= 2 ? [UIColor colorWithRed:1.0 green:0.23 blue:0.19 alpha:0.95] :
                   (night ? [UIColor colorWithRed:0.14 green:0.17 blue:0.21 alpha:0.85] : [UIColor colorWithRed:0.28 green:0.32 blue:0.37 alpha:0.85]);
