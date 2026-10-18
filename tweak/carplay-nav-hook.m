@@ -813,7 +813,6 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     }
 
     char navLog[512];
-    time_t now = time(NULL);
     struct tm *tm_info = localtime(&now);
     char timeStr[32];
     strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
