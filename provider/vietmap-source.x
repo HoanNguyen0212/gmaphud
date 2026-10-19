@@ -300,11 +300,17 @@ static void GVMParseTireDict(NSDictionary *d, NSString *explicitPos) {
         } else if ([pressVal isKindOfClass:NSString.class]) {
             NSString *pStr = [(NSString *)pressVal lowercaseString];
             pStr = [pStr stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-            // Discard hex sensor IDs (e.g. 0361DF, A1B2C3, 5+ hex characters)
-            if (pStr.length >= 5) {
-                NSCharacterSet *hexChars = [NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"];
-                if ([[pStr stringByTrimmingCharactersInSet:hexChars] length] == 0) {
-                    return; // Pure hex sensor ID, not a pressure value
+            // Discard hex sensor IDs (e.g. 0361DF, A1B2C3, or 0x... with letters A-F)
+            if ([pStr hasPrefix:@"0x"] || [pStr hasPrefix:@"0X"]) {
+                return;
+            }
+            if (![pStr containsString:@"."] && pStr.length >= 5) {
+                NSCharacterSet *hexAlphaChars = [NSCharacterSet characterSetWithCharactersInString:@"abcdefABCDEF"];
+                if ([pStr rangeOfCharacterFromSet:hexAlphaChars].location != NSNotFound) {
+                    NSCharacterSet *hexChars = [NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdefABCDEF"];
+                    if ([[pStr stringByTrimmingCharactersInSet:hexChars] length] == 0) {
+                        return; // Pure hex sensor ID containing hex letters, not a numeric pressure value
+                    }
                 }
             }
             NSCharacterSet *nonNum = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789.,kKapPbsSiI- "] invertedSet];
