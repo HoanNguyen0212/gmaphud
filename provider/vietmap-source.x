@@ -734,7 +734,9 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
         fclose(f);
     }
 
-    GVMCMURelaySetNav(icon, finalDist, cleanRoad);
+    if (icon > 0) {
+        GVMCMURelaySetNav(icon, finalDist, cleanRoad);
+    }
 }
 
 static void GVMHandleVietMapProgress(id args, NSTimeInterval received) {
@@ -908,13 +910,6 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
                     dispatch_async(dispatch_get_main_queue(), ^{ GVMDiagnosticsRecord(GVMDiagnosticShape,shape); });
                 }
                 dispatch_async(dispatch_get_main_queue(), ^{ GVMDiagnosticsRecord(GVMDiagnosticPayload,valid ? 1 : 2); });
-
-                // Extract and dispatch navigation maneuver from updateMapOverlayData
-                id rawArgs = [call arguments];
-                id overlayPatch = ([rawArgs isKindOfClass:[NSArray class]] && [rawArgs count] > 0) ? rawArgs[0] : rawArgs;
-                if ([overlayPatch isKindOfClass:[NSDictionary class]]) {
-                    GVMHandleVietMapManeuver(overlayPatch, received);
-                }
             }
         } @catch (__unused NSException *exception) {}
         // Forward every call and its original reply block exactly once.

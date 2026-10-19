@@ -129,6 +129,7 @@ static void update_hud_tick(time_t now, const char *out_path, const char *tmp_pa
 
 // Explicit VietMap Live Maneuver ID -> Mazda HUD Icon Mapping
 static uint16_t map_vietmap_to_mazda_icon(int vm_icon) {
+    if (vm_icon <= 0) return 0;
     switch (vm_icon) {
         case 1:  return 1;  // HUD_STRAIGHT
         case 2:  return 2;  // HUD_LEFT
@@ -141,7 +142,7 @@ static uint16_t map_vietmap_to_mazda_icon(int vm_icon) {
         case 9:  return 16; // HUD_MERGE_LEFT (Mazda: 16)
         case 10: return 10; // HUD_U_TURN_RIGHT (Mazda: 10)
         case 11: return 8;  // HUD_DESTINATION (Mazda: 8)
-        default: return 1;  // Fallback straight
+        default: return (vm_icon >= 1 && vm_icon <= 60) ? (uint16_t)vm_icon : 0;
     }
 }
 
@@ -195,6 +196,8 @@ static void parse_telemetry_packet(const char *buf, size_t len, time_t now,
             // If already a valid Mazda HUD icon ID (1..60), use directly without re-mapping
             if (icon >= 1 && icon <= 60) {
                 g_state.nav_icon = (uint16_t)icon;
+            } else if (icon == 0) {
+                g_state.nav_icon = 0;
             } else {
                 g_state.nav_icon = map_vietmap_to_mazda_icon(icon);
             }
