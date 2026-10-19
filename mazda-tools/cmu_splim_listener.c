@@ -33,8 +33,6 @@
 #define DIAG_PORT              8889
 #define SPLIM_OUTPUT_PATH      "/data_persist/splim"
 #define SPLIM_TMP_PATH         "/data_persist/.splim.tmp"
-#define SPLIM_OVER_OUTPUT_PATH "/data_persist/splim_over"
-#define SPLIM_OVER_TMP_PATH    "/data_persist/.splim_over.tmp"
 #define NAV_OUTPUT_PATH        "/data_persist/nav"
 #define NAV_TMP_PATH           "/data_persist/.nav.tmp"
 
@@ -48,10 +46,6 @@ typedef struct {
     uint8_t last_written_limit;
     time_t  last_written_ts;
     time_t  last_rx_time;
-
-    // Overspeed state (1 = blinking limit glyph on HUD)
-    uint8_t is_overspeed;
-    uint8_t last_written_over;
 
     // Navigation state
     uint16_t nav_icon;
@@ -92,16 +86,6 @@ static bool write_splim_atomic(const char *out_path, const char *tmp_path, uint8
     return false;
 }
 
-static bool write_over_atomic(const char *out_path, const char *tmp_path, uint8_t over) {
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%u\n", (unsigned int)(over ? 1 : 0));
-    if (write_file_atomic(out_path, tmp_path, buf)) {
-        g_state.last_written_over = (over ? 1 : 0);
-        return true;
-    }
-    return false;
-}
-
 static bool write_nav_atomic(const char *out_path, const char *tmp_path,
                              uint16_t icon, uint32_t dist, const char *road, time_t ts) {
     char buf[256];
@@ -127,12 +111,6 @@ static void update_hud_tick(time_t now, const char *out_path, const char *tmp_pa
     if (eff != g_state.last_written_limit ||
         (now - g_state.last_written_ts >= KEEPALIVE_INTERVAL_SEC && eff > 0)) {
         write_splim_atomic(out_path, tmp_path, eff, now);
-    }
-
-    // Debounced write for Overspeed (1 = blinking limit on HUD)
-    uint8_t eff_over = (eff > 0) ? g_state.is_overspeed : 0;
-    if (eff_over != g_state.last_written_over) {
-        write_over_atomic(SPLIM_OVER_OUTPUT_PATH, SPLIM_OVER_TMP_PATH, eff_over);
     }
 
     // Debounced write / timeout for Navigation
@@ -188,18 +166,10 @@ static void parse_telemetry_packet(const char *buf, size_t len, time_t now,
         last_log_time = now;
     }
 
-    if (strncmp(buf, "OVER", 4) == 0) {
-        int over = 0;
-        if (sscanf(buf, "OVER %d", &over) >= 1) {
-            g_state.is_overspeed = (over != 0) ? 1 : 0;
-            g_state.last_rx_time = now;
-            update_hud_tick(now, out_path, tmp_path, nav_out_path, nav_tmp_path);
-        }
-    } else if (strncmp(buf, "LIMIT", 5) == 0) {
+    if (strncmp(buf, "LIMIT", 5) == 0) {
         int limit = 0;
         int cam_spd = 0;
-        int over = 0;
-        int matched = sscanf(buf, "LIMIT %d %d %d", &limit, &cam_spd, &over);
+        int matched = sscanf(buf, "LIMIT %d %d", &limit, &cam_spd);
         if (matched >= 1) {
             if ((limit >= 5 && limit <= 140) || limit == 0) {
                 g_state.speed_limit = (uint8_t)limit;
@@ -212,9 +182,6 @@ static void parse_telemetry_packet(const char *buf, size_t len, time_t now,
             } else {
                 g_state.camera_speed = 0;
                 g_state.camera_expires = 0;
-            }
-            if (matched >= 3) {
-                g_state.is_overspeed = (over != 0) ? 1 : 0;
             }
             update_hud_tick(now, out_path, tmp_path, nav_out_path, nav_tmp_path);
         }
@@ -444,7 +411,6 @@ int main(int argc, char **argv) {
     if (diag_sock >= 0) close(diag_sock);
     // Clean exit: clear HUD
     write_splim_atomic(out_path, tmp_path, 0, time(NULL));
-    write_over_atomic(SPLIM_OVER_OUTPUT_PATH, SPLIM_OVER_TMP_PATH, 0);
     write_nav_atomic(nav_out_path, nav_tmp_path, 0, 0, "", time(NULL));
     return 0;
 }

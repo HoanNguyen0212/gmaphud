@@ -705,7 +705,10 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
 
     // Do NOT force Straight (1) if icon is 0: prevents false straight arrows at turns
     NSString *cleanRoad = GVMExtractRoadName(road ?: instruction ?: @"");
-    cleanRoad = GVMNormalizeVietnameseForHUD(cleanRoad ?: @"");
+    if (!cleanRoad || cleanRoad.length == 0) {
+        cleanRoad = road ?: instruction ?: @"";
+    }
+    cleanRoad = GVMNormalizeVietnameseForHUD(cleanRoad);
 
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(dist));
     if (finalDist == 0 && g_vmNavDistance > 0 && (received - g_vmNavLastReceived < 15.0)) {
@@ -852,20 +855,6 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
                 });
             }
 #endif
-            if ([name isEqualToString:@"vml_main_channel"] &&
-                ([[call method] isEqualToString:@"overSpeedLimit"] || [[call method] isEqualToString:@"onOverSpeedLimit"])) {
-                id overVal = [call arguments];
-                BOOL isOver = YES;
-                if ([overVal respondsToSelector:@selector(boolValue)]) {
-                    isOver = [overVal boolValue];
-                }
-#ifdef VM_GOOGLE_MAPS_RELAY
-                GVMCMURelaySetOverspeed(isOver);
-#endif
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    BridgeLog([NSString stringWithFormat:@"[OVERSPEED] overSpeedLimit=%d", isOver]);
-                });
-            }
             if ([name isEqualToString:@"vml_main_channel"] &&
                 ([[call method] isEqualToString:@"updateCurrentSpeed"] || [[call method] isEqualToString:@"updateSpeedLimit"])) {
                 id value=[call arguments];

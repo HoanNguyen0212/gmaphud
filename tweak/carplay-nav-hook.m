@@ -197,51 +197,10 @@ NSString *GVMNormalizeVietnameseForHUD(NSString *src) {
 
 // ── Clean Road Name Extractor for Mazda CX-5 HUD ─────────────────────────────
 
-static BOOL GVMIsDirectionOrManeuverOnly(NSString *s) {
-    if (!s || s.length == 0) return YES;
-    NSString *t = [s stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]].lowercaseString;
-    if (t.length == 0) return YES;
-
-    // Pure directions / compass headings
-    static NSSet *sDirections = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        sDirections = [[NSSet alloc] initWithArray:@[
-            @"dong nam", @"dong bac", @"tay nam", @"tay bac",
-            @"dong", @"tay", @"nam", @"bac",
-            @"phia dong", @"phia tay", @"phia nam", @"phia bac",
-            @"huong dong", @"huong tay", @"huong nam", @"huong bac",
-            @"huong dong nam", @"huong dong bac", @"huong tay nam", @"huong tay bac",
-            @"phia dong nam", @"phia dong bac", @"phia tay nam", @"phia tay bac",
-            @"phia truoc", @"thang truoc",
-            @"southeast", @"southwest", @"northeast", @"northwest",
-            @"east", @"west", @"north", @"south",
-            // Pure maneuver words (without road)
-            @"re trai", @"re phai", @"re sang trai", @"re sang phai", @"re",
-            @"queo trai", @"queo phai", @"queo sang trai", @"queo sang phai", @"queo",
-            @"chech trai", @"chech phai", @"chech sang trai", @"chech sang phai", @"chech",
-            @"ngoat trai", @"ngoat phai", @"ngoat sang trai", @"ngoat sang phai",
-            @"di thang", @"tiep tuc di thang", @"chay thang",
-            @"quay dau", @"quay dau xe", @"u-turn", @"uturn",
-            @"den noi", @"den diem den", @"ban da den noi", @"da den noi",
-            @"nhap lan", @"giu lan trai", @"giu lan phai",
-            @"turn left", @"turn right", @"turn around", @"keep left", @"keep right",
-            @"head southeast", @"head southwest", @"head northeast", @"head northwest",
-            @"head east", @"head west", @"head north", @"head south"
-        ]];
-    });
-    return [sDirections containsObject:t];
-}
-
 NSString *GVMExtractRoadName(NSString *instruction) {
     NSString *clean = GVMStripVietnameseDiacritics(instruction);
     if (!clean || [clean length] == 0) return @"";
     
-    clean = [clean stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-    if (GVMIsDirectionOrManeuverOnly(clean)) {
-        return @"";
-    }
-
     NSString *lower = [clean lowercaseString];
     NSArray *prefixes = @[
         @"re sang phai vao ", @"re sang trai vao ",
@@ -265,15 +224,11 @@ NSString *GVMExtractRoadName(NSString *instruction) {
     ];
     for (NSString *p in prefixes) {
         if ([lower hasPrefix:p]) {
-            clean = [[clean substringFromIndex:[p length]] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            clean = [clean substringFromIndex:[p length]];
             break;
         }
     }
     
-    if (GVMIsDirectionOrManeuverOnly(clean)) {
-        return @"";
-    }
-
     // Mazda CX-5 HUD text field safe limit: 28 characters
     if ([clean length] > 28) {
         clean = [clean substringToIndex:28];
@@ -824,7 +779,10 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     NSUInteger finalDist = (NSUInteger)fmax(0.0, round(distMeters));
 
     NSString *cleanRoad = GVMExtractRoadName(road);
-    cleanRoad = GVMNormalizeVietnameseForHUD(cleanRoad ?: @"");
+    if (!cleanRoad || [cleanRoad length] == 0) {
+        cleanRoad = road;
+    }
+    cleanRoad = GVMNormalizeVietnameseForHUD(cleanRoad);
 
     // State Memory Hysteresis (Drop-frame protection without false straight arrows):
     static uint16_t sLastActiveTurnIcon = 0;
@@ -833,11 +791,6 @@ static void ProcessManeuverAndEstimates(id maneuver, id estimates) {
     static char sLastTurnRoad[128] = {0};
 
     time_t now = time(NULL);
-
-    // If estimates was nil (e.g. called from hook_setManeuvers:), avoid dropping distance to 0m
-    if (!estimates && finalDist == 0 && sLastTurnDist > 0 && (now - sLastTurnTime < 15)) {
-        finalDist = sLastTurnDist;
-    }
 
     if (hudIcon >= 2) {
         // Active actionable turn (Left, Right, Roundabout, U-turn)
