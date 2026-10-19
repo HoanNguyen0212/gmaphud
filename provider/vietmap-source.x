@@ -268,23 +268,23 @@ static void GVMParseTireDict(NSDictionary *d, NSString *explicitPos) {
     if ([codeStr isEqualToString:@"0"] || [codeStr isEqualToString:@"fl"] || [codeStr isEqualToString:@"lf"] ||
         [codeStr isEqualToString:@"tt"] || [codeStr isEqualToString:@"fl_wheel"] ||
         [codeStr containsString:@"front_left"] || [codeStr containsString:@"frontleft"] ||
-        [codeStr containsString:@"left_front"] || [codeStr containsString:@"truoc_trai"]) {
+        [codeStr containsString:@"left_front"] || [codeStr containsString:@"leftfront"] || [codeStr containsString:@"truoc_trai"]) {
         target = &g_liveTPMS.fl;
     } else if ([codeStr isEqualToString:@"1"] || [codeStr isEqualToString:@"fr"] || [codeStr isEqualToString:@"rf"] ||
                [codeStr isEqualToString:@"tp"] || [codeStr isEqualToString:@"fr_wheel"] ||
                [codeStr containsString:@"front_right"] || [codeStr containsString:@"frontright"] ||
-               [codeStr containsString:@"right_front"] || [codeStr containsString:@"truoc_phai"]) {
+               [codeStr containsString:@"right_front"] || [codeStr containsString:@"rightfront"] || [codeStr containsString:@"truoc_phai"]) {
         target = &g_liveTPMS.fr;
     } else if ([codeStr isEqualToString:@"2"] || [codeStr isEqualToString:@"rl"] || [codeStr isEqualToString:@"lr"] ||
                [codeStr isEqualToString:@"st"] || [codeStr isEqualToString:@"rl_wheel"] ||
                [codeStr containsString:@"rear_left"] || [codeStr containsString:@"rearleft"] ||
-               [codeStr containsString:@"left_rear"] || [codeStr containsString:@"back_left"] ||
+               [codeStr containsString:@"left_rear"] || [codeStr containsString:@"leftrear"] || [codeStr containsString:@"back_left"] ||
                [codeStr containsString:@"sau_trai"]) {
         target = &g_liveTPMS.rl;
     } else if ([codeStr isEqualToString:@"3"] || [codeStr isEqualToString:@"rr"] ||
                [codeStr isEqualToString:@"sp"] || [codeStr isEqualToString:@"rr_wheel"] ||
                [codeStr containsString:@"rear_right"] || [codeStr containsString:@"rearright"] ||
-               [codeStr containsString:@"right_rear"] || [codeStr containsString:@"back_right"] ||
+               [codeStr containsString:@"right_rear"] || [codeStr containsString:@"rightrear"] || [codeStr containsString:@"back_right"] ||
                [codeStr containsString:@"sau_phai"]) {
         target = &g_liveTPMS.rr;
     } else if ([codeStr isEqualToString:@"4"]) {
