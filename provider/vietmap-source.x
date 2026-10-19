@@ -856,6 +856,20 @@ static void SetMethodCallHandler(id channel, SEL selector, VMFlutterHandler hand
             }
 #endif
             if ([name isEqualToString:@"vml_main_channel"] &&
+                ([[call method] isEqualToString:@"overSpeedLimit"] || [[call method] isEqualToString:@"onOverSpeedLimit"])) {
+                id overVal = [call arguments];
+                BOOL isOver = YES;
+                if ([overVal respondsToSelector:@selector(boolValue)]) {
+                    isOver = [overVal boolValue];
+                }
+#ifdef VM_GOOGLE_MAPS_RELAY
+                GVMCMURelaySetOverspeed(isOver);
+#endif
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    BridgeLog([NSString stringWithFormat:@"[OVERSPEED] overSpeedLimit=%d", isOver]);
+                });
+            }
+            if ([name isEqualToString:@"vml_main_channel"] &&
                 ([[call method] isEqualToString:@"updateCurrentSpeed"] || [[call method] isEqualToString:@"updateSpeedLimit"])) {
                 id value=[call arguments];
                 if ([[call method] isEqualToString:@"updateSpeedLimit"]) {
