@@ -361,6 +361,16 @@ static BOOL SendDatagram(const char *buf, size_t len) {
     return anySent;
 }
 
+static BOOL sOverspeed = NO;
+
+static void SendOverspeed(BOOL isOverspeed) {
+    char buf[32];
+    int n = snprintf(buf, sizeof(buf), "OVER %d\n", isOverspeed ? 1 : 0);
+    if (n > 0 && (size_t)n < sizeof(buf)) {
+        SendDatagram(buf, (size_t)n);
+    }
+}
+
 // Format and send "LIMIT <kmh>\n".
 static void SendLimit(NSUInteger limitKmh) {
     char buf[32];
@@ -456,10 +466,25 @@ void GVMCMURelaySetLimit(NSUInteger limitKmh) {
 
         BOOL changed = (sCurrentLimit != limitKmh);
         sCurrentLimit = limitKmh;
+        if (sCurrentLimit == 0 && sOverspeed) {
+            sOverspeed = NO;
+            SendOverspeed(NO);
+        }
 
         if (changed || !sLimitSentOnce) {
             SendLimit(limitKmh);
             sLimitSentOnce = YES;
+        }
+    }
+}
+
+void GVMCMURelaySetOverspeed(BOOL isOverspeed) {
+    @synchronized(sLock) {
+        EnsureSocketOpen();
+        if (sCurrentLimit == 0) isOverspeed = NO;
+        if (sOverspeed != isOverspeed) {
+            sOverspeed = isOverspeed;
+            SendOverspeed(isOverspeed);
         }
     }
 }

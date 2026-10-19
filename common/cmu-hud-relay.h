@@ -16,6 +16,9 @@ void GVMCMURelayStart(void);
 // Call on every speed-limit update from any source (value 0 means cleared).
 void GVMCMURelaySetLimit(NSUInteger limitKmh);
 
+// Call on overspeed state changes. 1/YES = blinking speed limit glyph on HUD.
+void GVMCMURelaySetOverspeed(BOOL isOverspeed);
+
 // Call on navigation maneuver updates. Pass 0 for iconID / distanceM to clear.
 void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *roadName);
 
