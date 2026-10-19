@@ -52,7 +52,7 @@ GVMTPMSData GVMDecodeTPMS(uint64_t state, NSTimeInterval uptime) {
     int64_t age = (int64_t)currentSec - (int64_t)timeSec;
     if (age < -30000) age += 65536; // rollover handle
     if (age < 0 && age >= -10) age = 0; // clock jitter tolerance between processes
-    if (age < 0 || age > 300) return result; // Stale after 300 seconds (5 minutes)
+    if (age < 0 || age > 3600) return result; // Stale after 3600 seconds (1 hour, preserves tire data during stationary sleep)
     
     uint32_t flVal = (state >> 37) & 0x7FF;
     uint32_t frVal = (state >> 26) & 0x7FF;
