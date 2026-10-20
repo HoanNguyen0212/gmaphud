@@ -767,9 +767,12 @@ static void GVMHandleVietMapProgress(id args, NSTimeInterval received) {
 
     uint16_t icon = g_vmNavIcon;
     // Do NOT force Straight (1) if icon is 0: prevents false straight arrows at turns
-
-    NSString *road = g_vmNavRoad ?: @"";
-    GVMCMURelaySetNav(icon, finalDist, road);
+    // PHẪU THUẬT BLUEPRINT: Chỉ đẩy sang Relay nếu VietMap có icon điều hướng hợp lệ.
+    // Nếu icon == 0, tuyệt đối không gọi GVMCMURelaySetNav để bảo vệ kênh Google Maps.
+    if (icon > 0) {
+        NSString *road = g_vmNavRoad ?: @"";
+        GVMCMURelaySetNav(icon, finalDist, road);
+    }
 }
 #endif
 

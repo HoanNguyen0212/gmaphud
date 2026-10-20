@@ -468,20 +468,37 @@ void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *r
     @synchronized(sLock) {
         EnsureSocketOpen();
 
-        BOOL changed = (sNavIcon != iconID) || (sNavDist != distanceMeters) ||
-                        ![sNavRoad isEqualToString:roadName ?: @""];
-        if (!changed) return;
+        NSString *safeRoad = roadName ?: @"";
+
+        // Gateway chống spam: Nếu đang không dẫn đường (sNavIcon == 0) và
+        // giá trị mới vẫn là 0 -> DROP ngay lập tức (không kiểm tra dist để tránh GPS jitter).
+        if (sNavIcon == 0 && iconID == 0) {
+            return;
+        }
+
+        // Trường hợp 1: Chuyển trạng thái từ ACTIVE -> INACTIVE (Kết thúc hành trình)
+        if (sNavIcon > 0 && iconID == 0) {
+            sNavIcon = 0;
+            sNavDist = 0;
+            sNavRoad = @"";
+            // Chỉ gửi Clear duy nhất 1 lần
+            SendNav(0, 0, @"");
+            return;
+        }
+
+        // Trường hợp 2: Đang hoặc bắt đầu dẫn đường chủ động (iconID > 0)
+        BOOL changed = (sNavIcon != iconID) ||
+                       (sNavDist != distanceMeters) ||
+                       ![sNavRoad isEqualToString:safeRoad];
+        if (!changed) {
+            return;
+        }
 
         sNavIcon = iconID;
         sNavDist = distanceMeters;
-        sNavRoad = [roadName copy];
+        sNavRoad = [safeRoad copy];
 
-        if (iconID > 0) {
-            SendNav(iconID, distanceMeters, sNavRoad);
-        } else {
-            // Immediate clear on navigation end
-            SendNav(0, 0, @"");
-        }
+        SendNav(iconID, distanceMeters, sNavRoad);
     }
 }
 
