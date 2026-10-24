@@ -73,6 +73,14 @@ class CMUHudRelaySourceTests(unittest.TestCase):
         self.assertIn("stringByReplacingOccurrencesOfString:@\"\\n\"", self.impl)
         self.assertIn("substringToIndex:200", self.impl)
 
+    def test_idle_navigation_packets_are_dropped_but_active_end_clears_once(self):
+        start = self.impl.index("void GVMCMURelaySetNav")
+        end = self.impl.index("void GVMCMURelayStop", start)
+        body = self.impl[start:end]
+        self.assertIn("if (sNavIcon == 0 && iconID == 0)", body)
+        self.assertIn("if (sNavIcon > 0 && iconID == 0)", body)
+        self.assertIn("SendNav(0, 0, @\"\");", body)
+
 
 class TPMSStateTests(unittest.TestCase):
     """Validate tpms-state.h/.m structural integrity after re-import."""
@@ -249,6 +257,13 @@ class VietMapNavigationHUDTests(unittest.TestCase):
     def test_vietmap_source_normalizes_vietnamese_road_for_hud(self):
         self.assertIn("GVMNormalizeVietnameseForHUD", self.vmsource)
         self.assertIn("GVMExtractRoadName", self.vmsource)
+
+    def test_vietmap_idle_progress_never_overwrites_google_maps_nav(self):
+        start = self.vmsource.index("static void GVMHandleVietMapProgress(id args, NSTimeInterval received) {")
+        end = self.vmsource.index("#endif", start)
+        body = self.vmsource[start:end]
+        self.assertIn("if (icon > 0)", body)
+        self.assertIn("GVMCMURelaySetNav(icon, finalDist, road)", body)
 
     def test_makefile_links_nav_hook_in_vietmap_provider(self):
         self.assertIn("VietMapGoogleMapsSource_FILES", self.makefile)
