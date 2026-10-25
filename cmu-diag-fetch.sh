@@ -56,15 +56,19 @@ echo "[2/3] Dang kiem tra ket noi CMU (192.168.53.1 & 192.168.100.1)..."
 CMU_ACTIVE=""
 
 for ip in 192.168.53.1 192.168.100.1; do
-    # Check port 8889 (Micro-HTTP)
-    if curl -s -m 1.5 "http://${ip}:8889/diag" > "$OUT_DIR/cmu_diag_${ip}.log" 2>/dev/null; then
-        if [ -s "$OUT_DIR/cmu_diag_${ip}.log" ]; then
-            CMU_ACTIVE="$ip"
-            echo "  [OK] Ket noi thanh cong CMU tai $ip (Micro-HTTP :8889)!"
-            cp -f "$OUT_DIR/cmu_diag_${ip}.log" "$OUT_DIR/cmu_diag.log" 2>/dev/null
-            break
+    # Prefer the full evidence endpoint; fall back to the compact status endpoint
+    # so this collector remains compatible with older CMU listeners.
+    for endpoint in diag/all diag; do
+        endpoint_file=$(echo "$endpoint" | tr '/' '_')
+        if curl -s -m 2 "http://${ip}:8889/${endpoint}" > "$OUT_DIR/cmu_${endpoint_file}_${ip}.log" 2>/dev/null; then
+            if [ -s "$OUT_DIR/cmu_${endpoint_file}_${ip}.log" ]; then
+                CMU_ACTIVE="$ip"
+                echo "  [OK] Ket noi thanh cong CMU tai $ip (Micro-HTTP :8889/${endpoint})!"
+                cp -f "$OUT_DIR/cmu_${endpoint_file}_${ip}.log" "$OUT_DIR/cmu_diag.log" 2>/dev/null
+                break 2
+            fi
         fi
-    fi
+    done
 
     # Fallback: Check port 22 (SSH)
     if nc -z -w 1 "$ip" 22 2>/dev/null; then
