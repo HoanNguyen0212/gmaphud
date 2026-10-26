@@ -12,6 +12,10 @@ PHONE_LOG_ROOT="${GVM_PHONE_LOG_ROOT:-/var/mobile/Library/Logs}"
 CONTAINERS="${GVM_CONTAINERS:-/var/mobile/Containers/Data/Application}"
 CMU_IPS="${GVM_CMU_IPS:-192.168.53.1 192.168.100.1}"
 CMU_INTERVAL="${GVM_CMU_INTERVAL:-300}"
+RETENTION_DAYS="${GVM_AUTO_RETENTION_DAYS:-7}"
+case "$RETENTION_DAYS" in
+    *[!0-9]*|'') RETENTION_DAYS=7 ;;
+esac
 
 NOW=$(date +%s)
 DAY=$(date +%Y-%m-%d)
@@ -27,12 +31,29 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
 
+prune_old_days() {
+    [ "$RETENTION_DAYS" -gt 0 ] || return 0
+    # Keep the current day and at least the previous six full days. A day
+    # folder is eligible only after it is more than RETENTION_DAYS-1 days old.
+    find "$ROOT" -mindepth 1 -maxdepth 1 -type d -name '20??-??-??' \
+        -mtime +$((RETENTION_DAYS - 1)) -print 2>/dev/null |
+    while IFS= read -r old_day; do
+        [ "$old_day" = "$DAY_DIR" ] && continue
+        printf '%s removed=%s retention_days=%s\n' "$(date)" "$(basename "$old_day")" "$RETENTION_DAYS" \
+            >> "$DAY_DIR/meta/retention.log"
+        rm -rf "$old_day"
+    done
+}
+
+prune_old_days
+
 write_metadata_once() {
     META="$DAY_DIR/meta/device.txt"
     [ -f "$META" ] && return 0
     {
         echo "day=$DAY"
         echo "created_at=$(date)"
+        echo "retention_days=$RETENTION_DAYS"
         echo "device=$(uname -a 2>/dev/null || true)"
         echo "ios=$(sw_vers 2>/dev/null || true)"
         echo "network=$(scutil --nwi 2>/dev/null || true)"
