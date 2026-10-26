@@ -6,6 +6,7 @@
     <string>com.hoan.gmaphud.autosessionlogger</string>
     <key>ProgramArguments</key>
     <array>
+        <string>/var/jb/usr/bin/sh</string>
         <string>/var/jb/usr/local/bin/gmaphud-auto-session-logger.sh</string>
     </array>
     <key>UserName</key>
@@ -16,6 +17,11 @@
     <integer>60</integer>
     <key>ProcessType</key>
     <string>Background</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
     <key>StandardOutPath</key>
     <string>/var/mobile/Documents/GMapHUD/auto-sessions/launchd.stdout.log</string>
     <key>StandardErrorPath</key>

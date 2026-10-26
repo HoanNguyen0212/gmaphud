@@ -3,6 +3,10 @@
 # Runs once per launchd tick; the plist schedules it every 60 seconds.
 set -u
 
+# Launchd on rootless Dopamine does not inherit a normal Procursus PATH.
+PATH="/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH
+
 ROOT="${GVM_AUTO_ROOT:-/var/mobile/Documents/GMapHUD/auto-sessions}"
 PHONE_LOG_ROOT="${GVM_PHONE_LOG_ROOT:-/var/mobile/Library/Logs}"
 CONTAINERS="${GVM_CONTAINERS:-/var/mobile/Containers/Data/Application}"
@@ -65,18 +69,30 @@ append_delta "$PHONE_LOG_ROOT/gmaphud-background.log" gmaphud-background.log
 append_delta "/var/tmp/gmaphud-wifi.log" gmaphud-wifi.log
 append_delta "$PHONE_LOG_ROOT/gmaphud-carplay-bootstrap.log" gmaphud-carplay-bootstrap.log
 
-# App-container logs. Include the container UUID in the filename to avoid
-# silently merging two apps that use the same basename.
+# App-container logs. Find only the known GMapHUD log basenames instead of
+# opening every application container on every tick.
 if [ -d "$CONTAINERS" ]; then
-    for dir in "$CONTAINERS"/*; do
-        [ -d "$dir/tmp" ] || continue
-        uuid=$(basename "$dir")
-        for name in gmaphud-relay.log gmaphud-background-client.log gmaphud-location-session.log \
-                    googlemaps-vietmap-source.log; do
-            append_delta "$dir/tmp/$name" "${uuid}_${name}"
-        done
+    find "$CONTAINERS" -type f \( \
+        -name gmaphud-relay.log -o \
+        -name gmaphud-background-client.log -o \
+        -name gmaphud-location-session.log -o \
+        -name googlemaps-vietmap-source.log \
+    \) 2>/dev/null | while IFS= read -r src; do
+        uuid=$(basename "$(dirname "$(dirname "$src")")")
+        name=$(basename "$src")
+        append_delta "$src" "${uuid}_${name}"
     done
 fi
+
+# Minimal HTTP client using the netcat shipped with Procursus. The phone
+# image used here has no curl/wget. Strip HTTP/1.x headers before saving.
+http_get_body() {
+    IP="$1"
+    PATHNAME="$2"
+    {
+        printf 'GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n' "$PATHNAME" "$IP"
+    } | nc -w 4 "$IP" 8889 2>/dev/null | awk 'BEGIN { body=0 } { sub(/\r$/, ""); if (body) print; else if ($0 == "") body=1 }'
+}
 
 # Pull one full CMU evidence snapshot every CMU_INTERVAL seconds when either
 # vehicle transport is reachable. /diag/all is preferred; /diag remains a
@@ -88,14 +104,14 @@ case "$LAST" in *[!0-9]*|'') LAST=0;; esac
 if [ $((NOW - LAST)) -ge "$CMU_INTERVAL" ]; then
     for ip in $CMU_IPS; do
         OUT="$DAY_DIR/cmu/diag-all-${ip}-${CLOCK}.log"
-        if curl -fsS -m 4 "http://${ip}:8889/diag/all" > "$OUT.tmp" 2>/dev/null && [ -s "$OUT.tmp" ]; then
+        if http_get_body "$ip" /diag/all > "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
             mv -f "$OUT.tmp" "$OUT"
             printf '%s cmu_ip=%s endpoint=diag/all file=%s\n' "$(date)" "$ip" "$(basename "$OUT")" >> "$DAY_DIR/meta/events.log"
             printf '%s\n' "$NOW" > "$LAST_FILE"
             break
         fi
         rm -f "$OUT.tmp"
-        if curl -fsS -m 3 "http://${ip}:8889/diag" > "$OUT.tmp" 2>/dev/null && [ -s "$OUT.tmp" ]; then
+        if http_get_body "$ip" /diag > "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
             mv -f "$OUT.tmp" "$OUT"
             printf '%s cmu_ip=%s endpoint=diag file=%s\n' "$(date)" "$ip" "$(basename "$OUT")" >> "$DAY_DIR/meta/events.log"
             printf '%s\n' "$NOW" > "$LAST_FILE"
