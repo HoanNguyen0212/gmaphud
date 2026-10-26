@@ -5,6 +5,7 @@
 // Protocol:
 //   "LIMIT <kmh>\n"  — speed limit (0 = no limit / cleared)
 //   "NAV <icon_id> <dist_m> <road_name>\n" — navigation maneuver
+//   "SYNC <epoch_ms> <phone_monotonic_ms>\n" — time anchor for CMU logs
 //
 // Thread-safe. Sends immediately on value change, heartbeats every 2.5s if
 // the limit is still active. Sends "LIMIT 0\n" once when cleared.

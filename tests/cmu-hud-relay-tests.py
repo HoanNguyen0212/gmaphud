@@ -48,6 +48,14 @@ class CMUHudRelaySourceTests(unittest.TestCase):
     def test_protocol_format_nav(self):
         self.assertIn('"NAV %lu %lu %s\\n"', self.impl)
 
+    def test_phone_time_sync_protocol(self):
+        self.assertIn('"SYNC %lld %llu\\n"', self.impl)
+        self.assertIn("SendTimeSync", self.impl)
+        self.assertIn("sLastSyncSend", self.impl)
+
+    def test_relay_log_has_epoch_milliseconds(self):
+        self.assertIn("epoch_ms=%lld", self.impl)
+
     def test_heartbeat_interval(self):
         self.assertIn("2.5", self.impl)
 

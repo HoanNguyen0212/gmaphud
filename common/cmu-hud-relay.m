@@ -1,5 +1,6 @@
 #import "cmu-hud-relay.h"
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -45,6 +46,7 @@ static dispatch_source_t sTimer;
 static NSUInteger sCurrentLimit;
 static BOOL sLimitSentOnce;       // YES after the first send (including LIMIT 0)
 static NSTimeInterval sLastSend;  // mach_absolute_time based
+static NSTimeInterval sLastSyncSend;
 
 static NSUInteger sNavIcon;
 static NSUInteger sNavDist;
@@ -63,10 +65,14 @@ static void LogRelay(const char *targetIP, int targetPort, const char *buf, size
     static int logCount = 0;
     if (sent < 0 && (++logCount % 10 != 1)) return; // Debounce errors
 
-    time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    char timeStr[32];
-    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    time_t now = tv.tv_sec;
+    struct tm tm_info;
+    localtime_r(&now, &tm_info);
+    char timeStr[40];
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%dT%H:%M:%S%z", &tm_info);
+    long long epochMs = (long long)now * 1000LL + (long long)(tv.tv_usec / 1000);
 
     char cleanBuf[256];
     size_t copyLen = (len < sizeof(cleanBuf) - 1) ? len : sizeof(cleanBuf) - 1;
@@ -77,11 +83,11 @@ static void LogRelay(const char *targetIP, int targetPort, const char *buf, size
     char logLine[512];
     const char *dstIP = targetIP ?: "unknown";
     if (sent >= 0) {
-        snprintf(logLine, sizeof(logLine), "[%s] [SENT %zdB] %s -> %s:%d\n",
-                 timeStr, sent, cleanBuf, dstIP, targetPort);
+        snprintf(logLine, sizeof(logLine), "[%s][epoch_ms=%lld] [SENT %zdB] %s -> %s:%d\n",
+                 timeStr, epochMs, sent, cleanBuf, dstIP, targetPort);
     } else {
-        snprintf(logLine, sizeof(logLine), "[%s] [FAIL errno=%d (%s)] %s -> %s:%d\n",
-                 timeStr, err, strerror(err), cleanBuf, dstIP, targetPort);
+        snprintf(logLine, sizeof(logLine), "[%s][epoch_ms=%lld] [FAIL errno=%d (%s)] %s -> %s:%d\n",
+                 timeStr, epochMs, err, strerror(err), cleanBuf, dstIP, targetPort);
     }
 
     NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-relay.log"];
@@ -362,12 +368,26 @@ static BOOL SendDatagram(const char *buf, size_t len) {
 }
 
 // Format and send "LIMIT <kmh>\n".
+static void SendTimeSync(void);
 static void SendLimit(NSUInteger limitKmh) {
+    if (sLastSyncSend == 0) SendTimeSync();
     char buf[32];
     int n = snprintf(buf, sizeof(buf), "LIMIT %lu\n", (unsigned long)limitKmh);
     if (n > 0 && (size_t)n < sizeof(buf)) {
         SendDatagram(buf, (size_t)n);
         sLastSend = MonotonicNow();
+    }
+}
+
+static void SendTimeSync(void) {
+    NSTimeInterval nowMono = MonotonicNow();
+    long long epochMs = (long long)([NSDate date].timeIntervalSince1970 * 1000.0);
+    unsigned long long monoMs = (unsigned long long)(nowMono * 1000.0);
+    char buf[96];
+    int n = snprintf(buf, sizeof(buf), "SYNC %lld %llu\n", epochMs, monoMs);
+    if (n > 0 && (size_t)n < sizeof(buf)) {
+        sLastSyncSend = nowMono;
+        (void)SendDatagram(buf, (size_t)n);
     }
 }
 
@@ -394,6 +414,9 @@ static void HeartbeatTick(void) {
     @synchronized(sLock) {
         if (sSock < 0) return;
         NSTimeInterval now = MonotonicNow();
+        if (sLastSyncSend == 0 || now - sLastSyncSend >= 60.0) {
+            SendTimeSync();
+        }
         // Heartbeat: resend current limit every 2.5s if it's active (> 0).
         if (sCurrentLimit > 0) {
             if (now - sLastSend >= kHeartbeatInterval) {
@@ -433,6 +456,7 @@ void GVMCMURelayStart(void) {
         sCurrentLimit = 0;
         sLimitSentOnce = NO;
         sLastSend = 0;
+        sLastSyncSend = 0;
         sNavIcon = 0;
         sNavDist = 0;
         sNavRoad = nil;
@@ -467,6 +491,7 @@ void GVMCMURelaySetLimit(NSUInteger limitKmh) {
 void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *roadName) {
     @synchronized(sLock) {
         EnsureSocketOpen();
+        if (sLastSyncSend == 0) SendTimeSync();
 
         NSString *safeRoad = roadName ?: @"";
 

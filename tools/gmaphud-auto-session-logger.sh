@@ -65,6 +65,28 @@ write_metadata_once() {
     } > "$META" 2>/dev/null || true
 }
 
+hash_file() {
+    FILE="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$FILE" 2>/dev/null | awk '{print $1}'
+    elif command -v md5sum >/dev/null 2>&1; then
+        md5sum "$FILE" 2>/dev/null | awk '{print $1}'
+    else
+        cksum "$FILE" 2>/dev/null | awk '{print $1":"$2}'
+    fi
+}
+
+record_cmu_snapshot() {
+    FILE="$1"
+    IP="$2"
+    ENDPOINT="$3"
+    SIZE=$(wc -c < "$FILE" 2>/dev/null | tr -d ' ')
+    HASH=$(hash_file "$FILE")
+    printf '{"captured_at_epoch_ms":%s,"captured_day":"%s","captured_clock":"%s","cmu_ip":"%s","endpoint":"%s","file":"%s","bytes":%s,"hash":"%s"}\n' \
+        "$((NOW * 1000))" "$DAY" "$CLOCK" "$IP" "$ENDPOINT" "$(basename "$FILE")" "$SIZE" "$HASH" \
+        >> "$DAY_DIR/meta/cmu-snapshots.ndjson"
+}
+
 append_delta() {
     SRC="$1"
     NAME="$2"
@@ -128,6 +150,7 @@ if [ $((NOW - LAST)) -ge "$CMU_INTERVAL" ]; then
         if http_get_body "$ip" /diag/all > "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
             mv -f "$OUT.tmp" "$OUT"
             printf '%s cmu_ip=%s endpoint=diag/all file=%s\n' "$(date)" "$ip" "$(basename "$OUT")" >> "$DAY_DIR/meta/events.log"
+            record_cmu_snapshot "$OUT" "$ip" "diag/all"
             printf '%s\n' "$NOW" > "$LAST_FILE"
             break
         fi
@@ -135,6 +158,7 @@ if [ $((NOW - LAST)) -ge "$CMU_INTERVAL" ]; then
         if http_get_body "$ip" /diag > "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
             mv -f "$OUT.tmp" "$OUT"
             printf '%s cmu_ip=%s endpoint=diag file=%s\n' "$(date)" "$ip" "$(basename "$OUT")" >> "$DAY_DIR/meta/events.log"
+            record_cmu_snapshot "$OUT" "$ip" "diag"
             printf '%s\n' "$NOW" > "$LAST_FILE"
             break
         fi
