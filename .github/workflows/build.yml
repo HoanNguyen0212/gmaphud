@@ -41,6 +41,17 @@ jobs:
         run: |
           ./build-tweak.sh rootful
 
+      - name: Build automatic diagnostics package
+        run: |
+          mkdir -p diagnostics-artifact
+          ./diagnostics/build-package.sh diagnostics-artifact/com.hoan.gmaphud.diagnostics_0.2.24-1_iphoneos-arm64.deb
+
+      - name: Upload automatic diagnostics package
+        uses: actions/upload-artifact@v4
+        with:
+          name: gmaphud-automatic-diagnostics
+          path: diagnostics-artifact/*.deb
+
       - name: Upload Rootless .deb (Dopamine iPhone SE)
         uses: actions/upload-artifact@v4
         with:

@@ -119,6 +119,8 @@ After installing, close and reopen both Google Maps and VietMap Live. Reproduce 
 
 The summary includes hardware model (no serial number), OS, hook/channel status, sample freshness and CarPlay rendering checkpoints. It retains up to 16 recent checkpoints per app plus the last checkpoint for each stage. The summary excludes coordinates, routes and accounts. Notification state may disappear when processes or the notification service restart; collect it while reproducing the issue. Add the jailbreak version and split-screen tweak name manually when requesting support.
 
+For unattended evidence collection on a Dopamine iPhone SE, build/install the separate [automatic diagnostics package](diagnostics/README.md). Its rootless `launchd` job runs every 60 seconds, appends only new phone log bytes, polls CMU `/diag/all` every five minutes when the vehicle route is reachable, records hashes/heartbeats, and retains seven days by default. It does not delete source logs and makes `diag.sh` unnecessary for routine tests; raw CMU D-Bus drive capture remains a separate `live.sh` function.
+
 Version 0.1.21 also reads installed Google Maps and VietMap Live version and build metadata independently of module checkpoints. Unsupported metadata access is reported as unavailable. Refresh lists up to three readable related `.ips`/`.crash` files from the last seven days (at most 2 MB each); exporting can include these original files beside the summary. Disable **Đính kèm crash liên quan** to export only the summary. Crash files can contain device/app identifiers or other personal information; inspect attachments before sharing. Inaccessible or missing crash logs are reported explicitly, not treated as proof that no crash occurred.
 
 

@@ -1,0 +1,8 @@
+Package: com.hoan.gmaphud.diagnostics
+Name: GMapHUD automatic diagnostics
+Version: 0.2.24-1
+Architecture: iphoneos-arm64
+Description: Rootless launchd collector for dated GMapHUD and Mazda CMU evidence.
+Maintainer: Hoan Nguyen
+Author: Hoan Nguyen
+Section: Utilities

@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+LABEL='com.hoan.gmaphud.autosessionlogger'
+PLIST='/var/jb/Library/LaunchDaemons/com.hoan.gmaphud.autosessionlogger.plist'
+BIN='/var/jb/usr/local/bin/gmaphud-auto-session-logger.sh'
+CONFIG='/var/mobile/Documents/GMapHUD/auto-session.conf'
+ROOT='/var/mobile/Documents/GMapHUD/auto-sessions'
+PATH='/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:/usr/sbin:/sbin'
+export PATH
+
+mkdir -p "$(dirname "$CONFIG")" "$ROOT"
+chmod 0755 "$BIN" 2>/dev/null || true
+chmod 0644 "$PLIST" 2>/dev/null || true
+chmod 0600 "$CONFIG" 2>/dev/null || true
+chown mobile:mobile "$CONFIG" "$ROOT" 2>/dev/null || true
+
+LAUNCHCTL=$(command -v launchctl || true)
+if [ -z "$LAUNCHCTL" ]; then
+    echo "[gmaphud-diagnostics] launchctl not found; package files installed but service is not loaded" >&2
+    exit 1
+fi
+
+"$LAUNCHCTL" bootout system/$LABEL 2>/dev/null || true
+"$LAUNCHCTL" bootstrap system "$PLIST"
+"$LAUNCHCTL" enable system/$LABEL 2>/dev/null || true
+"$LAUNCHCTL" kickstart -k system/$LABEL 2>/dev/null || true
+
+echo "[gmaphud-diagnostics] automatic logger loaded; retention=7 days; interval=60s"
+exit 0

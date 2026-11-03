@@ -1,0 +1,11 @@
+#!/bin/sh
+set -u
+LABEL='com.hoan.gmaphud.autosessionlogger'
+PLIST='/var/jb/Library/LaunchDaemons/com.hoan.gmaphud.autosessionlogger.plist'
+BIN='/var/jb/usr/local/bin/gmaphud-auto-session-logger.sh'
+if command -v launchctl >/dev/null 2>&1; then
+    launchctl bootout system/$LABEL 2>/dev/null || true
+fi
+rm -f "$PLIST" "$BIN"
+echo "[gmaphud-diagnostics] logger removed; collected logs preserved"
+exit 0

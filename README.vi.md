@@ -120,7 +120,9 @@ Tham số lần lượt là tốc độ hiện tại (0–400 km/h), giới hạ
 
 Sau khi cài, đóng và mở lại Google Maps và VietMap Live. Khi lỗi xuất hiện, vào **Cài đặt → GMapHUD → Chẩn đoán / Xuất log**, bấm **Làm mới**, rồi **Sao chép báo cáo** hoặc **Xuất file…** để chia sẻ file `.txt`. Báo cáo được hiển thị trước khi gửi; GMapHUD không tự gửi dữ liệu.
 
-Bản tóm tắt chứa mẫu thiết bị (không có số sê-ri), iOS, trạng thái hook/kênh nguồn, độ mới dữ liệu và các mốc hiển thị CarPlay; giữ tối đa 16 mốc gần nhất mỗi app cùng mốc cuối từng bước. Bản tóm tắt không chứa tọa độ, tuyến đường hoặc tài khoản. Trạng thái có thể mất khi tiến trình/dịch vụ thông báo khởi động lại; hãy lấy báo cáo lúc tái hiện lỗi. Tự bổ sung phiên bản jailbreak và tên tweak chia màn hình.
+Báo cáo tóm tắt chứa mẫu thiết bị (không có số sê-ri), iOS, trạng thái hook/kênh nguồn, độ mới dữ liệu và các mốc hiển thị CarPlay; giữ tối đa 16 mốc gần nhất mỗi app cùng mốc cuối từng bước. Bản tóm tắt không chứa tọa độ, tuyến đường hoặc tài khoản. Trạng thái có thể mất khi tiến trình/dịch vụ thông báo khởi động lại; hãy lấy báo cáo lúc tái hiện lỗi. Tự bổ sung phiên bản jailbreak và tên tweak chia màn hình.
+
+Để thu thập không cần chạy `diag.sh` sau mỗi lượt thử, cài gói diagnostics tự động trong thư mục `diagnostics/`. Gói cài một job `launchd` rootless chạy mỗi 60 giây, chỉ nối thêm phần log mới của 5SE, gọi CMU `/diag/all` mỗi 5 phút khi có route, lưu hash/heartbeat và tự giữ 7 ngày mặc định. Gói không xóa log nguồn; `live.sh` vẫn chỉ cần khi muốn lấy raw D-Bus/BCM trace liên tục trên CMU.
 
 Bản 0.1.21 còn đọc phiên bản và build Google Maps, VietMap Live đang cài, độc lập với việc module đã nạp hay chưa. Nếu không đọc được sẽ ghi rõ. Làm mới liệt kê tối đa ba crash `.ips`/`.crash` liên quan trong 7 ngày, mỗi file tối đa 2 MB; khi xuất có thể đính kèm file nguyên bản cùng bản tóm tắt. Tắt **Đính kèm crash liên quan** để chỉ xuất báo cáo. Crash có thể chứa thông tin thiết bị/app hoặc dữ liệu cá nhân; kiểm tra trước khi gửi. Không đọc được hoặc không tìm thấy crash sẽ được ghi rõ, không có nghĩa app chưa từng crash.
 

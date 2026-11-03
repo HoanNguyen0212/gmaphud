@@ -16,3 +16,4 @@ __pycache__/
 *.pyc
 download-proxy/pages-*/
 download-proxy/.wrangler/
+diagnostics/work/
