@@ -19,13 +19,15 @@ class CMUHudRelaySourceTests(unittest.TestCase):
 
     def test_header_declares_all_public_functions(self):
         for func in ["GVMCMURelayStart", "GVMCMURelayStop",
-                      "GVMCMURelaySetLimit", "GVMCMURelaySetNav",
+                      "GVMCMURelaySetLimit", "GVMCMURelaySetUpcomingSpeed",
+                      "GVMCMURelaySetNav",
                       "GVMCMURelayLastDatagram"]:
             self.assertIn(func, self.header, f"{func} missing from header")
 
     def test_impl_defines_all_public_functions(self):
         for func in ["GVMCMURelayStart", "GVMCMURelayStop",
-                      "GVMCMURelaySetLimit", "GVMCMURelaySetNav",
+                      "GVMCMURelaySetLimit", "GVMCMURelaySetUpcomingSpeed",
+                      "GVMCMURelaySetNav",
                       "GVMCMURelayLastDatagram"]:
             self.assertIn(f"void {func}(" if func != "GVMCMURelayLastDatagram"
                           else f"NSString *{func}(", self.impl,
@@ -48,6 +50,29 @@ class CMUHudRelaySourceTests(unittest.TestCase):
     def test_protocol_format_nav(self):
         self.assertIn('"NAV %lu %lu %s\\n"', self.impl)
 
+    def test_upcoming_speed_warning_reuses_supported_nav_protocol(self):
+        self.assertIn('GVMCMURelaySetUpcomingSpeed', self.header)
+        self.assertIn('void GVMCMURelaySetUpcomingSpeed(', self.impl)
+        self.assertIn('Max %lu km/h', self.impl)
+        # The Google process owns the UDP socket; the source process publishes
+        # the upcoming sign through Darwin notify state only.
+        self.assertIn("GVM_RELAY_VIETMAP_SOURCE", self.impl)
+        self.assertIn("GVMPublishAheadState", self.impl)
+        self.assertIn("return;", self.impl)
+        self.assertIn("GVMPublishGoogleNavigation", self.impl)
+
+        self.assertIn('#include <notify.h>', self.impl)
+        self.assertIn('com.chou.gmaphud.cmu.google-nav', self.impl)
+        self.assertIn('com.chou.gmaphud.cmu.ahead-speed', self.impl)
+        self.assertIn('GVMGoogleProcessAlive', self.impl)
+        self.assertIn('GVMSharedAheadState', self.impl)
+
+    def test_nav_relay_keeps_renderable_utf8(self):
+        send_nav_idx = self.impl.index('static void SendNav')
+        send_nav_body = self.impl[send_nav_idx:send_nav_idx+1300]
+        self.assertIn('NSUTF8StringEncoding', send_nav_body)
+        self.assertNotIn('NSASCIIStringEncoding', send_nav_body)
+
     def test_phone_time_sync_protocol(self):
         self.assertIn('"SYNC %lld %llu\\n"', self.impl)
         self.assertIn("SendTimeSync", self.impl)
@@ -66,9 +91,9 @@ class CMUHudRelaySourceTests(unittest.TestCase):
     def test_cleanup_sends_limit_zero(self):
         # GVMCMURelayStop must send LIMIT 0 before closing
         stop_idx = self.impl.index("void GVMCMURelayStop")
-        stop_body = self.impl[stop_idx:stop_idx+500]
+        stop_body = self.impl[stop_idx:]
         self.assertIn("SendLimit(0)", stop_body)
-        self.assertIn("close(sSock)", stop_body)
+        self.assertIn("close(sSock);", stop_body)
 
     def test_no_malloc_on_hot_path(self):
         # SendLimit should use stack buffer, no NSString/alloc in its body
@@ -79,15 +104,14 @@ class CMUHudRelaySourceTests(unittest.TestCase):
 
     def test_road_name_sanitization(self):
         self.assertIn("stringByReplacingOccurrencesOfString:@\"\\n\"", self.impl)
-        self.assertIn("substringToIndex:200", self.impl)
+        self.assertIn("substringToIndex:128", self.impl)
 
     def test_idle_navigation_packets_are_dropped_but_active_end_clears_once(self):
         start = self.impl.index("void GVMCMURelaySetNav")
         end = self.impl.index("void GVMCMURelayStop", start)
         body = self.impl[start:end]
-        self.assertIn("if (sNavIcon == 0 && iconID == 0)", body)
-        self.assertIn("if (sNavIcon > 0 && iconID == 0)", body)
-        self.assertIn("SendNav(0, 0, @\"\");", body)
+        self.assertIn("if (iconID == 0)", body)
+        self.assertIn("SendEffectiveNav();", body)
 
 
 class TPMSStateTests(unittest.TestCase):
@@ -147,9 +171,9 @@ class MakefileIntegrationTests(unittest.TestCase):
                 continue
             files_part = line.split("=", 1)[1].strip()
             for f in files_part.split():
-                # Files may be in common/, provider/, or tweak/
+                # Files may be in common/, provider/, tweak/, or diagnostics/
                 found = any((root / d / f).exists()
-                            for d in ["common", "provider", "tweak", "tweak/prefs"])
+                            for d in ["common", "provider", "tweak", "tweak/prefs", "diagnostics"])
                 self.assertTrue(found, f"Source file {f} referenced in Makefile not found")
 
 
@@ -247,7 +271,7 @@ class TPMSIntegrationFullTests(unittest.TestCase):
 
 
 class VietMapNavigationHUDTests(unittest.TestCase):
-    """Verify VietMap Live navigation maneuvers and progress are captured and forwarded to CMU HUD."""
+    """Verify VietMap Live navigation maneuvers are captured without replacing Google's CMU maneuver."""
 
     def setUp(self):
         self.vmsource = (root / "provider/vietmap-source.x").read_text()
@@ -270,8 +294,8 @@ class VietMapNavigationHUDTests(unittest.TestCase):
         start = self.vmsource.index("static void GVMHandleVietMapProgress(id args, NSTimeInterval received) {")
         end = self.vmsource.index("#endif", start)
         body = self.vmsource[start:end]
-        self.assertIn("if (icon > 0)", body)
-        self.assertIn("GVMCMURelaySetNav(icon, finalDist, road)", body)
+        self.assertNotIn("GVMCMURelaySetNav(", body)
+        self.assertIn("Google Maps is the single CMU maneuver owner", body)
 
     def test_makefile_links_nav_hook_in_vietmap_provider(self):
         self.assertIn("VietMapGoogleMapsSource_FILES", self.makefile)

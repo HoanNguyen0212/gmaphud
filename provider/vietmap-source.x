@@ -30,6 +30,10 @@ static uint16_t g_vmNavIcon = 0;
 static NSUInteger g_vmNavDistance = 0;
 static NSString *g_vmNavRoad = nil;
 static NSTimeInterval g_vmNavLastReceived = 0;
+#ifndef GVM_AHEAD_WARNING_DISTANCE_METERS
+#define GVM_AHEAD_WARNING_DISTANCE_METERS 500
+#endif
+static void GVMRelayUpcomingSpeedWarning(NSNumber *currentLimit, NSTimeInterval now);
 static void GVMHandleVietMapManeuver(id args, NSTimeInterval received);
 static void GVMHandleVietMapProgress(id args, NSTimeInterval received);
 static void GVMHandleVietMapNavEnd(void);
@@ -68,6 +72,34 @@ static void BridgeLog(NSString *message) {
     } @catch (__unused NSException *exception) {}
 }
 
+static void GVMRelayUpcomingSpeedWarning(NSNumber *currentLimitNumber, NSTimeInterval now) {
+    (void)now;
+    NSUInteger currentLimit = [currentLimitNumber isKindOfClass:NSNumber.class]
+        ? currentLimitNumber.unsignedIntegerValue : 0;
+    NSUInteger nextLimit = 0;
+    NSUInteger nextDistance = 0;
+    for (NSDictionary *raw in upcomingAlerts) {
+        NSDictionary *alert = GVMVietMapOutputAlert(raw, upcomingReceived);
+        if ([alert[@"type"] unsignedIntegerValue] != GVMRoadAlertSpeedLimit) continue;
+        NSNumber *value = alert[@"value"];
+        NSNumber *distance = alert[@"distance"];
+        if (![value isKindOfClass:NSNumber.class] || ![distance isKindOfClass:NSNumber.class]) continue;
+        NSUInteger candidateDistance = distance.unsignedIntegerValue;
+        NSUInteger candidateLimit = value.unsignedIntegerValue;
+        if (candidateDistance > GVM_AHEAD_WARNING_DISTANCE_METERS || candidateLimit < 5 || candidateLimit > 140) continue;
+        if (nextLimit == 0 || candidateDistance < nextDistance) {
+            nextLimit = candidateLimit;
+            nextDistance = candidateDistance;
+        }
+    }
+    if (currentLimit > 0 && nextLimit > 0 && nextDistance <= GVM_AHEAD_WARNING_DISTANCE_METERS &&
+        nextLimit < currentLimit) {
+        GVMCMURelaySetUpcomingSpeed(nextLimit, nextDistance);
+    } else {
+        GVMCMURelaySetUpcomingSpeed(0, 0);
+    }
+}
+
 static void Publish(void) {
 #ifdef VM_GOOGLE_MAPS_RELAY
     if (!g_liveTPMS.hasData) GVMScanUserDefaultsForTPMS();
@@ -81,7 +113,11 @@ static void Publish(void) {
     } else {
         GVMCMURelaySetLimit(0);
     }
-    if (GVMSelectedSourceID()!=GVMSourceVietMap) return;
+    if (GVMSelectedSourceID()!=GVMSourceVietMap) {
+        GVMCMURelaySetUpcomingSpeed(0, 0);
+        return;
+    }
+    GVMRelayUpcomingSpeedWarning(hudLimit, now);
     NSDictionary *lanes=GVMVietMapLaneSample(laneCodes,now);
     if (lanes) samples[@"lanes"]=lanes;
     NSMutableArray *entries=[NSMutableArray new];
@@ -625,8 +661,8 @@ static void GVMHandleVietMapNavEnd(void) {
         g_vmNavDistance = 0;
         g_vmNavRoad = @"";
         g_vmNavLastReceived = 0;
-        GVMCMURelaySetNav(0, 0, @"");
-        BridgeLog(@"[VM_NAV] Cleared navigation on HUD");
+        // Do not clear the CMU NAV channel here: Google Maps owns it.
+        BridgeLog(@"[VM_NAV] Cleared VietMap-local navigation state");
     }
 }
 
@@ -735,7 +771,9 @@ static void GVMHandleVietMapManeuver(id args, NSTimeInterval received) {
     }
 
     if (icon > 0) {
-        GVMCMURelaySetNav(icon, finalDist, cleanRoad);
+        // Keep parsed VietMap maneuver for diagnostics only. Forwarding it
+        // would overwrite Google's authoritative CarPlay arrow/distance.
+        BridgeLog(@"[VM_NAV] Parsed VietMap maneuver; CMU forwarding suppressed");
     }
 }
 
@@ -769,10 +807,10 @@ static void GVMHandleVietMapProgress(id args, NSTimeInterval received) {
     // Do NOT force Straight (1) if icon is 0: prevents false straight arrows at turns
     // PHẪU THUẬT BLUEPRINT: Chỉ đẩy sang Relay nếu VietMap có icon điều hướng hợp lệ.
     // Nếu icon == 0, tuyệt đối không gọi GVMCMURelaySetNav để bảo vệ kênh Google Maps.
-    if (icon > 0) {
-        NSString *road = g_vmNavRoad ?: @"";
-        GVMCMURelaySetNav(icon, finalDist, road);
-    }
+    // Keep parsed distance for diagnostics, but never send a VietMap NAV
+    // packet: Google Maps is the single CMU maneuver owner.
+    (void)icon;
+    (void)finalDist;
 }
 #endif
 

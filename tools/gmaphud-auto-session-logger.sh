@@ -10,7 +10,7 @@ export PATH
 ROOT="${GVM_AUTO_ROOT:-/var/mobile/Documents/GMapHUD/auto-sessions}"
 PHONE_LOG_ROOT="${GVM_PHONE_LOG_ROOT:-/var/mobile/Library/Logs}"
 CONTAINERS="${GVM_CONTAINERS:-/var/mobile/Containers/Data/Application}"
-CMU_IPS="${GVM_CMU_IPS:-192.168.53.1 192.168.100.1}"
+CMU_IPS="${GVM_CMU_IPS:-192.168.53.1 192.168.100.1 169.254.53.1}"
 CMU_INTERVAL="${GVM_CMU_INTERVAL:-300}"
 RETENTION_DAYS="${GVM_AUTO_RETENTION_DAYS:-7}"
 case "$RETENTION_DAYS" in

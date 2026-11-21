@@ -17,6 +17,10 @@ void GVMCMURelayStart(void);
 // Call on every speed-limit update from any source (value 0 means cleared).
 void GVMCMURelaySetLimit(NSUInteger limitKmh);
 
+// Call on every upcoming lower speed-limit warning. `distanceMeters` is the
+// distance to the next sign; both values 0 clear the warning.
+void GVMCMURelaySetUpcomingSpeed(NSUInteger limitKmh, NSUInteger distanceMeters);
+
 // Call on navigation maneuver updates. Pass 0 for iconID / distanceM to clear.
 void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *roadName);
 

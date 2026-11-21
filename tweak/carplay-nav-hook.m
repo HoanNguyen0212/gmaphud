@@ -40,168 +40,78 @@ NSString *GVMStripVietnameseDiacritics(NSString *str) {
     return [[nonEmpty componentsJoinedByString:@" "] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 }
 
-// ── Vietnamese Normalizer for Mazda CMU HUD (keeps 2-byte: â, ê, ô, ă, ư, ơ, đ) ────────
+// ── Vietnamese Normalizer for Mazda CMU HUD ─────────────────────────────────
+// Keep the renderable 2-byte Latin characters (á, à, â, ă, ê, ô, ơ, ư, đ,
+// ...). Only U+1EA0..U+1EF9, whose UTF-8 form is 3 bytes and is missing from
+// the Mazda HUD font, is reduced to its structural base character.
+static unichar GVMHUDRenderableBase(unichar cp) {
+    switch (cp) {
+        case 0x1EA0: case 0x1EA2: return 'a';
+        case 0x1EA4: case 0x1EA6: case 0x1EA8: case 0x1EAA: case 0x1EAC: return 0x00E2;
+        case 0x1EAE: case 0x1EB0: case 0x1EB2: case 0x1EB4: case 0x1EB6: return 0x0103;
+        case 0x1EB8: case 0x1EBA: case 0x1EBC: return 'e';
+        case 0x1EBE: case 0x1EC0: case 0x1EC2: case 0x1EC4: case 0x1EC6: return 0x00EA;
+        case 0x1EC8: case 0x1ECA: return 'i';
+        case 0x1ECC: case 0x1ECE: return 'o';
+        case 0x1ED0: case 0x1ED2: case 0x1ED4: case 0x1ED6: case 0x1ED8: return 0x00F4;
+        case 0x1EDA: case 0x1EDC: case 0x1EDE: case 0x1EE0: case 0x1EE2: return 0x01A1;
+        case 0x1EE4: case 0x1EE6: return 'u';
+        case 0x1EE8: case 0x1EEA: case 0x1EEC: case 0x1EEE: case 0x1EF0: return 0x01B0;
+        case 0x1EF2: case 0x1EF4: case 0x1EF6: case 0x1EF8: return 'y';
+        case 0x1EA1: case 0x1EA3: return 'a';
+        case 0x1EA5: case 0x1EA7: case 0x1EA9: case 0x1EAB: case 0x1EAD: return 0x00E2;
+        case 0x1EAF: case 0x1EB1: case 0x1EB3: case 0x1EB5: case 0x1EB7: return 0x0103;
+        case 0x1EB9: case 0x1EBB: case 0x1EBD: return 'e';
+        case 0x1EBF: case 0x1EC1: case 0x1EC3: case 0x1EC5: case 0x1EC7: return 0x00EA;
+        case 0x1EC9: case 0x1ECB: return 'i';
+        case 0x1ECD: case 0x1ECF: return 'o';
+        case 0x1ED1: case 0x1ED3: case 0x1ED5: case 0x1ED7: case 0x1ED9: return 0x00F4;
+        case 0x1EDB: case 0x1EDD: case 0x1EDF: case 0x1EE1: case 0x1EE3: return 0x01A1;
+        case 0x1EE5: case 0x1EE7: return 'u';
+        case 0x1EE9: case 0x1EEB: case 0x1EED: case 0x1EEF: case 0x1EF1: return 0x01B0;
+        case 0x1EF3: case 0x1EF5: case 0x1EF7: case 0x1EF9: return 'y';
+        default: return 0;
+    }
+}
+
+static NSString *GVMNormalizeVietnameseForHUDLossless(NSString *src) {
+    if (!src || src.length == 0) return @"";
+    NSMutableString *out = [NSMutableString stringWithCapacity:src.length];
+    [src enumerateSubstringsInRange:NSMakeRange(0, src.length)
+                             options:NSStringEnumerationByComposedCharacterSequences
+                          usingBlock:^(NSString *substring, NSRange substringRange, NSRange enclosingRange, BOOL *stop) {
+        (void)substringRange; (void)enclosingRange; (void)stop;
+        if (substring.length == 1) {
+            unichar base = GVMHUDRenderableBase([substring characterAtIndex:0]);
+            if (base != 0) {
+                [out appendFormat:@"%C", base];
+                return;
+            }
+        }
+        [out appendString:substring];
+    }];
+    [out replaceOccurrencesOfString:@"\n" withString:@" " options:0 range:NSMakeRange(0, out.length)];
+    [out replaceOccurrencesOfString:@"\r" withString:@" " options:0 range:NSMakeRange(0, out.length)];
+    [out replaceOccurrencesOfString:@"\t" withString:@" " options:0 range:NSMakeRange(0, out.length)];
+    return [out stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
 
 NSString *GVMNormalizeVietnameseForHUD(NSString *src) {
-    if (!src || src.length == 0) return @"";
-    NSMutableString *s = [src mutableCopy];
-    
-    // Lowercase tone mark normalizations
-    [s replaceOccurrencesOfString:@"á" withString:@"a" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"à" withString:@"a" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ả" withString:@"a" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ã" withString:@"a" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ạ" withString:@"a" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"ấ" withString:@"â" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ầ" withString:@"â" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ẩ" withString:@"â" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ẫ" withString:@"â" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ậ" withString:@"â" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"ắ" withString:@"ă" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ằ" withString:@"ă" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ẳ" withString:@"ă" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ẵ" withString:@"ă" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ặ" withString:@"ă" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"é" withString:@"e" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"è" withString:@"e" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ẻ" withString:@"e" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ẽ" withString:@"e" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ẹ" withString:@"e" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"ế" withString:@"ê" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ề" withString:@"ê" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ể" withString:@"ê" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ễ" withString:@"ê" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ệ" withString:@"ê" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"í" withString:@"i" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ì" withString:@"i" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ỉ" withString:@"i" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ĩ" withString:@"i" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ị" withString:@"i" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"ó" withString:@"o" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ò" withString:@"o" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ỏ" withString:@"o" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"õ" withString:@"o" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ọ" withString:@"o" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"ố" withString:@"ô" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ồ" withString:@"ô" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ổ" withString:@"ô" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ỗ" withString:@"ô" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ộ" withString:@"ô" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"ớ" withString:@"ơ" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ờ" withString:@"ơ" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ở" withString:@"ơ" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ỡ" withString:@"ơ" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ợ" withString:@"ơ" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"ú" withString:@"u" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ù" withString:@"u" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ủ" withString:@"u" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ũ" withString:@"u" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ụ" withString:@"u" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"ứ" withString:@"ư" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ừ" withString:@"ư" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ử" withString:@"ư" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ữ" withString:@"ư" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ự" withString:@"ư" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"ý" withString:@"y" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ỳ" withString:@"y" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ỷ" withString:@"y" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ỹ" withString:@"y" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"ỵ" withString:@"y" options:0 range:NSMakeRange(0, s.length)];
-
-    // Uppercase tone mark normalizations
-    [s replaceOccurrencesOfString:@"Á" withString:@"A" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"À" withString:@"A" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ả" withString:@"A" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ã" withString:@"A" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ạ" withString:@"A" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Ấ" withString:@"Â" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ầ" withString:@"Â" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ẩ" withString:@"Â" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ẫ" withString:@"Â" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ậ" withString:@"Â" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Ắ" withString:@"Ă" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ằ" withString:@"Ă" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ẳ" withString:@"Ă" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ẵ" withString:@"Ă" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ặ" withString:@"Ă" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"É" withString:@"E" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"È" withString:@"E" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ẻ" withString:@"E" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ẽ" withString:@"E" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ẹ" withString:@"E" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Ế" withString:@"Ê" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ề" withString:@"Ê" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ể" withString:@"Ê" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ễ" withString:@"Ê" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ệ" withString:@"Ê" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Í" withString:@"I" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ì" withString:@"I" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ỉ" withString:@"I" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ĩ" withString:@"I" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ị" withString:@"I" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Ó" withString:@"O" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ò" withString:@"O" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ỏ" withString:@"O" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Õ" withString:@"O" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ọ" withString:@"O" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Ố" withString:@"Ô" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ồ" withString:@"Ô" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ổ" withString:@"Ô" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ỗ" withString:@"Ô" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ộ" withString:@"Ô" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Ớ" withString:@"Ơ" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ờ" withString:@"Ơ" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ở" withString:@"Ơ" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ỡ" withString:@"Ơ" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ợ" withString:@"Ơ" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Ú" withString:@"U" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ù" withString:@"U" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ủ" withString:@"U" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ũ" withString:@"U" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ụ" withString:@"U" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Ứ" withString:@"Ư" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ừ" withString:@"Ư" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ử" withString:@"Ư" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ữ" withString:@"Ư" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ự" withString:@"Ư" options:0 range:NSMakeRange(0, s.length)];
-
-    [s replaceOccurrencesOfString:@"Ý" withString:@"Y" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ỳ" withString:@"Y" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ỷ" withString:@"Y" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ỹ" withString:@"Y" options:0 range:NSMakeRange(0, s.length)];
-    [s replaceOccurrencesOfString:@"Ỵ" withString:@"Y" options:0 range:NSMakeRange(0, s.length)];
-
-    return s;
+    return GVMNormalizeVietnameseForHUDLossless(src);
 }
+
 
 // ── Clean Road Name Extractor for Mazda CX-5 HUD ─────────────────────────────
 
 NSString *GVMExtractRoadName(NSString *instruction) {
-    NSString *clean = GVMStripVietnameseDiacritics(instruction);
-    if (!clean || [clean length] == 0) return @"";
+    // Use a folded copy only for matching instruction prefixes. Slice the
+    // original string so Vietnamese street names retain every renderable mark.
+    NSString *original = instruction ?: @"";
+    NSString *folded = GVMStripVietnameseDiacritics(original);
+    if (!folded || [folded length] == 0) return @"";
     
-    NSString *lower = [clean lowercaseString];
+    NSString *lower = [folded lowercaseString];
+    NSString *clean = original;
     NSArray *prefixes = @[
         @"re sang phai vao ", @"re sang trai vao ",
         @"re phai vao ", @"re trai vao ",
@@ -224,15 +134,13 @@ NSString *GVMExtractRoadName(NSString *instruction) {
     ];
     for (NSString *p in prefixes) {
         if ([lower hasPrefix:p]) {
-            clean = [clean substringFromIndex:[p length]];
+            clean = [original substringFromIndex:[p length]];
             break;
         }
     }
-    
-    // Mazda CX-5 HUD text field safe limit: 28 characters
-    if ([clean length] > 28) {
-        clean = [clean substringToIndex:28];
-    }
+    clean = GVMNormalizeVietnameseForHUD(clean);
+    // Mazda CX-5 HUD text field safe limit: 28 UTF-16 characters.
+    if ([clean length] > 28) clean = [clean substringToIndex:28];
     return [clean stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
 }
 
@@ -577,6 +485,23 @@ static uint16_t GVMGetManeuverHUDIcon(id maneuver, NSString **outText) {
     NSString *road = GVMGetManeuverInstructionText(maneuver);
     if (outText) *outText = road;
 
+    // 0. Prefer the actual CarPlay maneuver symbol shown by the dashboard.
+    // Google Maps currently reports maneuverType=255 in the field logs, while
+    // the rendered symbol is already correct. Read that symbol before any
+    // text/enum heuristic so the HUD follows what the driver sees.
+    NSArray *imageProps = @[
+        @"symbolSet", @"dashboardSymbolImageSet", @"notificationSymbolImageSet", @"junctionImageSet",
+        @"symbolImage", @"dashboardSymbolImage", @"notificationSymbolImage"
+    ];
+    for (NSString *prop in imageProps) {
+        SEL sel = NSSelectorFromString(prop);
+        if ([maneuver respondsToSelector:sel]) {
+            id rawImg = ((id (*)(id, SEL))objc_msgSend)(maneuver, sel);
+            uint16_t icon = GVMDetectIconFromImage(rawImg);
+            if (icon > 0) return icon;
+        }
+    }
+
     // 1. Gather all potential text sources
     NSMutableArray *candidates = [NSMutableArray new];
     if (road && road.length > 0) [candidates addObject:road];
@@ -676,21 +601,7 @@ static uint16_t GVMGetManeuverHUDIcon(id maneuver, NSString **outText) {
         }
     }
 
-    // 3. Check symbolSet, dashboardSymbolImageSet, notificationSymbolImageSet, junctionImageSet, symbolImage, etc.
-    NSArray *imageProps = @[
-        @"symbolSet", @"dashboardSymbolImageSet", @"notificationSymbolImageSet", @"junctionImageSet",
-        @"symbolImage", @"dashboardSymbolImage", @"notificationSymbolImage"
-    ];
-    for (NSString *prop in imageProps) {
-        SEL sel = NSSelectorFromString(prop);
-        if ([maneuver respondsToSelector:sel]) {
-            id rawImg = ((id (*)(id, SEL))objc_msgSend)(maneuver, sel);
-            uint16_t icon = GVMDetectIconFromImage(rawImg);
-            if (icon > 0) return icon;
-        }
-    }
-
-    // 4. Check attributedInstructionVariants text attachments
+    // 2. Check attributedInstructionVariants text attachments
     if ([maneuver respondsToSelector:@selector(attributedInstructionVariants)]) {
         NSArray *attrVariants = ((id (*)(id, SEL))objc_msgSend)(maneuver, @selector(attributedInstructionVariants));
         if ([attrVariants isKindOfClass:[NSArray class]]) {

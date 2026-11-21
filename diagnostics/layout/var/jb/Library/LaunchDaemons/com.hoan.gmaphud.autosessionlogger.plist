@@ -20,7 +20,7 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>/var/jb/usr/local/bin:/var/jb/usr/sbin:/var/jb/usr/bin:/var/jb/sbin:/var/jb/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin</string>
     </dict>
     <key>StandardOutPath</key>
     <string>/var/mobile/Documents/GMapHUD/auto-sessions/launchd.stdout.log</string>

@@ -4,7 +4,7 @@
 set -u
 umask 077
 
-PATH="/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+PATH="/var/jb/usr/local/bin:/var/jb/usr/sbin:/var/jb/usr/bin:/var/jb/sbin:/var/jb/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export PATH
 
 CONFIG="${GVM_AUTO_CONFIG:-/var/mobile/Documents/GMapHUD/auto-session.conf}"
@@ -21,7 +21,7 @@ case "$ROOT" in
 esac
 PHONE_LOG_ROOT="${GVM_PHONE_LOG_ROOT:-/var/mobile/Library/Logs}"
 CONTAINERS="${GVM_CONTAINERS:-/var/mobile/Containers/Data/Application}"
-CMU_IPS="${GVM_CMU_IPS:-192.168.53.1 192.168.100.1}"
+CMU_IPS="${GVM_CMU_IPS:-192.168.53.1 192.168.100.1 169.254.53.1 cmu.local}"
 CMU_INTERVAL="${GVM_CMU_INTERVAL:-300}"
 RETENTION_DAYS="${GVM_AUTO_RETENTION_DAYS:-7}"
 COLLECTOR_VERSION="${GVM_COLLECTOR_VERSION:-1}"
@@ -146,9 +146,7 @@ append_delta "$PHONE_LOG_ROOT/gmaphud-carplay-bootstrap.log" gmaphud-carplay-boo
 # Known app-container logs only; no broad application dump.
 if [ -d "$CONTAINERS" ]; then
     find "$CONTAINERS" -type f \( \
-        -name gmaphud-relay.log -o \
-        -name gmaphud-background-client.log -o \
-        -name gmaphud-location-session.log -o \
+        -name 'gmaphud*.log' -o \
         -name googlemaps-vietmap-source.log \
     \) 2>/dev/null | while IFS= read -r SRC; do
         UUID=$(basename "$(dirname "$(dirname "$SRC")")")
@@ -164,14 +162,69 @@ elif [ -x /var/jb/usr/bin/nc ]; then
     NC_BIN=/var/jb/usr/bin/nc
 fi
 
+PROBE_BIN=""
+for cand in \
+    "$(command -v gmaphud-cmu-http-probe 2>/dev/null || true)" \
+    "$(command -v gmaphud-cmu-usb-probe 2>/dev/null || true)" \
+    "$(command -v cmu-http-probe 2>/dev/null || true)" \
+    /var/jb/usr/local/bin/gmaphud-cmu-http-probe \
+    /var/jb/usr/local/bin/gmaphud-cmu-usb-probe \
+    /var/jb/usr/local/bin/cmu-http-probe; do
+    if [ -n "$cand" ] && [ -x "$cand" ]; then
+        PROBE_BIN="$cand"
+        break
+    fi
+done
+
+capture_ncm_state() {
+    {
+        printf 'captured_at=%s\n' "$(date)"
+        printf '=== ifconfig en3 ===\n'
+        ifconfig en3 2>&1 || true
+        printf '\n=== arp -an ===\n'
+        arp -an 2>&1 || true
+        printf '\n=== ndp -an ===\n'
+        ndp -an 2>&1 || true
+    } > "$DAY_DIR/meta/network-en3.txt" 2>/dev/null || true
+}
+
+find_en3_ipv6_neighbors() {
+    local_v6=$(ifconfig en3 2>/dev/null | awk '/inet6 fe80:/ { sub(/%.*/, "", $2); print $2 }')
+    ndp -an 2>/dev/null | awk -v local_addrs="$local_v6" '
+        BEGIN { split(local_addrs, arr, "\n"); for (i in arr) if (arr[i] != "") own[arr[i]] = 1 }
+        $1 ~ /^fe80:/ && ($0 ~ /%en3/ || $3 == "en3" || $4 == "en3") {
+            addr = $1
+            sub(/%.*/, "", addr)
+            if (!(addr in own)) print addr "%en3"
+        }
+    '
+}
+
 http_get_body() {
     IP="$1"
     PATHNAME="$2"
     [ -n "$NC_BIN" ] || return 1
+    NC_FLAGS="-w 4"
+    case "$IP" in
+        *:*) NC_FLAGS="-6 -w 4" ;;
+    esac
     {
         printf 'GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n' "$PATHNAME" "$IP"
-    } | "$NC_BIN" -w 4 "$IP" 8889 2>/dev/null |
+    } | "$NC_BIN" $NC_FLAGS "$IP" 8889 2>/dev/null |
         awk 'BEGIN { body=0 } { sub(/\r$/, ""); if (body) print; else if ($0 == "") body=1 }'
+}
+
+probe_with_helper() {
+    MODE="$1"
+    TARGET="$2"
+    PATHNAME="$3"
+    OUT_FILE="$4"
+    [ -n "$PROBE_BIN" ] || return 1
+    if [ "$MODE" = "auto" ]; then
+        "$PROBE_BIN" --auto-usb --port 8889 --path "$PATHNAME" --output "$OUT_FILE" --timeout-ms 2200 >/dev/null 2>&1
+    else
+        "$PROBE_BIN" --interface en3 --host "$TARGET" --port 8889 --path "$PATHNAME" --output "$OUT_FILE" --timeout-ms 2200 >/dev/null 2>&1
+    fi
 }
 
 poll_cmu() {
@@ -181,37 +234,63 @@ poll_cmu() {
     case "$LAST" in *[!0-9]*|'') LAST=0;; esac
     [ $((NOW - LAST)) -ge "$CMU_INTERVAL" ] || return 0
 
-    if [ -z "$NC_BIN" ]; then
-        record_event 'cmu_poll=skipped reason=no_netcat'
+    capture_ncm_state
+
+    if [ -z "$NC_BIN" ] && [ -z "$PROBE_BIN" ]; then
+        record_event 'cmu_poll=skipped reason=no_netcat_or_probe'
         printf '%s\n' "$NOW" > "$LAST_FILE"
         return 0
     fi
 
     FOUND=0
-    for IP in $CMU_IPS; do
-        OUT="$DAY_DIR/cmu/diag-all-${IP}-${CLOCK}.log"
-        if http_get_body "$IP" /diag/all > "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
+    if [ -n "$PROBE_BIN" ]; then
+        OUT="$DAY_DIR/cmu/diag-all-auto-usb-${CLOCK}.log"
+        if probe_with_helper auto "" /diag/all "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
             mv -f "$OUT.tmp" "$OUT"
-            record_event "cmu_ip=$IP endpoint=diag/all file=$(basename "$OUT")"
-            record_cmu_snapshot "$OUT" "$IP" diag/all
+            record_event "cmu_ip=auto-usb endpoint=diag/all file=$(basename "$OUT")"
+            record_cmu_snapshot "$OUT" auto-usb diag/all
             FOUND=1
-            break
+        else
+            rm -f "$OUT.tmp"
+            if probe_with_helper auto "" /diag "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
+                mv -f "$OUT.tmp" "$OUT"
+                record_event "cmu_ip=auto-usb endpoint=diag file=$(basename "$OUT")"
+                record_cmu_snapshot "$OUT" auto-usb diag
+                FOUND=1
+            else
+                rm -f "$OUT.tmp"
+            fi
         fi
-        rm -f "$OUT.tmp"
-        if http_get_body "$IP" /diag > "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
-            mv -f "$OUT.tmp" "$OUT"
-            record_event "cmu_ip=$IP endpoint=diag file=$(basename "$OUT")"
-            record_cmu_snapshot "$OUT" "$IP" diag
-            FOUND=1
-            break
-        fi
-        rm -f "$OUT.tmp"
-        record_event "cmu_ip=$IP endpoint=unreachable"
-    done
+    fi
+
+    if [ "$FOUND" -eq 0 ]; then
+        V6_NEIGHBORS=$(find_en3_ipv6_neighbors | tr '\n' ' ')
+        for IP in $V6_NEIGHBORS $CMU_IPS; do
+            SAFE_IP=$(printf '%s' "$IP" | tr -c 'A-Za-z0-9._-' '_')
+            OUT="$DAY_DIR/cmu/diag-all-${SAFE_IP}-${CLOCK}.log"
+            for ENDPOINT in /diag/all /diag; do
+                EP_NAME=${ENDPOINT#/}
+                if { [ -n "$PROBE_BIN" ] && probe_with_helper iface "$IP" "$ENDPOINT" "$OUT.tmp"; } ||
+                   { http_get_body "$IP" "$ENDPOINT" > "$OUT.tmp"; }; then
+                    if [ -s "$OUT.tmp" ]; then
+                        mv -f "$OUT.tmp" "$OUT"
+                        record_event "cmu_ip=$IP endpoint=$EP_NAME file=$(basename "$OUT")"
+                        record_cmu_snapshot "$OUT" "$IP" "$EP_NAME"
+                        FOUND=1
+                        break
+                    fi
+                fi
+                rm -f "$OUT.tmp"
+            done
+            [ "$FOUND" -eq 1 ] && break
+            record_event "cmu_ip=$IP endpoint=unreachable"
+        done
+    fi
     [ "$FOUND" -eq 1 ] || record_event 'cmu_poll=complete result=unreachable'
     printf '%s\n' "$NOW" > "$LAST_FILE"
 }
 
+capture_ncm_state
 poll_cmu
 
 printf '%s files=%s\n' "$(date)" \

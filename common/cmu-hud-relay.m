@@ -12,6 +12,7 @@
 #include <math.h>
 #include <time.h>
 #include <errno.h>
+#include <notify.h>
 
 #ifndef IP_BOUND_IF
 #define IP_BOUND_IF 25
@@ -27,10 +28,17 @@
 #ifndef GVM_CMU_HUD_TARGET_IP_USB
 #define GVM_CMU_HUD_TARGET_IP_USB "192.168.53.1"
 #endif
+#ifndef GVM_CMU_HUD_TARGET_IP_NCM
+#define GVM_CMU_HUD_TARGET_IP_NCM "169.254.53.1"
+#endif
 #ifndef GVM_CMU_HUD_TARGET_PORT
 #define GVM_CMU_HUD_TARGET_PORT 8888
 #endif
 static const NSTimeInterval kHeartbeatInterval = 2.5;
+#ifndef GVM_AHEAD_WARNING_DISTANCE_METERS
+#define GVM_AHEAD_WARNING_DISTANCE_METERS 500
+#endif
+static const NSUInteger kAheadWarningIcon = 12; // Mazda HUD flag glyph
 
 // ── State (guarded by @synchronized on sLock) ──────────────────────────────
 static id sLock;
@@ -53,12 +61,113 @@ static NSUInteger sNavDist;
 static NSString *sNavRoad;
 static NSTimeInterval sLastNavSend;
 
+static NSUInteger sAheadLimit;
+static NSUInteger sAheadDist;
+
+// The source and Google Maps tweaks are injected into different processes.
+// Darwin notify state is the small, process-safe bridge: VietMap publishes the
+// upcoming sign, while Google Maps remains the sole normal UDP HUD writer.
+static const char *kGoogleNavNotify = "com.chou.gmaphud.cmu.google-nav";
+static const char *kGoogleHeartbeatNotify = "com.chou.gmaphud.cmu.google-heartbeat";
+static const char *kAheadSpeedNotify = "com.chou.gmaphud.cmu.ahead-speed";
+static int sGoogleNavToken = -1;
+static int sGoogleHeartbeatToken = -1;
+static int sAheadSpeedToken = -1;
+static const NSTimeInterval kSharedStateTTL = 5.0;
+
+typedef struct {
+    NSUInteger limit;
+    NSUInteger distance;
+    NSTimeInterval updatedAt;
+} GVMSharedAheadState;
+
+static void GVMEnsureNotifyTokens(void);
+static void GVMPublishGoogleHeartbeat(BOOL active);
+static void GVMPublishGoogleNavigation(BOOL active);
+static BOOL GVMGoogleProcessAlive(void) __attribute__((unused));
+static void GVMPublishAheadState(NSUInteger limit, NSUInteger distance) __attribute__((unused));
+static GVMSharedAheadState GVMReadSharedAheadState(void) __attribute__((unused));
+static BOOL GVMRefreshSharedAheadState(void);
+
 static NSString *sLastDatagram;   // Test-only capture
 
 // ── Internal helpers ───────────────────────────────────────────────────────
 
 static NSTimeInterval MonotonicNow(void) {
     return NSProcessInfo.processInfo.systemUptime;
+}
+
+static uint64_t GVMNowMilliseconds(void) {
+    return (uint64_t)(MonotonicNow() * 1000.0);
+}
+
+static void GVMEnsureNotifyTokens(void) {
+    if (sGoogleNavToken < 0) notify_register_check(kGoogleNavNotify, &sGoogleNavToken);
+    if (sGoogleHeartbeatToken < 0) notify_register_check(kGoogleHeartbeatNotify, &sGoogleHeartbeatToken);
+    if (sAheadSpeedToken < 0) notify_register_check(kAheadSpeedNotify, &sAheadSpeedToken);
+}
+
+static void GVMPublishGoogleHeartbeat(BOOL active) {
+#ifdef GVM_RELAY_GOOGLE_PROCESS
+    GVMEnsureNotifyTokens();
+    if (sGoogleHeartbeatToken >= 0) {
+        notify_set_state(sGoogleHeartbeatToken, active ? GVMNowMilliseconds() : 0);
+        notify_post(kGoogleHeartbeatNotify);
+    }
+#else
+    (void)active;
+#endif
+}
+
+static void GVMPublishGoogleNavigation(BOOL active) {
+#ifdef GVM_RELAY_GOOGLE_PROCESS
+    GVMEnsureNotifyTokens();
+    if (sGoogleNavToken >= 0) {
+        notify_set_state(sGoogleNavToken, active ? 1 : 0);
+        notify_post(kGoogleNavNotify);
+    }
+#else
+    (void)active;
+#endif
+}
+
+static BOOL GVMGoogleProcessAlive(void) {
+    GVMEnsureNotifyTokens();
+    uint64_t heartbeat = 0;
+    if (sGoogleHeartbeatToken < 0 ||
+        notify_get_state(sGoogleHeartbeatToken, &heartbeat) != NOTIFY_STATUS_OK ||
+        heartbeat == 0) return NO;
+    uint64_t now = GVMNowMilliseconds();
+    uint64_t ttl = (uint64_t)(kSharedStateTTL * 1000.0);
+    return heartbeat <= now + 1000 && now >= heartbeat && now - heartbeat <= ttl;
+}
+
+static void GVMPublishAheadState(NSUInteger limit, NSUInteger distance) {
+    GVMEnsureNotifyTokens();
+    if (sAheadSpeedToken < 0) return;
+    uint64_t now = GVMNowMilliseconds() & 0xFFFFFFFFFFULL;
+    uint64_t packed = (now << 24) | ((uint64_t)(limit & 0xFF) << 16) | (uint64_t)(distance & 0xFFFF);
+    notify_set_state(sAheadSpeedToken, packed);
+    notify_post(kAheadSpeedNotify);
+}
+
+static GVMSharedAheadState GVMReadSharedAheadState(void) {
+    GVMSharedAheadState result = {0, 0, 0};
+    GVMEnsureNotifyTokens();
+    uint64_t packed = 0;
+    if (sAheadSpeedToken < 0 ||
+        notify_get_state(sAheadSpeedToken, &packed) != NOTIFY_STATUS_OK ||
+        packed == 0) return result;
+    uint64_t stamp = (packed >> 24) & 0xFFFFFFFFFFULL;
+    result.limit = (NSUInteger)((packed >> 16) & 0xFF);
+    result.distance = (NSUInteger)(packed & 0xFFFF);
+    result.updatedAt = (NSTimeInterval)stamp / 1000.0;
+    NSTimeInterval age = MonotonicNow() - result.updatedAt;
+    if (age < 0 || age > kSharedStateTTL || result.limit > 140 || result.distance > GVM_AHEAD_WARNING_DISTANCE_METERS) {
+        result.limit = 0;
+        result.distance = 0;
+    }
+    return result;
 }
 
 static void LogRelay(const char *targetIP, int targetPort, const char *buf, size_t len, ssize_t sent, int err) {
@@ -250,7 +359,8 @@ static BOOL SendDatagram(const char *buf, size_t len) {
         GVM_CMU_HUD_TARGET_IP_USB, // "192.168.53.1" (CMU USB gateway)
         "192.168.53.255",          // (USB subnet broadcast)
         GVM_CMU_HUD_TARGET_IP,     // "192.168.100.1" (CMU Wi-Fi gateway)
-        "192.168.100.255",         // (Wi-Fi subnet broadcast)
+        "192.168.100.255",          // (Wi-Fi subnet broadcast)
+        GVM_CMU_HUD_TARGET_IP_NCM,  // "169.254.53.1" (OEM-assigned NCM alias)
         "169.254.255.255",         // (USB-NCM APIPA link-local broadcast)
         "255.255.255.255"          // (Global broadcast)
     };
@@ -394,13 +504,13 @@ static void SendTimeSync(void) {
 // Format and send "NAV <icon_id> <dist_m> <road_name>\n".
 static void SendNav(NSUInteger iconID, NSUInteger distM, NSString *road) {
     if (!road) road = @"";
-    // Convert to 7-bit ASCII to guarantee 100% clean HUD display (no corrupted UTF-8)
-    NSData *asciiData = [road dataUsingEncoding:NSASCIIStringEncoding allowLossyConversion:YES];
-    NSString *safe = [[NSString alloc] initWithData:asciiData encoding:NSASCIIStringEncoding] ?: road;
-    safe = [safe stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+    // Keep UTF-8: the CMU-side HUD sender normalizes only glyphs absent from
+    // the Mazda font, so renderable Vietnamese marks must survive this hop.
+    NSString *safe = [road stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
     safe = [safe stringByReplacingOccurrencesOfString:@"\r" withString:@" "];
-    if (safe.length > 200) safe = [safe substringToIndex:200];
-    char buf[300];
+    if (safe.length > 128) safe = [safe substringToIndex:128];
+    if (![safe dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:NO]) return;
+    char buf[512];
     int n = snprintf(buf, sizeof(buf), "NAV %lu %lu %s\n",
                      (unsigned long)iconID, (unsigned long)distM,
                      safe.UTF8String ?: "");
@@ -410,8 +520,58 @@ static void SendNav(NSUInteger iconID, NSUInteger distM, NSString *road) {
     }
 }
 
+static BOOL AheadActive(void) {
+    GVMRefreshSharedAheadState();
+    return sAheadLimit >= 5 && sAheadLimit <= 140 &&
+           sAheadDist > 0 && sAheadDist <= GVM_AHEAD_WARNING_DISTANCE_METERS &&
+           sCurrentLimit >= 5 && sAheadLimit < sCurrentLimit;
+}
+
+static BOOL GVMRefreshSharedAheadState(void) {
+#ifdef GVM_RELAY_GOOGLE_PROCESS
+    GVMSharedAheadState shared = GVMReadSharedAheadState();
+    BOOL changed = (sAheadLimit != shared.limit || sAheadDist != shared.distance);
+    sAheadLimit = shared.limit;
+    sAheadDist = shared.distance;
+    return changed;
+#else
+    return NO;
+#endif
+}
+
+// Merge the optional VietMap warning with the actual Google maneuver. When
+// Google is not navigating, use a flag + the requested Vietnamese warning text;
+// when Google is navigating, keep its icon/distance and decorate only the road
+// strip so the turn instruction remains authoritative.
+static void SendEffectiveNav(void) {
+    // Google Maps owns the maneuver channel. VietMap may publish the compact
+    // warning only while Google is idle; it never forwards its own arrow.
+#if defined(GVM_RELAY_VIETMAP_SOURCE)
+    if (GVMGoogleProcessAlive()) return;
+#endif
+    if (sNavIcon > 0) {
+        NSString *road = sNavRoad ?: @"";
+        if (AheadActive()) {
+            road = [NSString stringWithFormat:@"[%lu/%lum] %@",
+                    (unsigned long)sAheadLimit, (unsigned long)sAheadDist, road];
+        }
+        SendNav(sNavIcon, sNavDist, road);
+    } else if (AheadActive()) {
+        NSString *warning = [NSString stringWithFormat:@"Max %lu km/h",
+                             (unsigned long)sAheadLimit];
+        SendNav(kAheadWarningIcon, sAheadDist, warning);
+    } else {
+        SendNav(0, 0, @"");
+    }
+}
+
 static void HeartbeatTick(void) {
     @synchronized(sLock) {
+        BOOL sharedAheadChanged = NO;
+#if defined(GVM_RELAY_GOOGLE_PROCESS)
+        GVMPublishGoogleHeartbeat(YES);
+        sharedAheadChanged = GVMRefreshSharedAheadState();
+#endif
         if (sSock < 0) return;
         NSTimeInterval now = MonotonicNow();
         if (sLastSyncSend == 0 || now - sLastSyncSend >= 60.0) {
@@ -423,10 +583,10 @@ static void HeartbeatTick(void) {
                 SendLimit(sCurrentLimit);
             }
         }
-        // Heartbeat: resend current navigation maneuver every 2.5s if active.
-        if (sNavIcon > 0) {
-            if (now - sLastNavSend >= kHeartbeatInterval) {
-                SendNav(sNavIcon, sNavDist, sNavRoad);
+        // Heartbeat: resend the active Google maneuver or the 500 m warning.
+        if (sharedAheadChanged || sNavIcon > 0 || AheadActive()) {
+            if (sharedAheadChanged || now - sLastNavSend >= kHeartbeatInterval) {
+                SendEffectiveNav();
             }
         }
     }
@@ -439,7 +599,18 @@ void GVMCMURelayStart(void) {
     dispatch_once(&once, ^{ sLock = [NSObject new]; });
 
     @synchronized(sLock) {
-        if (sSock >= 0) return; // Already started
+        GVMEnsureNotifyTokens();
+#if defined(GVM_RELAY_VIETMAP_SOURCE)
+        sAheadLimit = 0;
+        sAheadDist = 0;
+        GVMPublishAheadState(0, 0);
+        return;
+#else
+        if (sSock >= 0) {
+            GVMPublishGoogleHeartbeat(YES);
+            return; // Already started
+        }
+#endif
 
         // Create non-blocking UDP socket
         sSock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -460,9 +631,15 @@ void GVMCMURelayStart(void) {
         sNavIcon = 0;
         sNavDist = 0;
         sNavRoad = nil;
+        sAheadLimit = 0;
+        sAheadDist = 0;
+#if defined(GVM_RELAY_GOOGLE_PROCESS)
+        GVMRefreshSharedAheadState();
+        GVMPublishGoogleHeartbeat(YES);
+        GVMPublishGoogleNavigation(NO);
+#endif
 
         // Heartbeat timer on main queue, fires every 1s (checks internally
-        // whether 2.5s have elapsed since last send).
         sTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
                                         dispatch_get_main_queue());
         dispatch_source_set_timer(sTimer,
@@ -476,6 +653,10 @@ void GVMCMURelayStart(void) {
 
 void GVMCMURelaySetLimit(NSUInteger limitKmh) {
     @synchronized(sLock) {
+#if defined(GVM_RELAY_VIETMAP_SOURCE)
+        sCurrentLimit = limitKmh;
+        return;
+#else
         EnsureSocketOpen();
 
         BOOL changed = (sCurrentLimit != limitKmh);
@@ -485,33 +666,70 @@ void GVMCMURelaySetLimit(NSUInteger limitKmh) {
             SendLimit(limitKmh);
             sLimitSentOnce = YES;
         }
+        // A changed current limit can make the upcoming reduction eligible or
+        // ineligible; repaint the road strip/warning without touching the turn.
+        if (changed && (sNavIcon > 0 || sAheadLimit > 0 || AheadActive())) {
+            SendEffectiveNav();
+        }
+#endif
+    }
+}
+
+void GVMCMURelaySetUpcomingSpeed(NSUInteger limitKmh, NSUInteger distanceMeters) {
+    @synchronized(sLock) {
+        if (limitKmh < 5 || limitKmh > 140 || distanceMeters == 0 ||
+            distanceMeters > GVM_AHEAD_WARNING_DISTANCE_METERS) {
+            limitKmh = 0;
+            distanceMeters = 0;
+        }
+#if defined(GVM_RELAY_VIETMAP_SOURCE)
+        sAheadLimit = limitKmh;
+        sAheadDist = distanceMeters;
+        GVMPublishAheadState(limitKmh, distanceMeters);
+        // The source process publishes shared state only. Google Maps is the
+        // single writer of LIMIT/NAV datagrams to the CMU.
+        return;
+#else
+        BOOL changed = (sAheadLimit != limitKmh) || (sAheadDist != distanceMeters);
+        BOOL hadAhead = (sAheadLimit > 0 || sAheadDist > 0);
+        sAheadLimit = limitKmh;
+        sAheadDist = distanceMeters;
+        GVMRefreshSharedAheadState();
+        if (!changed) return;
+        if (sNavIcon > 0 || hadAhead || AheadActive()) {
+            SendEffectiveNav();
+        }
+#endif
     }
 }
 
 void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *roadName) {
     @synchronized(sLock) {
+#if defined(GVM_RELAY_VIETMAP_SOURCE)
+        (void)iconID;
+        (void)distanceMeters;
+        (void)roadName;
+        return;
+#else
         EnsureSocketOpen();
         if (sLastSyncSend == 0) SendTimeSync();
 
         NSString *safeRoad = roadName ?: @"";
 
-        // Gateway chống spam: Nếu đang không dẫn đường (sNavIcon == 0) và
-        // giá trị mới vẫn là 0 -> DROP ngay lập tức (không kiểm tra dist để tránh GPS jitter).
-        if (sNavIcon == 0 && iconID == 0) {
-            return;
-        }
-
-        // Trường hợp 1: Chuyển trạng thái từ ACTIVE -> INACTIVE (Kết thúc hành trình)
-        if (sNavIcon > 0 && iconID == 0) {
+        // A zero icon ends Google navigation. Restore the independent VietMap
+        // warning immediately if it is still inside the 500 m window.
+        if (iconID == 0) {
+            GVMPublishGoogleNavigation(NO);
+            BOOL hadDisplayedNav = (sNavIcon > 0);
             sNavIcon = 0;
             sNavDist = 0;
             sNavRoad = @"";
-            // Chỉ gửi Clear duy nhất 1 lần
-            SendNav(0, 0, @"");
+            if (hadDisplayedNav) {
+                SendEffectiveNav();
+            }
             return;
         }
 
-        // Trường hợp 2: Đang hoặc bắt đầu dẫn đường chủ động (iconID > 0)
         BOOL changed = (sNavIcon != iconID) ||
                        (sNavDist != distanceMeters) ||
                        ![sNavRoad isEqualToString:safeRoad];
@@ -522,20 +740,33 @@ void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *r
         sNavIcon = iconID;
         sNavDist = distanceMeters;
         sNavRoad = [safeRoad copy];
-
-        SendNav(iconID, distanceMeters, sNavRoad);
+        GVMPublishGoogleNavigation(YES);
+        SendEffectiveNav();
+#endif
     }
 }
 
 void GVMCMURelayStop(void) {
     @synchronized(sLock) {
+#if defined(GVM_RELAY_VIETMAP_SOURCE)
+        GVMPublishAheadState(0, 0);
+        sAheadLimit = 0;
+        sAheadDist = 0;
+        return;
+#else
+        GVMPublishGoogleHeartbeat(NO);
+        GVMPublishGoogleNavigation(NO);
+#endif
         if (sTimer) {
             dispatch_source_cancel(sTimer);
             sTimer = nil;
         }
         if (sSock >= 0 || sSockUSB >= 0 || sSock6 >= 0) {
-            // Send final "LIMIT 0" and "NAV 0 0" to clear the CMU display
+            // Send final "LIMIT 0" and clear both navigation and ahead warning.
             SendLimit(0);
+            sCurrentLimit = 0;
+            sAheadLimit = 0;
+            sAheadDist = 0;
             SendNav(0, 0, @"");
             if (sSock >= 0) {
                 close(sSock);

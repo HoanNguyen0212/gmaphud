@@ -14,11 +14,11 @@ GVM_VERSION_CFLAGS = -DGVM_PACKAGE_VERSION='"$(GVM_PACKAGE_VERSION)"'
 TWEAK_NAME = VietMapGoogleMapsSource GoogleMapsVietMap GMapHUDPlacementRelay GMapHUDOverspeedScreen WazeGMapHUDSource GofaGMapHUDSource GMapHUDGuidanceRelay
 
 VietMapGoogleMapsSource_FILES = source-output.m source-transport.m vietmap-output.m diagnostics.m background-location.m vietmap-source.x nav-source.m nav-payload.m speed-state.m alert-state.m vietmap-alert-assets.m tpms-state.m cmu-hud-relay.m carplay-nav-hook.m
-VietMapGoogleMapsSource_CFLAGS = -fobjc-arc -DVM_GOOGLE_MAPS_RELAY=1 $(GVM_VERSION_CFLAGS)
+VietMapGoogleMapsSource_CFLAGS = -fobjc-arc -DVM_GOOGLE_MAPS_RELAY=1 -DGVM_RELAY_VIETMAP_SOURCE=1 $(GVM_VERSION_CFLAGS)
 VietMapGoogleMapsSource_FRAMEWORKS = UIKit Foundation CoreLocation
 
 GoogleMapsVietMap_FILES = overspeed-frame.m source-output.m source-transport.m vietmap-output.m refresh-loop.m phone-overlay.m diagnostics.m google-hook.m carplay-style.m classic-card.m halo-style.m halo-card.m halo-lanes.m halo-dock.m guidance-state.m speed-presentation.m speed-state.m alert-state.m vietmap-alert-assets.m test-state.m placement-state.m cmu-hud-relay.m tpms-state.m carplay-nav-hook.m
-GoogleMapsVietMap_CFLAGS = -fobjc-arc -Wall -Wextra $(GVM_VERSION_CFLAGS)
+GoogleMapsVietMap_CFLAGS = -fobjc-arc -Wall -Wextra -DGVM_RELAY_GOOGLE_PROCESS=1 $(GVM_VERSION_CFLAGS)
 GoogleMapsVietMap_FRAMEWORKS = UIKit Foundation QuartzCore CoreText
 GoogleMapsVietMap_LIBRARIES = substrate
 
@@ -56,9 +56,12 @@ GMapHUDPrefs_INSTALL_PATH = /Library/PreferenceBundles
 GMapHUDPrefs_RESOURCE_DIRS = prefs/Resources
 include $(THEOS)/makefiles/bundle.mk
 
-TOOL_NAME = gvm-test-speed
+TOOL_NAME = gvm-test-speed gmaphud-cmu-usb-probe
 gvm-test-speed_FILES = placement-state.m test-speed.m test-state.m alert-state.m vietmap-alert-assets.m tpms-state.m
 gvm-test-speed_CFLAGS = -fobjc-arc -Wall -Wextra
 gvm-test-speed_FRAMEWORKS = Foundation
 gvm-test-speed_INSTALL_PATH = /usr/bin
+gmaphud-cmu-usb-probe_FILES = cmu-http-probe.c
+gmaphud-cmu-usb-probe_CFLAGS = -Wall -Wextra -Werror
+gmaphud-cmu-usb-probe_INSTALL_PATH = /usr/local/bin
 include $(THEOS)/makefiles/tool.mk

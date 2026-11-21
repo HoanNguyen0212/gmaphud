@@ -43,32 +43,21 @@ class CarPlayNavHookSourceTests(unittest.TestCase):
         self.assertIn("pauseTripForReason:description:", self.impl)
 
     def test_maneuver_mapping_coverage(self):
-        # Maneuver mapping function
         self.assertIn("GVMMapCarPlayManeuverToMazdaHUD", self.impl)
-        # Check standard maneuvers
-        # TurnLeft (1) -> HUD 2
         self.assertIn("case 1:  return 2;", self.impl)
-        # TurnRight (2) -> HUD 3
         self.assertIn("case 2:  return 3;", self.impl)
-        # StraightAhead (3) -> HUD 1
         self.assertIn("case 3:  return 1;", self.impl)
-        # U-Turn (4 / 26) -> HUD 13
         self.assertIn("case 4:", self.impl)
         self.assertIn("case 26: return 13;", self.impl)
-        # Off-ramp (8) -> HUD 7
         self.assertIn("case 8:  return 7;", self.impl)
-        # On-ramp (9) -> HUD 16
         self.assertIn("case 9:  return 16;", self.impl)
-        # Arrive (10 / 27) -> HUD 8
         self.assertIn("case 10:", self.impl)
         self.assertIn("case 27: return 8;", self.impl)
-        # Roundabout (28..46 -> 37..55)
         self.assertIn("type >= 28 && type <= 46", self.impl)
 
     def test_vietnamese_diacritic_handling(self):
         self.assertIn("CFStringTransform", self.impl)
         self.assertIn("kCFStringTransformStripCombiningMarks", self.impl)
-        # Must replace special Vietnamese characters 'đ' and 'Đ'
         self.assertIn('@"đ"', self.impl)
         self.assertIn('@"d"', self.impl)
         self.assertIn('@"Đ"', self.impl)
@@ -76,7 +65,6 @@ class CarPlayNavHookSourceTests(unittest.TestCase):
 
     def test_relay_call_non_blocking(self):
         self.assertIn("GVMCMURelaySetNav", self.impl)
-        # Fail-safe blocks to prevent crashes
         self.assertIn("@try", self.impl)
         self.assertIn("@catch", self.impl)
 
@@ -95,6 +83,11 @@ class CarPlayNavHookSourceTests(unittest.TestCase):
         self.assertIn("arrow_right", self.impl)
         self.assertIn("⬅", self.impl)
         self.assertIn("➡", self.impl)
+
+    def test_actual_carplay_symbol_is_preferred_before_text(self):
+        image_marker = self.impl.index('// 0. Prefer the actual CarPlay maneuver symbol')
+        text_marker = self.impl.index('// 1. Gather all potential text sources')
+        self.assertLess(image_marker, text_marker)
 
 
 if __name__ == "__main__":

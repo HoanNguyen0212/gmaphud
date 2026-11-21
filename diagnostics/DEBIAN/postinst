@@ -6,7 +6,7 @@ PLIST='/var/jb/Library/LaunchDaemons/com.hoan.gmaphud.autosessionlogger.plist'
 BIN='/var/jb/usr/local/bin/gmaphud-auto-session-logger.sh'
 CONFIG='/var/mobile/Documents/GMapHUD/auto-session.conf'
 ROOT='/var/mobile/Documents/GMapHUD/auto-sessions'
-PATH='/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:/usr/sbin:/sbin'
+PATH='/var/jb/usr/local/bin:/var/jb/usr/sbin:/var/jb/usr/bin:/var/jb/sbin:/var/jb/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 export PATH
 
 mkdir -p "$(dirname "$CONFIG")" "$ROOT"
@@ -22,6 +22,7 @@ if [ -z "$LAUNCHCTL" ]; then
 fi
 
 "$LAUNCHCTL" bootout system/$LABEL 2>/dev/null || true
+rmdir "$ROOT/.logger.lock" 2>/dev/null || true
 "$LAUNCHCTL" bootstrap system "$PLIST"
 "$LAUNCHCTL" enable system/$LABEL 2>/dev/null || true
 "$LAUNCHCTL" kickstart -k system/$LABEL 2>/dev/null || true
