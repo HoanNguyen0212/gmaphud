@@ -81,13 +81,13 @@ typedef struct {
     NSTimeInterval updatedAt;
 } GVMSharedAheadState;
 
-static void GVMEnsureNotifyTokens(void);
-static void GVMPublishGoogleHeartbeat(BOOL active);
-static void GVMPublishGoogleNavigation(BOOL active);
+static void GVMEnsureNotifyTokens(void) __attribute__((unused));
+static void GVMPublishGoogleHeartbeat(BOOL active) __attribute__((unused));
+static void GVMPublishGoogleNavigation(BOOL active) __attribute__((unused));
 static BOOL GVMGoogleProcessAlive(void) __attribute__((unused));
 static void GVMPublishAheadState(NSUInteger limit, NSUInteger distance) __attribute__((unused));
 static GVMSharedAheadState GVMReadSharedAheadState(void) __attribute__((unused));
-static BOOL GVMRefreshSharedAheadState(void);
+static BOOL GVMRefreshSharedAheadState(void) __attribute__((unused));
 
 static NSString *sLastDatagram;   // Test-only capture
 
