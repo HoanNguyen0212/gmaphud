@@ -325,6 +325,16 @@ class VietMapNavigationHUDTests(unittest.TestCase):
         self.assertIn("_storedTPMSDeviceCache", self.vmsource)
         # GVMParseTireDict must reject strings with non-numeric characters (hex sensor IDs)
         self.assertIn("nonNum", self.vmsource)
+        # Skip Flutter GPS location stream dicts in TPMS raw handler
+        self.assertIn("probeDict[@\"latitude\"]", self.vmsource)
+
+    def test_relay_recovers_defunct_sockets_after_suspend(self):
+        relay = (root / "common/cmu-hud-relay.m").read_text()
+        self.assertIn("IsDefunctSocketError", relay)
+        self.assertIn("CloseSocketFD", relay)
+        self.assertIn("CloseSocketFD(&sSock6)", relay)
+        self.assertIn("CloseSocketFD(&sSockUSB)", relay)
+        self.assertIn("CloseSocketFD(&sSock)", relay)
 
 
 if __name__ == "__main__":

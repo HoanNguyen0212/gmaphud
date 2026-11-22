@@ -417,6 +417,14 @@ static void GVMProcessTirePayload(id payload, NSTimeInterval received) {
     dispatch_once(&lockOnce, ^{ s_tpmsLock = [NSObject new]; });
 
     @synchronized(s_tpmsLock) {
+        if ([payload isKindOfClass:NSDictionary.class]) {
+            NSDictionary *probeDict = (NSDictionary *)payload;
+            if ((probeDict[@"latitude"] || probeDict[@"longitude"]) &&
+                !probeDict[@"pressure"] && !probeDict[@"fl"] && !probeDict[@"fr"] &&
+                !probeDict[@"rl"] && !probeDict[@"rr"] && !probeDict[@"tire"] && !probeDict[@"tpms"]) {
+                return; // Skip Flutter GPS location stream dicts; not TPMS.
+            }
+        }
         static NSTimeInterval lastRawLog = 0;
         if (received - lastRawLog >= 5.0) {
             lastRawLog = received;

@@ -17,3 +17,4 @@ __pycache__/
 download-proxy/pages-*/
 download-proxy/.wrangler/
 diagnostics/work/
+diagnostics/cmureceiver/work/

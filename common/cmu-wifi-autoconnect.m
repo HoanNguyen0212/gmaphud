@@ -14,7 +14,7 @@ typedef void *WiFiNetworkRef;
 
 typedef WiFiManagerClientRef (*WiFiManagerClientCreateFunc)(CFAllocatorRef allocator, int flags);
 typedef CFArrayRef (*WiFiManagerClientCopyDevicesFunc)(WiFiManagerClientRef manager);
-typedef CFArrayRef (*WiFiDeviceClientCopyNetworksFunc)(WiFiDeviceClientRef device);
+typedef CFArrayRef (*WiFiManagerClientCopyNetworksFunc)(WiFiManagerClientRef manager);
 typedef CFStringRef (*WiFiNetworkGetSSIDFunc)(WiFiNetworkRef network);
 typedef int (*WiFiDeviceClientAssociateAsyncFunc)(WiFiDeviceClientRef device, WiFiNetworkRef network, void *callback, void *context);
 
@@ -120,12 +120,14 @@ static BOOL AssociateWithMazdaAP(void) {
 
     WiFiManagerClientCreateFunc fnCreate = (WiFiManagerClientCreateFunc)dlsym(handle, "WiFiManagerClientCreate");
     WiFiManagerClientCopyDevicesFunc fnCopyDevices = (WiFiManagerClientCopyDevicesFunc)dlsym(handle, "WiFiManagerClientCopyDevices");
-    WiFiDeviceClientCopyNetworksFunc fnCopyNetworks = (WiFiDeviceClientCopyNetworksFunc)dlsym(handle, "WiFiDeviceClientCopyNetworks");
+    WiFiManagerClientCopyNetworksFunc fnCopyNetworks = (WiFiManagerClientCopyNetworksFunc)dlsym(handle, "WiFiManagerClientCopyNetworks");
     WiFiNetworkGetSSIDFunc fnGetSSID = (WiFiNetworkGetSSIDFunc)dlsym(handle, "WiFiNetworkGetSSID");
     WiFiDeviceClientAssociateAsyncFunc fnAssociate = (WiFiDeviceClientAssociateAsyncFunc)dlsym(handle, "WiFiDeviceClientAssociateAsync");
 
     if (!fnCreate || !fnCopyDevices || !fnCopyNetworks || !fnGetSSID || !fnAssociate) {
-        LogWiFi(@"Missing MobileWiFi symbols");
+        LogWiFi(@"Missing MobileWiFi symbols (create=%d devs=%d nets=%d ssid=%d assoc=%d)",
+                fnCreate != NULL, fnCopyDevices != NULL, fnCopyNetworks != NULL,
+                fnGetSSID != NULL, fnAssociate != NULL);
         dlclose(handle);
         return NO;
     }
@@ -138,34 +140,47 @@ static BOOL AssociateWithMazdaAP(void) {
 
     BOOL associated = NO;
     CFArrayRef devices = fnCopyDevices(manager);
-    if (devices) {
-        CFIndex devCount = CFArrayGetCount(devices);
-        for (CFIndex i = 0; i < devCount; i++) {
-            WiFiDeviceClientRef device = (WiFiDeviceClientRef)CFArrayGetValueAtIndex(devices, i);
-            CFArrayRef networks = fnCopyNetworks(device);
-            if (networks) {
-                CFIndex netCount = CFArrayGetCount(networks);
-                for (CFIndex j = 0; j < netCount; j++) {
-                    WiFiNetworkRef net = (WiFiNetworkRef)CFArrayGetValueAtIndex(networks, j);
-                    CFStringRef ssid = fnGetSSID(net);
-                    if (ssid) {
-                        NSString *s = (__bridge NSString *)ssid;
-                        // Match any Mazda Wi-Fi Access Point (e.g. Mazda_Connect_..., mazda, etc.)
-                        if ([s rangeOfString:@"mazda" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-                            LogWiFi(@"Found Mazda Wi-Fi AP '%@', triggering associate...", s);
-                            int ret = fnAssociate(device, net, NULL, NULL);
-                            LogWiFi(@"Associate request returned code: %d", ret);
-                            associated = YES;
-                            break;
-                        }
-                    }
-                }
-                CFRelease(networks);
+    CFArrayRef networks = fnCopyNetworks(manager);
+    if (devices && networks && CFArrayGetCount(devices) > 0) {
+        WiFiDeviceClientRef device = (WiFiDeviceClientRef)CFArrayGetValueAtIndex(devices, 0);
+        WiFiNetworkRef preferredNet = NULL;
+        NSString *preferredSSID = nil;
+        WiFiNetworkRef fallbackNet = NULL;
+        NSString *fallbackSSID = nil;
+
+        CFIndex netCount = CFArrayGetCount(networks);
+        for (CFIndex j = 0; j < netCount; j++) {
+            WiFiNetworkRef net = (WiFiNetworkRef)CFArrayGetValueAtIndex(networks, j);
+            CFStringRef ssid = fnGetSSID(net);
+            if (!ssid) continue;
+            NSString *s = (__bridge NSString *)ssid;
+            // Prefer CMU hotspot naming (e.g. Mazda-af4749, Mazda_Connect_...) over generic SSIDs.
+            if (!preferredNet &&
+                ([s rangeOfString:@"mazda-" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                 [s rangeOfString:@"mazda_" options:NSCaseInsensitiveSearch].location != NSNotFound)) {
+                preferredNet = net;
+                preferredSSID = s;
+                break;
             }
-            if (associated) break;
+            if (!fallbackNet && [s rangeOfString:@"mazda" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+                fallbackNet = net;
+                fallbackSSID = s;
+            }
         }
-        CFRelease(devices);
+
+        WiFiNetworkRef targetNet = preferredNet ?: fallbackNet;
+        NSString *targetSSID = preferredSSID ?: fallbackSSID;
+        if (targetNet) {
+            LogWiFi(@"Found Mazda Wi-Fi AP '%@', triggering associate...", targetSSID);
+            int ret = fnAssociate(device, targetNet, NULL, NULL);
+            LogWiFi(@"Associate request returned code: %d", ret);
+            associated = YES;
+        } else {
+            LogWiFi(@"No saved Mazda Wi-Fi AP found among %ld known networks", (long)netCount);
+        }
     }
+    if (networks) CFRelease(networks);
+    if (devices) CFRelease(devices);
     CFRelease(manager);
     dlclose(handle);
     return associated;

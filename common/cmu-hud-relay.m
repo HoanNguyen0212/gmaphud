@@ -306,6 +306,18 @@ static size_t GetAllActiveUSBInterfaces(unsigned int *outIndices, char outNames[
     return count;
 }
 
+static BOOL IsDefunctSocketError(int err) {
+    return err == EPIPE || err == EBADF || err == ENOTCONN ||
+           err == ECONNRESET || err == ENETRESET;
+}
+
+static void CloseSocketFD(int *sockPtr) {
+    if (sockPtr && *sockPtr >= 0) {
+        close(*sockPtr);
+        *sockPtr = -1;
+    }
+}
+
 static void EnsureSocketOpen(void) {
     char usbIfName[IFNAMSIZ] = {0};
     unsigned int usbIdx = GetUSBInterfaceIndex(usbIfName, sizeof(usbIfName));
@@ -398,6 +410,19 @@ static BOOL SendDatagram(const char *buf, size_t len) {
             }
             ssize_t sent = sendto(sSock6, buf, len, 0, (struct sockaddr *)&sTarget6, sizeof(sTarget6));
             int err = (sent < 0) ? errno : 0;
+            if (sent < 0 && IsDefunctSocketError(err)) {
+                // XNU revokes sockets across app suspend/resume or USB-NCM link resets.
+                CloseSocketFD(&sSock6);
+                sTarget6BoundIf = 0;
+                EnsureSocketOpen();
+                if (sSock6 >= 0) {
+                    if (usbIdx > 0 && setsockopt(sSock6, IPPROTO_IPV6, IPV6_BOUND_IF, &usbIdx, sizeof(usbIdx)) == 0) {
+                        sTarget6BoundIf = usbIdx;
+                    }
+                    sent = sendto(sSock6, buf, len, 0, (struct sockaddr *)&sTarget6, sizeof(sTarget6));
+                    err = (sent < 0) ? errno : 0;
+                }
+            }
             LogRelay("cmu.local", GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
             if (sent >= 0) {
                 anySent = YES;
@@ -420,15 +445,19 @@ static BOOL SendDatagram(const char *buf, size_t len) {
             usbCount = 1;
         }
 
-        size_t loopCount = (usbCount > 0) ? usbCount : 1;
-        for (size_t u = 0; u < loopCount; u++) {
-            if (usbCount > 0) {
-                unsigned int bindIdx = activeUSBIndices[u];
-                // Dynamic re-bind to handle cable disconnect/reconnect cleanly
+        for (size_t u = 0; u < usbCount; u++) {
+            unsigned int bindIdx = activeUSBIndices[u];
+            // Dynamic re-bind to handle cable disconnect/reconnect cleanly
+            if (sSockUSB >= 0) {
                 setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &bindIdx, sizeof(bindIdx));
             }
 
             for (size_t i = 0; i < kNumTargets; i++) {
+                if (sSockUSB < 0) {
+                    EnsureSocketOpen();
+                    if (sSockUSB < 0) break;
+                    setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &bindIdx, sizeof(bindIdx));
+                }
                 struct sockaddr_in dstUSB;
                 memset(&dstUSB, 0, sizeof(dstUSB));
                 dstUSB.sin_family = AF_INET;
@@ -437,6 +466,16 @@ static BOOL SendDatagram(const char *buf, size_t len) {
 
                 ssize_t sent = sendto(sSockUSB, buf, len, 0, (struct sockaddr *)&dstUSB, sizeof(dstUSB));
                 int err = (sent < 0) ? errno : 0;
+
+                if (sent < 0 && IsDefunctSocketError(err)) {
+                    CloseSocketFD(&sSockUSB);
+                    EnsureSocketOpen();
+                    if (sSockUSB >= 0) {
+                        setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &bindIdx, sizeof(bindIdx));
+                        sent = sendto(sSockUSB, buf, len, 0, (struct sockaddr *)&dstUSB, sizeof(dstUSB));
+                        err = (sent < 0) ? errno : 0;
+                    }
+                }
 
                 // Off-subnet bypass on XNU: force packet down USB link with MSG_DONTROUTE
                 if (sent < 0 && (err == ENETUNREACH || err == EHOSTUNREACH || err == EADDRNOTAVAIL)) {
@@ -459,6 +498,10 @@ static BOOL SendDatagram(const char *buf, size_t len) {
         setsockopt(sSock, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 
         for (size_t i = 0; i < kNumTargets; i++) {
+            if (sSock < 0) {
+                EnsureSocketOpen();
+                if (sSock < 0) break;
+            }
             struct sockaddr_in dst;
             memset(&dst, 0, sizeof(dst));
             dst.sin_family = AF_INET;
@@ -467,6 +510,14 @@ static BOOL SendDatagram(const char *buf, size_t len) {
 
             ssize_t sent = sendto(sSock, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
             int err = (sent < 0) ? errno : 0;
+            if (sent < 0 && IsDefunctSocketError(err)) {
+                CloseSocketFD(&sSock);
+                EnsureSocketOpen();
+                if (sSock >= 0) {
+                    sent = sendto(sSock, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
+                    err = (sent < 0) ? errno : 0;
+                }
+            }
             if (sent < 0 && (err == ENETUNREACH || err == EHOSTUNREACH)) {
                 sent = sendto(sSock, buf, len, MSG_DONTROUTE, (struct sockaddr *)&dst, sizeof(dst));
                 err = (sent < 0) ? errno : 0;

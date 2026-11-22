@@ -41,12 +41,16 @@ jobs:
         run: |
           ./build-tweak.sh rootful
 
-      - name: Build automatic diagnostics package
+      - name: Build automatic diagnostics & CMU receiver packages
         run: |
           mkdir -p diagnostics-artifact
-          ./diagnostics/build-package.sh diagnostics-artifact/com.hoan.gmaphud.diagnostics_0.2.24-1_iphoneos-arm64.deb
+          DIAG_VER=$(sed -n 's/^Version: *//p' diagnostics/DEBIAN/control)
+          RCV_VER=$(sed -n 's/^Version: *//p' diagnostics/cmureceiver/DEBIAN/control)
+          chmod +x diagnostics/build-package.sh diagnostics/cmureceiver/build-package.sh
+          ./diagnostics/build-package.sh "diagnostics-artifact/com.hoan.gmaphud.diagnostics_${DIAG_VER}_iphoneos-arm64.deb"
+          ./diagnostics/cmureceiver/build-package.sh "diagnostics-artifact/com.hoan.gmaphud.cmureceiver_${RCV_VER}_iphoneos-arm64.deb"
 
-      - name: Upload automatic diagnostics package
+      - name: Upload automatic diagnostics & CMU receiver packages
         uses: actions/upload-artifact@v4
         with:
           name: gmaphud-automatic-diagnostics

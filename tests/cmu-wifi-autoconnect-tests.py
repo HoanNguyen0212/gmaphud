@@ -70,8 +70,15 @@ class CMUWiFiAutoConnectSourceTests(unittest.TestCase):
         self.assertIn("CFRelease(networks)", self.impl)
         self.assertIn("CFRelease(manager)", self.impl)
 
+    def test_uses_ios15_exported_manager_copy_networks(self):
+        """iOS 15.8 MobileWiFi exports WiFiManagerClientCopyNetworks, not WiFiDeviceClientCopyNetworks."""
+        self.assertIn('"WiFiManagerClientCopyNetworks"', self.impl)
+        self.assertNotIn('"WiFiDeviceClientCopyNetworks"', self.impl)
+
     def test_case_insensitive_mazda_ssid_match(self):
-        """Must match 'mazda' case-insensitively."""
+        """Must prefer CMU hotspot SSIDs (mazda-/mazda_) and fall back to generic 'mazda' case-insensitively."""
+        self.assertIn('@"mazda-"', self.impl)
+        self.assertIn('@"mazda_"', self.impl)
         self.assertIn('@"mazda"', self.impl)
         self.assertIn("NSCaseInsensitiveSearch", self.impl)
 
@@ -81,6 +88,8 @@ class CMUWiFiAutoConnectSourceTests(unittest.TestCase):
         self.assertIn("GVMCMUOnCarPlayConnectionChanged(connected)", self.supervisor)
         self.assertIn("GVMCMUWiFiAutoConnectTick()", self.supervisor)
         self.assertIn("GVMCMUWiFiAutoConnectStart()", self.supervisor)
+        self.assertIn("BOOL carplayVisible = GVMBackgroundActive(now, heartbeat);", self.supervisor)
+        self.assertNotIn("BOOL shouldRun = (connected || clientPID > 0 || phoneVisible);", self.supervisor)
 
     def test_build_system_packaging(self):
         """Ensures the auto-connect files are included in the tweak build and makefile."""

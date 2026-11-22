@@ -242,13 +242,17 @@ static void Tick(void) {
     }
 
     // Auto-wake trigger condition:
-    // When CarPlay is connected, OR when Google Maps is running on CarPlay/iPhone, OR when iPhone map visible
-    BOOL shouldRun = (connected || clientPID > 0 || phoneVisible);
+    // Only hold background execution while CarPlay is connected OR Google Maps is actively
+    // pulsing a live foreground heartbeat (CarPlay/iPhone). Never key on raw clientPID > 0,
+    // because iOS keeps com.google.Maps suspended for hours after CarPlay unplug, which would
+    // pin VietMap Live at high CPU and drain battery.
+    BOOL carplayVisible = GVMBackgroundActive(now, heartbeat);
+    BOOL shouldRun = (connected || carplayVisible || phoneVisible);
     BOOL active = enabled && allowed && providerID && shouldRun &&
         !GVMBackgroundExitHolds(autoExit, connected, phoneVisible, disconnectedAt, exitCompleted);
         
     if (!active || !service || !Matches(service, @"pidForApplication:", "i", @[@"@"])) {
-        if (!connected && !phoneVisible && clientPID <= 0) {
+        if (!connected && !carplayVisible && !phoneVisible) {
             ClearLease();
         }
         return;

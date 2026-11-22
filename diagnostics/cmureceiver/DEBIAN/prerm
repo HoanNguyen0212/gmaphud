@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+PATH='/var/jb/usr/local/bin:/var/jb/usr/sbin:/var/jb/usr/bin:/var/jb/sbin:/var/jb/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+export PATH
+PLIST=/var/jb/Library/LaunchDaemons/com.hoan.gmaphud.cmureceiver.plist
+launchctl bootout system/com.hoan.gmaphud.cmureceiver 2>/dev/null || true
+launchctl bootout system "$PLIST" 2>/dev/null || true
+exit 0

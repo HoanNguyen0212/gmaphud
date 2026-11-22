@@ -1,0 +1,8 @@
+Package: com.hoan.gmaphud.cmureceiver
+Name: GMapHUD CMU log receiver
+Version: 0.2.0-1
+Architecture: iphoneos-arm64
+Description: Native rootless wired-CarPlay TCP/8890 CMU evidence receiver for GMapHUD.
+Maintainer: Hoan Nguyen
+Author: Hoan Nguyen
+Section: Utilities

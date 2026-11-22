@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+PATH='/var/jb/usr/local/bin:/var/jb/usr/sbin:/var/jb/usr/bin:/var/jb/sbin:/var/jb/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+export PATH
+PLIST=/var/jb/Library/LaunchDaemons/com.hoan.gmaphud.cmureceiver.plist
+ROOT=/var/mobile/Documents/GMapHUD/auto-sessions
+mkdir -p "$ROOT"
+chown mobile:mobile "$ROOT" 2>/dev/null || true
+chmod 0700 "$ROOT" 2>/dev/null || true
+chown root:wheel "$PLIST" /var/jb/usr/local/bin/gmaphud-cmu-log-receiver 2>/dev/null || true
+chmod 0644 "$PLIST" 2>/dev/null || true
+chmod 0755 /var/jb/usr/local/bin/gmaphud-cmu-log-receiver 2>/dev/null || true
+# Clean up any legacy shell receiver or stale netcat processes.
+pkill -f gmaphud-cmu-log-receiver.sh 2>/dev/null || true
+launchctl bootout system/com.hoan.gmaphud.cmureceiver 2>/dev/null || true
+launchctl bootout system "$PLIST" 2>/dev/null || true
+sleep 1
+launchctl bootstrap system "$PLIST" 2>/dev/null || launchctl load -w "$PLIST" 2>/dev/null || true
+launchctl kickstart -k system/com.hoan.gmaphud.cmureceiver 2>/dev/null || true
+exit 0

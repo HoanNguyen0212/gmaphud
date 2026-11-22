@@ -143,15 +143,16 @@ append_delta "$PHONE_LOG_ROOT/gmaphud-background.log" gmaphud-background.log
 append_delta "/var/tmp/gmaphud-wifi.log" gmaphud-wifi.log
 append_delta "$PHONE_LOG_ROOT/gmaphud-carplay-bootstrap.log" gmaphud-carplay-bootstrap.log
 
-# Known app-container logs only; no broad application dump.
+# Known app-container tmp/ logs only; avoid recursive find over map tiles/caches.
 if [ -d "$CONTAINERS" ]; then
-    find "$CONTAINERS" -type f \( \
-        -name 'gmaphud*.log' -o \
-        -name googlemaps-vietmap-source.log \
-    \) 2>/dev/null | while IFS= read -r SRC; do
-        UUID=$(basename "$(dirname "$(dirname "$SRC")")")
-        NAME=$(basename "$SRC")
-        append_delta "$SRC" "${UUID}_${NAME}"
+    for APP_TMP in "$CONTAINERS"/*/tmp; do
+        [ -d "$APP_TMP" ] || continue
+        UUID=$(basename "$(dirname "$APP_TMP")")
+        for SRC in "$APP_TMP"/gmaphud*.log "$APP_TMP"/googlemaps-vietmap-source.log; do
+            [ -f "$SRC" ] || continue
+            NAME=$(basename "$SRC")
+            append_delta "$SRC" "${UUID}_${NAME}"
+        done
     done
 fi
 
@@ -227,12 +228,27 @@ probe_with_helper() {
     fi
 }
 
+has_vehicle_link() {
+    if ifconfig en3 2>/dev/null | grep -q 'flags=.*UP.*RUNNING'; then
+        return 0
+    fi
+    if ifconfig en0 2>/dev/null | grep -q 'inet 192\.168\.100\.'; then
+        return 0
+    fi
+    return 1
+}
+
 poll_cmu() {
     LAST_FILE="$STATE_DIR/cmu-last-poll"
     LAST=0
     [ -f "$LAST_FILE" ] && LAST=$(cat "$LAST_FILE" 2>/dev/null || echo 0)
     case "$LAST" in *[!0-9]*|'') LAST=0;; esac
     [ $((NOW - LAST)) -ge "$CMU_INTERVAL" ] || return 0
+
+    if ! has_vehicle_link; then
+        printf '%s\n' "$NOW" > "$LAST_FILE"
+        return 0
+    fi
 
     capture_ncm_state
 

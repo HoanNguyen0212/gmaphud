@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hoan.gmaphud.cmureceiver</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/var/jb/usr/local/bin/gmaphud-cmu-log-receiver</string>
+  </array>
+  <key>UserName</key>
+  <string>mobile</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/var/jb/usr/local/bin:/var/jb/usr/sbin:/var/jb/usr/bin:/var/jb/sbin:/var/jb/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin</string>
+    <key>GVM_CMU_PUSH_PORT</key>
+    <string>8890</string>
+    <key>GVM_CMU_PUSH_CMU_IP</key>
+    <string>169.254.53.1 192.168.53.1 192.168.100.1</string>
+    <key>GVM_CMU_PUSH_RETENTION_DAYS</key>
+    <string>7</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/var/mobile/Documents/GMapHUD/auto-sessions/cmu-receiver.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/var/mobile/Documents/GMapHUD/auto-sessions/cmu-receiver.stderr.log</string>
+</dict>
+</plist>
