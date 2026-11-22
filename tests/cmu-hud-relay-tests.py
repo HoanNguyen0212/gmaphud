@@ -106,6 +106,15 @@ class CMUHudRelaySourceTests(unittest.TestCase):
         self.assertIn("stringByReplacingOccurrencesOfString:@\"\\n\"", self.impl)
         self.assertIn("substringToIndex:128", self.impl)
 
+    def test_ipv6_socket_rebinds_when_carplay_interface_appears(self):
+        # Google Maps can initialize before Lightning CarPlay creates en3. The
+        # existing socket must be rebound dynamically; setup-time binding alone
+        # leaves cmu.local UDP sends at EHOSTUNREACH after en3 appears.
+        send_idx = self.impl.index("static BOOL SendDatagram")
+        send_body = self.impl[send_idx:send_idx + 5200]
+        self.assertIn("sTarget6BoundIf", self.impl)
+        self.assertIn("setsockopt(sSock6, IPPROTO_IPV6, IPV6_BOUND_IF", send_body)
+
     def test_idle_navigation_packets_are_dropped_but_active_end_clears_once(self):
         start = self.impl.index("void GVMCMURelaySetNav")
         end = self.impl.index("void GVMCMURelayStop", start)

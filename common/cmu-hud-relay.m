@@ -49,6 +49,7 @@ static int sSock6 = -1;
 static struct sockaddr_in6 sTarget6;
 static BOOL sTarget6Resolved = NO;
 static time_t sTarget6LastResolve = 0;
+static unsigned int sTarget6BoundIf = 0;
 static dispatch_source_t sTimer;
 
 static NSUInteger sCurrentLimit;
@@ -384,6 +385,16 @@ static BOOL SendDatagram(const char *buf, size_t len) {
         if (sTarget6Resolved) {
             if (usbIdx > 0 && IN6_IS_ADDR_LINKLOCAL(&sTarget6.sin6_addr)) {
                 sTarget6.sin6_scope_id = usbIdx;
+            }
+            // en3 is created after the injected process can start. Rebind the
+            // already-open IPv6 socket when its interface index becomes live.
+            // Without this, scoped cmu.local UDP sends can return EHOSTUNREACH
+            // while the same peer still accepts TCP diagnostics.
+            if (usbIdx > 0 && sTarget6BoundIf != usbIdx) {
+                if (setsockopt(sSock6, IPPROTO_IPV6, IPV6_BOUND_IF,
+                               &usbIdx, sizeof(usbIdx)) == 0) {
+                    sTarget6BoundIf = usbIdx;
+                }
             }
             ssize_t sent = sendto(sSock6, buf, len, 0, (struct sockaddr *)&sTarget6, sizeof(sTarget6));
             int err = (sent < 0) ? errno : 0;
@@ -779,6 +790,8 @@ void GVMCMURelayStop(void) {
             if (sSock6 >= 0) {
                 close(sSock6);
                 sSock6 = -1;
+                sTarget6Resolved = NO;
+                sTarget6BoundIf = 0;
             }
         }
         sCurrentLimit = 0;
