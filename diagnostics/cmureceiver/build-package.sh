@@ -18,7 +18,7 @@ SRC="$ROOT/gmaphud-cmu-log-receiver.c"
 
 if [ -n "${GVM_CMU_RECEIVER_BIN:-}" ] && [ -f "$GVM_CMU_RECEIVER_BIN" ]; then
     cp "$GVM_CMU_RECEIVER_BIN" "$BIN"
-elif [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ] && [ -d "/var/jb/usr/share/SDKs/iPhoneOS.sdk" ]; then
+elif [ "$(uname -s)" = "Darwin" ] && [ -x "/var/jb/usr/bin/clang" ] && [ -d "/var/jb/usr/share/SDKs/iPhoneOS.sdk" ]; then
     # Native compilation on jailbroken iOS (Dopamine rootless)
     /var/jb/usr/bin/clang -arch arm64 -mios-version-min=14.0 \
         -isysroot /var/jb/usr/share/SDKs/iPhoneOS.sdk \
