@@ -46,17 +46,17 @@ static id sLock;
 static dispatch_queue_t sRelayQueue;
 static int sSock = -1;
 static int sSockUSB = -1; // Socket bound strictly to Lightning USB-NCM (en3)
-static struct sockaddr_in sTarget;
+static struct sockaddr_in sTarget __attribute__((unused));
 static int sSock6 = -1;
 static struct sockaddr_in6 sTarget6;
 static BOOL sTarget6Resolved = NO;
 static time_t sTarget6LastResolve = 0;
 static unsigned int sTarget6BoundIf = 0;
-static dispatch_source_t sTimer;
+static dispatch_source_t sTimer __attribute__((unused));
 static BOOL sRelayStarted = NO;
 
 static NSUInteger sCurrentLimit;
-static BOOL sLimitSentOnce;       // YES after the first send (including LIMIT 0)
+static BOOL sLimitSentOnce __attribute__((unused)); // YES after the first send (including LIMIT 0)
 static NSTimeInterval sLastSend;  // mach_absolute_time based
 static NSTimeInterval sLastSyncSend;
 static const NSTimeInterval kLimitZeroGraceSeconds = 4.0;
@@ -399,6 +399,7 @@ static void EnsureSocketOpenForInterface(unsigned int usbIdx) {
     }
 }
 
+static void EnsureSocketOpen(void) __attribute__((unused));
 static void EnsureSocketOpen(void) {
     char usbIfName[IFNAMSIZ] = {0};
     unsigned int usbIdx = GetUSBInterfaceIndex(usbIfName, sizeof(usbIfName));
@@ -693,6 +694,7 @@ static void SendEffectiveNav(void) {
     }
 }
 
+static void HeartbeatTick(void) __attribute__((unused));
 static void HeartbeatTick(void) {
     BOOL sharedAheadChanged = NO;
 #if defined(GVM_RELAY_GOOGLE_PROCESS)
