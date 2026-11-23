@@ -33,6 +33,9 @@ def test_source_contract() -> None:
     assert "meta/last-run.txt" in logger
     assert "cmu-snapshots.ndjson" in logger
     assert "umask 077" in logger
+    assert "MAZDA CMU TELEMETRY LISTENER STATUS" in logger
+    assert "%25" in logger
+    assert "seen[addr] = 1" in logger
     postinst = (PACKAGE / "DEBIAN/postinst").read_text()
     prerm = (PACKAGE / "DEBIAN/prerm").read_text()
     assert "bootstrap system" in postinst

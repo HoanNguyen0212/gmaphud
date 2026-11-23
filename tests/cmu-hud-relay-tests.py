@@ -336,6 +336,16 @@ class VietMapNavigationHUDTests(unittest.TestCase):
         self.assertIn("CloseSocketFD(&sSockUSB)", relay)
         self.assertIn("CloseSocketFD(&sSock)", relay)
 
+    def test_relay_runs_off_main_thread_and_debounces_limit_zero(self):
+        relay = (root / "common/cmu-hud-relay.m").read_text()
+        self.assertIn("GVMRelayQueue", relay)
+        self.assertIn("QOS_CLASS_UTILITY", relay)
+        self.assertNotIn("dispatch_get_main_queue()", relay)
+        self.assertIn("HasMazdaWiFiInterface()", relay)
+        self.assertIn("sTarget6LastResolve = now; // Always back off on failure too", relay)
+        self.assertIn("kLimitZeroGraceSeconds", relay)
+        self.assertIn("sLimitZeroSince", relay)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -25,6 +25,27 @@ static NSUInteger sAttemptCount = 0;
 static const NSTimeInterval kAttemptCooldown = 10.0; // 10 seconds between attempts
 static const NSUInteger kMaxAttemptsPerSession = 5;  // Do not thrash Wi-Fi chip
 
+// Opt-in preference: wired Lightning CarPlay (USB-NCM en3) carries HUD/diag
+// directly and associating with a moving Mazda-* AP without internet degrades
+// iOS locationd GPS lock. Default NO unless explicitly enabled in com.chou.gmaphud.
+static BOOL IsWiFiAutoConnectEnabled(void) {
+    CFStringRef domain = CFSTR("com.chou.gmaphud");
+    CFPreferencesAppSynchronize(domain);
+    CFPropertyListRef value = CFPreferencesCopyAppValue(CFSTR("cmuWifiAutoConnect"), domain);
+    if (!value) return NO;
+    BOOL enabled = NO;
+    if (CFGetTypeID(value) == CFBooleanGetTypeID()) {
+        enabled = CFBooleanGetValue((CFBooleanRef)value);
+    } else if (CFGetTypeID(value) == CFNumberGetTypeID()) {
+        int n = 0;
+        if (CFNumberGetValue((CFNumberRef)value, kCFNumberIntType, &n)) {
+            enabled = (n != 0);
+        }
+    }
+    CFRelease(value);
+    return enabled;
+}
+
 // ── Logging Helper ─────────────────────────────────────────────────────────
 static void LogWiFi(NSString *format, ...) {
     va_list args;
@@ -197,9 +218,13 @@ void GVMCMUOnCarPlayConnectionChanged(BOOL connected) {
     sCarPlayConnected = connected;
 
     if (connected) {
-        LogWiFi(@"CarPlay connected (vehicle detected). Starting auto-connect pipeline.");
         sAttemptCount = 0;
         sLastAttemptTime = 0;
+        if (!IsWiFiAutoConnectEnabled()) {
+            LogWiFi(@"CarPlay connected. Wi-Fi auto-connect disabled by default (wired USB-NCM mode).");
+            return;
+        }
+        LogWiFi(@"CarPlay connected (vehicle detected). Starting auto-connect pipeline.");
         // Immediate check & trigger
         GVMCMUWiFiAutoConnectTick();
     } else {
@@ -215,6 +240,7 @@ void GVMCMUWiFiAutoConnectTick(void) {
     // If CarPlay is NOT connected (e.g. charging at home, on PC, wall charger),
     // do ABSOLUTELY NOTHING. Zero interference with home Wi-Fi!
     if (!sCarPlayConnected) return;
+    if (!IsWiFiAutoConnectEnabled()) return;
 
     // If Mazda subnet 192.168.100.x is already reachable, we are good!
     if (GVMCMUIsMazdaWiFiConnected()) return;

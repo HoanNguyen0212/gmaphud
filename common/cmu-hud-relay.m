@@ -1,5 +1,6 @@
 #import "cmu-hud-relay.h"
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -40,8 +41,9 @@ static const NSTimeInterval kHeartbeatInterval = 2.5;
 #endif
 static const NSUInteger kAheadWarningIcon = 12; // Mazda HUD flag glyph
 
-// ── State (guarded by @synchronized on sLock) ──────────────────────────────
+// ── State (serialized on sRelayQueue; sLastDatagram guarded by sLock) ──────
 static id sLock;
+static dispatch_queue_t sRelayQueue;
 static int sSock = -1;
 static int sSockUSB = -1; // Socket bound strictly to Lightning USB-NCM (en3)
 static struct sockaddr_in sTarget;
@@ -51,11 +53,14 @@ static BOOL sTarget6Resolved = NO;
 static time_t sTarget6LastResolve = 0;
 static unsigned int sTarget6BoundIf = 0;
 static dispatch_source_t sTimer;
+static BOOL sRelayStarted = NO;
 
 static NSUInteger sCurrentLimit;
 static BOOL sLimitSentOnce;       // YES after the first send (including LIMIT 0)
 static NSTimeInterval sLastSend;  // mach_absolute_time based
 static NSTimeInterval sLastSyncSend;
+static const NSTimeInterval kLimitZeroGraceSeconds = 4.0;
+static NSTimeInterval sLimitZeroSince;
 
 static NSUInteger sNavIcon;
 static NSUInteger sNavDist;
@@ -74,7 +79,7 @@ static const char *kAheadSpeedNotify = "com.chou.gmaphud.cmu.ahead-speed";
 static int sGoogleNavToken = -1;
 static int sGoogleHeartbeatToken = -1;
 static int sAheadSpeedToken = -1;
-static const NSTimeInterval kSharedStateTTL = 5.0;
+static const NSTimeInterval kSharedStateTTL = 10.0;
 
 typedef struct {
     NSUInteger limit;
@@ -93,6 +98,17 @@ static BOOL GVMRefreshSharedAheadState(void) __attribute__((unused));
 static NSString *sLastDatagram;   // Test-only capture
 
 // ── Internal helpers ───────────────────────────────────────────────────────
+
+static dispatch_queue_t GVMRelayQueue(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        sLock = [NSObject new];
+        dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(
+            DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
+        sRelayQueue = dispatch_queue_create("com.chou.gmaphud.cmu-relay", attr);
+    });
+    return sRelayQueue;
+}
 
 static NSTimeInterval MonotonicNow(void) {
     return NSProcessInfo.processInfo.systemUptime;
@@ -201,7 +217,13 @@ static void LogRelay(const char *targetIP, int targetPort, const char *buf, size
     }
 
     NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"gmaphud-relay.log"];
-    FILE *f = fopen(path.UTF8String, "a");
+    const char *cpath = path.UTF8String;
+    if (!cpath) return;
+    struct stat st;
+    if (stat(cpath, &st) == 0 && st.st_size > 262144) {
+        unlink(cpath);
+    }
+    FILE *f = fopen(cpath, "a");
     if (f) {
         fputs(logLine, f);
         fclose(f);
@@ -318,10 +340,28 @@ static void CloseSocketFD(int *sockPtr) {
     }
 }
 
-static void EnsureSocketOpen(void) {
-    char usbIfName[IFNAMSIZ] = {0};
-    unsigned int usbIdx = GetUSBInterfaceIndex(usbIfName, sizeof(usbIfName));
+static BOOL HasMazdaWiFiInterface(void) {
+    struct ifaddrs *ifas = NULL;
+    if (getifaddrs(&ifas) != 0 || ifas == NULL) return NO;
+    BOOL found = NO;
+    for (struct ifaddrs *ifa = ifas; ifa != NULL; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_name || !ifa->ifa_addr) continue;
+        if (ifa->ifa_addr->sa_family != AF_INET) continue;
+        if (strcmp(ifa->ifa_name, "en0") != 0) continue;
+        if ((ifa->ifa_flags & (IFF_UP | IFF_RUNNING)) != (IFF_UP | IFF_RUNNING)) continue;
+        struct sockaddr_in *sin = (struct sockaddr_in *)ifa->ifa_addr;
+        char ip[INET_ADDRSTRLEN];
+        if (inet_ntop(AF_INET, &sin->sin_addr, ip, sizeof(ip)) &&
+            strncmp(ip, "192.168.100.", 12) == 0) {
+            found = YES;
+            break;
+        }
+    }
+    freeifaddrs(ifas);
+    return found;
+}
 
+static void EnsureSocketOpenForInterface(unsigned int usbIdx) {
     if (sSock < 0) {
         sSock = socket(AF_INET, SOCK_DGRAM, 0);
         if (sSock >= 0) {
@@ -359,30 +399,47 @@ static void EnsureSocketOpen(void) {
     }
 }
 
-static BOOL SendDatagram(const char *buf, size_t len) {
-    EnsureSocketOpen();
-    if ((sSock < 0 && sSockUSB < 0 && sSock6 < 0) || !buf || len == 0) return NO;
-
-    BOOL anySent = NO;
+static void EnsureSocketOpen(void) {
     char usbIfName[IFNAMSIZ] = {0};
     unsigned int usbIdx = GetUSBInterfaceIndex(usbIfName, sizeof(usbIfName));
+    EnsureSocketOpenForInterface(usbIdx);
+}
 
-    // Full target list for Mazda CMU
-    static const char * const kAllTargets[] = {
+static BOOL SendDatagram(const char *buf, size_t len) {
+    if (!buf || len == 0) return NO;
+
+    char usbIfName[IFNAMSIZ] = {0};
+    unsigned int usbIdx = GetUSBInterfaceIndex(usbIfName, sizeof(usbIfName));
+    BOOL hasWiFi = HasMazdaWiFiInterface();
+    if (usbIdx == 0 && !hasWiFi) {
+        return NO; // No active vehicle link; avoid mDNS stalls and cellular/home-Wi-Fi spam.
+    }
+
+    EnsureSocketOpenForInterface(usbIdx);
+    if (sSock < 0 && sSockUSB < 0 && sSock6 < 0) return NO;
+
+    BOOL anySent = NO;
+
+    static const char * const kUSBTargets[] = {
         GVM_CMU_HUD_TARGET_IP_USB, // "192.168.53.1" (CMU USB gateway)
         "192.168.53.255",          // (USB subnet broadcast)
-        GVM_CMU_HUD_TARGET_IP,     // "192.168.100.1" (CMU Wi-Fi gateway)
-        "192.168.100.255",          // (Wi-Fi subnet broadcast)
         GVM_CMU_HUD_TARGET_IP_NCM,  // "169.254.53.1" (OEM-assigned NCM alias)
         "169.254.255.255",         // (USB-NCM APIPA link-local broadcast)
         "255.255.255.255"          // (Global broadcast)
     };
-    const size_t kNumTargets = sizeof(kAllTargets) / sizeof(kAllTargets[0]);
+    const size_t kNumUSBTargets = sizeof(kUSBTargets) / sizeof(kUSBTargets[0]);
+
+    static const char * const kWiFiTargets[] = {
+        GVM_CMU_HUD_TARGET_IP,     // "192.168.100.1" (CMU Wi-Fi gateway)
+        "192.168.100.255"          // (Wi-Fi subnet broadcast)
+    };
+    const size_t kNumWiFiTargets = sizeof(kWiFiTargets) / sizeof(kWiFiTargets[0]);
 
     // 1. IPv6 mDNS to cmu.local (native to wired Lightning CarPlay USB-NCM)
-    if (sSock6 >= 0) {
+    if (usbIdx > 0 && sSock6 >= 0) {
         time_t now = time(NULL);
-        if (!sTarget6Resolved || (now - sTarget6LastResolve > 30)) {
+        if (!sTarget6Resolved && (now - sTarget6LastResolve >= 30)) {
+            sTarget6LastResolve = now; // Always back off on failure too
             struct addrinfo hints, *res = NULL;
             memset(&hints, 0, sizeof(hints));
             hints.ai_family = AF_INET6;
@@ -390,19 +447,28 @@ static BOOL SendDatagram(const char *buf, size_t len) {
             if (getaddrinfo("cmu.local", "8888", &hints, &res) == 0 && res != NULL) {
                 memcpy(&sTarget6, res->ai_addr, sizeof(sTarget6));
                 sTarget6Resolved = YES;
-                sTarget6LastResolve = now;
+                freeaddrinfo(res);
+            }
+        } else if (sTarget6Resolved && (now - sTarget6LastResolve >= 30)) {
+            sTarget6LastResolve = now;
+            struct addrinfo hints, *res = NULL;
+            memset(&hints, 0, sizeof(hints));
+            hints.ai_family = AF_INET6;
+            hints.ai_socktype = SOCK_DGRAM;
+            if (getaddrinfo("cmu.local", "8888", &hints, &res) == 0 && res != NULL) {
+                memcpy(&sTarget6, res->ai_addr, sizeof(sTarget6));
                 freeaddrinfo(res);
             }
         }
         if (sTarget6Resolved) {
-            if (usbIdx > 0 && IN6_IS_ADDR_LINKLOCAL(&sTarget6.sin6_addr)) {
+            if (IN6_IS_ADDR_LINKLOCAL(&sTarget6.sin6_addr)) {
                 sTarget6.sin6_scope_id = usbIdx;
             }
             // en3 is created after the injected process can start. Rebind the
             // already-open IPv6 socket when its interface index becomes live.
             // Without this, scoped cmu.local UDP sends can return EHOSTUNREACH
             // while the same peer still accepts TCP diagnostics.
-            if (usbIdx > 0 && sTarget6BoundIf != usbIdx) {
+            if (sTarget6BoundIf != usbIdx) {
                 if (setsockopt(sSock6, IPPROTO_IPV6, IPV6_BOUND_IF,
                                &usbIdx, sizeof(usbIdx)) == 0) {
                     sTarget6BoundIf = usbIdx;
@@ -414,9 +480,9 @@ static BOOL SendDatagram(const char *buf, size_t len) {
                 // XNU revokes sockets across app suspend/resume or USB-NCM link resets.
                 CloseSocketFD(&sSock6);
                 sTarget6BoundIf = 0;
-                EnsureSocketOpen();
+                EnsureSocketOpenForInterface(usbIdx);
                 if (sSock6 >= 0) {
-                    if (usbIdx > 0 && setsockopt(sSock6, IPPROTO_IPV6, IPV6_BOUND_IF, &usbIdx, sizeof(usbIdx)) == 0) {
+                    if (setsockopt(sSock6, IPPROTO_IPV6, IPV6_BOUND_IF, &usbIdx, sizeof(usbIdx)) == 0) {
                         sTarget6BoundIf = usbIdx;
                     }
                     sent = sendto(sSock6, buf, len, 0, (struct sockaddr *)&sTarget6, sizeof(sTarget6));
@@ -431,7 +497,7 @@ static BOOL SendDatagram(const char *buf, size_t len) {
     }
 
     // 2. Direct send via sSockUSB (Bound directly to active USB-NCM interfaces)
-    if (sSockUSB >= 0) {
+    if (usbIdx > 0 && sSockUSB >= 0) {
         int one = 1;
         setsockopt(sSockUSB, SOL_SOCKET, SO_BROADCAST, &one, sizeof(one));
         setsockopt(sSockUSB, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
@@ -452,9 +518,9 @@ static BOOL SendDatagram(const char *buf, size_t len) {
                 setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &bindIdx, sizeof(bindIdx));
             }
 
-            for (size_t i = 0; i < kNumTargets; i++) {
+            for (size_t i = 0; i < kNumUSBTargets; i++) {
                 if (sSockUSB < 0) {
-                    EnsureSocketOpen();
+                    EnsureSocketOpenForInterface(bindIdx);
                     if (sSockUSB < 0) break;
                     setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &bindIdx, sizeof(bindIdx));
                 }
@@ -462,14 +528,14 @@ static BOOL SendDatagram(const char *buf, size_t len) {
                 memset(&dstUSB, 0, sizeof(dstUSB));
                 dstUSB.sin_family = AF_INET;
                 dstUSB.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
-                if (inet_pton(AF_INET, kAllTargets[i], &dstUSB.sin_addr) != 1) continue;
+                if (inet_pton(AF_INET, kUSBTargets[i], &dstUSB.sin_addr) != 1) continue;
 
                 ssize_t sent = sendto(sSockUSB, buf, len, 0, (struct sockaddr *)&dstUSB, sizeof(dstUSB));
                 int err = (sent < 0) ? errno : 0;
 
                 if (sent < 0 && IsDefunctSocketError(err)) {
                     CloseSocketFD(&sSockUSB);
-                    EnsureSocketOpen();
+                    EnsureSocketOpenForInterface(bindIdx);
                     if (sSockUSB >= 0) {
                         setsockopt(sSockUSB, IPPROTO_IP, IP_BOUND_IF, &bindIdx, sizeof(bindIdx));
                         sent = sendto(sSockUSB, buf, len, 0, (struct sockaddr *)&dstUSB, sizeof(dstUSB));
@@ -483,7 +549,7 @@ static BOOL SendDatagram(const char *buf, size_t len) {
                     err = (sent < 0) ? errno : 0;
                 }
 
-                LogRelay(kAllTargets[i], GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
+                LogRelay(kUSBTargets[i], GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
                 if (sent >= 0) {
                     anySent = YES;
                 }
@@ -491,28 +557,28 @@ static BOOL SendDatagram(const char *buf, size_t len) {
         }
     }
 
-    // 3. Send via sSock (Unbound / Wi-Fi fallback)
-    if (sSock >= 0) {
+    // 3. Send via sSock (Mazda Wi-Fi 192.168.100.x only — never spam cellular/home Wi-Fi)
+    if (hasWiFi && sSock >= 0) {
         int one = 1;
         setsockopt(sSock, SOL_SOCKET, SO_BROADCAST, &one, sizeof(one));
         setsockopt(sSock, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 
-        for (size_t i = 0; i < kNumTargets; i++) {
+        for (size_t i = 0; i < kNumWiFiTargets; i++) {
             if (sSock < 0) {
-                EnsureSocketOpen();
+                EnsureSocketOpenForInterface(usbIdx);
                 if (sSock < 0) break;
             }
             struct sockaddr_in dst;
             memset(&dst, 0, sizeof(dst));
             dst.sin_family = AF_INET;
             dst.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
-            if (inet_pton(AF_INET, kAllTargets[i], &dst.sin_addr) != 1) continue;
+            if (inet_pton(AF_INET, kWiFiTargets[i], &dst.sin_addr) != 1) continue;
 
             ssize_t sent = sendto(sSock, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
             int err = (sent < 0) ? errno : 0;
             if (sent < 0 && IsDefunctSocketError(err)) {
                 CloseSocketFD(&sSock);
-                EnsureSocketOpen();
+                EnsureSocketOpenForInterface(usbIdx);
                 if (sSock >= 0) {
                     sent = sendto(sSock, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
                     err = (sent < 0) ? errno : 0;
@@ -523,7 +589,7 @@ static BOOL SendDatagram(const char *buf, size_t len) {
                 err = (sent < 0) ? errno : 0;
             }
 
-            LogRelay(kAllTargets[i], GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
+            LogRelay(kWiFiTargets[i], GVM_CMU_HUD_TARGET_PORT, buf, len, sent, err);
             if (sent >= 0) {
                 anySent = YES;
             }
@@ -628,28 +694,35 @@ static void SendEffectiveNav(void) {
 }
 
 static void HeartbeatTick(void) {
-    @synchronized(sLock) {
-        BOOL sharedAheadChanged = NO;
+    BOOL sharedAheadChanged = NO;
 #if defined(GVM_RELAY_GOOGLE_PROCESS)
-        GVMPublishGoogleHeartbeat(YES);
-        sharedAheadChanged = GVMRefreshSharedAheadState();
+    GVMPublishGoogleHeartbeat(YES);
+    sharedAheadChanged = GVMRefreshSharedAheadState();
 #endif
-        if (sSock < 0) return;
-        NSTimeInterval now = MonotonicNow();
-        if (sLastSyncSend == 0 || now - sLastSyncSend >= 60.0) {
-            SendTimeSync();
+    if (!sRelayStarted) return;
+    NSTimeInterval now = MonotonicNow();
+    if (sLastSyncSend == 0 || now - sLastSyncSend >= 60.0) {
+        SendTimeSync();
+    }
+    // Commit debounced LIMIT 0 only after continuous grace period expires.
+    if (sCurrentLimit > 0 && sLimitZeroSince > 0 &&
+        now - sLimitZeroSince >= kLimitZeroGraceSeconds) {
+        sCurrentLimit = 0;
+        sLimitZeroSince = 0;
+        SendLimit(0);
+        if (sNavIcon > 0 || sAheadLimit > 0 || AheadActive()) {
+            SendEffectiveNav();
         }
+    } else if (sCurrentLimit > 0) {
         // Heartbeat: resend current limit every 2.5s if it's active (> 0).
-        if (sCurrentLimit > 0) {
-            if (now - sLastSend >= kHeartbeatInterval) {
-                SendLimit(sCurrentLimit);
-            }
+        if (now - sLastSend >= kHeartbeatInterval) {
+            SendLimit(sCurrentLimit);
         }
-        // Heartbeat: resend the active Google maneuver or the 500 m warning.
-        if (sharedAheadChanged || sNavIcon > 0 || AheadActive()) {
-            if (sharedAheadChanged || now - sLastNavSend >= kHeartbeatInterval) {
-                SendEffectiveNav();
-            }
+    }
+    // Heartbeat: resend the active Google maneuver or the 500 m warning.
+    if (sharedAheadChanged || sNavIcon > 0 || AheadActive()) {
+        if (sharedAheadChanged || now - sLastNavSend >= kHeartbeatInterval) {
+            SendEffectiveNav();
         }
     }
 }
@@ -657,28 +730,25 @@ static void HeartbeatTick(void) {
 // ── Public API ─────────────────────────────────────────────────────────────
 
 void GVMCMURelayStart(void) {
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ sLock = [NSObject new]; });
-
+    dispatch_queue_t queue = GVMRelayQueue();
+#if defined(GVM_RELAY_VIETMAP_SOURCE)
+    (void)queue;
     @synchronized(sLock) {
         GVMEnsureNotifyTokens();
-#if defined(GVM_RELAY_VIETMAP_SOURCE)
         sAheadLimit = 0;
         sAheadDist = 0;
         GVMPublishAheadState(0, 0);
-        return;
+    }
+    return;
 #else
-        if (sSock >= 0) {
+    dispatch_async(queue, ^{
+        @synchronized(sLock) {
+            GVMEnsureNotifyTokens();
+        }
+        if (sRelayStarted) {
             GVMPublishGoogleHeartbeat(YES);
             return; // Already started
         }
-#endif
-
-        // Create non-blocking UDP socket
-        sSock = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sSock < 0) return;
-        int flags = fcntl(sSock, F_GETFL, 0);
-        if (flags >= 0) fcntl(sSock, F_SETFL, flags | O_NONBLOCK);
 
         // Target address
         memset(&sTarget, 0, sizeof(sTarget));
@@ -686,8 +756,12 @@ void GVMCMURelayStart(void) {
         sTarget.sin_port = htons(GVM_CMU_HUD_TARGET_PORT);
         inet_pton(AF_INET, GVM_CMU_HUD_TARGET_IP, &sTarget.sin_addr);
 
+        // Create non-blocking UDP socket
+        EnsureSocketOpen();
+        sRelayStarted = YES;
         sCurrentLimit = 0;
         sLimitSentOnce = NO;
+        sLimitZeroSince = 0;
         sLastSend = 0;
         sLastSyncSend = 0;
         sNavIcon = 0;
@@ -701,25 +775,42 @@ void GVMCMURelayStart(void) {
         GVMPublishGoogleNavigation(NO);
 #endif
 
-        // Heartbeat timer on main queue, fires every 1s (checks internally
-        sTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
-                                        dispatch_get_main_queue());
+        // Heartbeat timer on background utility queue (never blocks Google Maps main thread).
+        sTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
         dispatch_source_set_timer(sTimer,
                                   dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)),
                                   (uint64_t)(1 * NSEC_PER_SEC),
                                   (uint64_t)(0.25 * NSEC_PER_SEC));
         dispatch_source_set_event_handler(sTimer, ^{ HeartbeatTick(); });
         dispatch_resume(sTimer);
-    }
+    });
+#endif
 }
 
 void GVMCMURelaySetLimit(NSUInteger limitKmh) {
-    @synchronized(sLock) {
+    dispatch_queue_t queue = GVMRelayQueue();
 #if defined(GVM_RELAY_VIETMAP_SOURCE)
+    (void)queue;
+    @synchronized(sLock) {
         sCurrentLimit = limitKmh;
-        return;
+    }
+    return;
 #else
-        EnsureSocketOpen();
+    dispatch_async(queue, ^{
+        NSTimeInterval now = MonotonicNow();
+        if (limitKmh == 0 && sCurrentLimit > 0 && sLimitSentOnce) {
+            // Hold last valid speed limit across brief VietMap background jitter (>5s).
+            if (sLimitZeroSince == 0) {
+                sLimitZeroSince = now;
+                return;
+            }
+            if (now - sLimitZeroSince < kLimitZeroGraceSeconds) {
+                return;
+            }
+            sLimitZeroSince = 0;
+        } else {
+            sLimitZeroSince = 0;
+        }
 
         BOOL changed = (sCurrentLimit != limitKmh);
         sCurrentLimit = limitKmh;
@@ -733,25 +824,29 @@ void GVMCMURelaySetLimit(NSUInteger limitKmh) {
         if (changed && (sNavIcon > 0 || sAheadLimit > 0 || AheadActive())) {
             SendEffectiveNav();
         }
+    });
 #endif
-    }
 }
 
 void GVMCMURelaySetUpcomingSpeed(NSUInteger limitKmh, NSUInteger distanceMeters) {
-    @synchronized(sLock) {
-        if (limitKmh < 5 || limitKmh > 140 || distanceMeters == 0 ||
-            distanceMeters > GVM_AHEAD_WARNING_DISTANCE_METERS) {
-            limitKmh = 0;
-            distanceMeters = 0;
-        }
+    dispatch_queue_t queue = GVMRelayQueue();
+    if (limitKmh < 5 || limitKmh > 140 || distanceMeters == 0 ||
+        distanceMeters > GVM_AHEAD_WARNING_DISTANCE_METERS) {
+        limitKmh = 0;
+        distanceMeters = 0;
+    }
 #if defined(GVM_RELAY_VIETMAP_SOURCE)
+    (void)queue;
+    @synchronized(sLock) {
         sAheadLimit = limitKmh;
         sAheadDist = distanceMeters;
         GVMPublishAheadState(limitKmh, distanceMeters);
-        // The source process publishes shared state only. Google Maps is the
-        // single writer of LIMIT/NAV datagrams to the CMU.
-        return;
+    }
+    // The source process publishes shared state only. Google Maps is the
+    // single writer of LIMIT/NAV datagrams to the CMU.
+    return;
 #else
+    dispatch_async(queue, ^{
         BOOL changed = (sAheadLimit != limitKmh) || (sAheadDist != distanceMeters);
         BOOL hadAhead = (sAheadLimit > 0 || sAheadDist > 0);
         sAheadLimit = limitKmh;
@@ -761,22 +856,20 @@ void GVMCMURelaySetUpcomingSpeed(NSUInteger limitKmh, NSUInteger distanceMeters)
         if (sNavIcon > 0 || hadAhead || AheadActive()) {
             SendEffectiveNav();
         }
+    });
 #endif
-    }
 }
 
 void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *roadName) {
-    @synchronized(sLock) {
 #if defined(GVM_RELAY_VIETMAP_SOURCE)
-        (void)iconID;
-        (void)distanceMeters;
-        (void)roadName;
-        return;
+    (void)iconID;
+    (void)distanceMeters;
+    (void)roadName;
+    return;
 #else
-        EnsureSocketOpen();
+    NSString *safeRoad = [roadName copy] ?: @"";
+    dispatch_async(GVMRelayQueue(), ^{
         if (sLastSyncSend == 0) SendTimeSync();
-
-        NSString *safeRoad = roadName ?: @"";
 
         // A zero icon ends Google navigation. Restore the independent VietMap
         // warning immediately if it is still inside the 500 m window.
@@ -801,32 +894,37 @@ void GVMCMURelaySetNav(NSUInteger iconID, NSUInteger distanceMeters, NSString *r
 
         sNavIcon = iconID;
         sNavDist = distanceMeters;
-        sNavRoad = [safeRoad copy];
+        sNavRoad = safeRoad;
         GVMPublishGoogleNavigation(YES);
         SendEffectiveNav();
+    });
 #endif
-    }
 }
 
 void GVMCMURelayStop(void) {
-    @synchronized(sLock) {
+    dispatch_queue_t queue = GVMRelayQueue();
 #if defined(GVM_RELAY_VIETMAP_SOURCE)
+    (void)queue;
+    @synchronized(sLock) {
         GVMPublishAheadState(0, 0);
         sAheadLimit = 0;
         sAheadDist = 0;
-        return;
+    }
+    return;
 #else
+    dispatch_async(queue, ^{
         GVMPublishGoogleHeartbeat(NO);
         GVMPublishGoogleNavigation(NO);
-#endif
         if (sTimer) {
             dispatch_source_cancel(sTimer);
             sTimer = nil;
         }
+        sRelayStarted = NO;
         if (sSock >= 0 || sSockUSB >= 0 || sSock6 >= 0) {
             // Send final "LIMIT 0" and clear both navigation and ahead warning.
             SendLimit(0);
             sCurrentLimit = 0;
+            sLimitZeroSince = 0;
             sAheadLimit = 0;
             sAheadDist = 0;
             SendNav(0, 0, @"");
@@ -847,13 +945,16 @@ void GVMCMURelayStop(void) {
         }
         sCurrentLimit = 0;
         sLimitSentOnce = NO;
+        sLimitZeroSince = 0;
         sNavIcon = 0;
         sNavDist = 0;
         sNavRoad = nil;
-    }
+    });
+#endif
 }
 
 NSString *GVMCMURelayLastDatagram(void) {
+    (void)GVMRelayQueue();
     @synchronized(sLock) {
         return [sLastDatagram copy];
     }

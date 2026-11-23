@@ -96,6 +96,12 @@ class CMUWiFiAutoConnectSourceTests(unittest.TestCase):
         self.assertIn("cmu-wifi-autoconnect.[mh]", self.build_sh)
         self.assertIn("cmu-wifi-autoconnect.m", self.makefile)
 
+    def test_opt_in_disabled_by_default_for_wired_carplay(self):
+        """Wired CarPlay USB-NCM carries HUD directly; Mazda Wi-Fi auto-connect is opt-in."""
+        self.assertIn("IsWiFiAutoConnectEnabled", self.impl)
+        self.assertIn('CFSTR("cmuWifiAutoConnect")', self.impl)
+        self.assertGreaterEqual(self.impl.count("if (!IsWiFiAutoConnectEnabled())"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

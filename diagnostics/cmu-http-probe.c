@@ -81,25 +81,28 @@ static bool choose_interface(const char *name, interface_choice_t *choice) {
     for (const struct ifaddrs *item = addresses; item; item = item->ifa_next) {
         if (!item->ifa_name || strcmp(item->ifa_name, name) != 0 || !item->ifa_addr) continue;
         if ((item->ifa_flags & (IFF_UP | IFF_RUNNING)) != (IFF_UP | IFF_RUNNING)) continue;
-        if (item->ifa_addr->sa_family == AF_INET) {
+        bool matched = false;
+        if (item->ifa_addr->sa_family == AF_INET && !choice->has_ipv4) {
             const struct sockaddr_in *address = (const struct sockaddr_in *)item->ifa_addr;
             choice->source_address = address->sin_addr;
             choice->has_ipv4 = true;
-            found = true;
-        } else if (item->ifa_addr->sa_family == AF_INET6) {
+            matched = true;
+        } else if (item->ifa_addr->sa_family == AF_INET6 && !choice->has_ipv6_link_local) {
             const struct sockaddr_in6 *address6 = (const struct sockaddr_in6 *)item->ifa_addr;
             if (IN6_IS_ADDR_LINKLOCAL(&address6->sin6_addr)) {
                 choice->source_address6 = address6->sin6_addr;
                 choice->has_ipv6_link_local = true;
-                found = true;
+                matched = true;
+            } else if (IN6_IS_ADDR_LOOPBACK(&address6->sin6_addr)) {
+                matched = true;
             }
         }
-        if (!found) continue;
+        if (!matched) continue;
         unsigned int index = if_nametoindex(item->ifa_name);
         if (!index) continue;
         strncpy(choice->interface_name, name, sizeof(choice->interface_name) - 1);
         choice->interface_index = index;
-        break;
+        found = true;
     }
     freeifaddrs(addresses);
     return found;
@@ -141,6 +144,18 @@ static bool choose_usb_interface(interface_choice_t *choice, uint32_t required_s
                 choice->source_address6 = address6->sin6_addr;
                 choice->has_ipv6_link_local = true;
             }
+        }
+    }
+    if (choice->interface_index && !choice->has_ipv6_link_local) {
+        for (const struct ifaddrs *item = addresses; item; item = item->ifa_next) {
+            if (!item->ifa_name || strcmp(item->ifa_name, choice->interface_name) != 0 || !item->ifa_addr) continue;
+            if ((item->ifa_flags & (IFF_UP | IFF_RUNNING)) != (IFF_UP | IFF_RUNNING)) continue;
+            if (item->ifa_addr->sa_family != AF_INET6) continue;
+            const struct sockaddr_in6 *address6 = (const struct sockaddr_in6 *)item->ifa_addr;
+            if (!IN6_IS_ADDR_LINKLOCAL(&address6->sin6_addr)) continue;
+            choice->source_address6 = address6->sin6_addr;
+            choice->has_ipv6_link_local = true;
+            break;
         }
     }
     freeifaddrs(addresses);
@@ -403,7 +418,13 @@ static int probe_ipv6(const interface_choice_t *choice, const char *hostname, ui
         if (connect_with_timeout(fd, (const struct sockaddr *)&destination, sizeof(destination), timeout_ms) != 0) {
             fprintf(stderr, "connect_error_ipv6=errno_%d (%s)\n", errno, strerror(errno)); close(fd); continue;
         }
-        int result = send_request(fd, path, output_path, hostname);
+        char host_header[INET6_ADDRSTRLEN + 4] = {0};
+        const char *http_host = hostname;
+        if (strchr(hostname, ':') != NULL) {
+            snprintf(host_header, sizeof(host_header), "[%s]", address_text);
+            http_host = host_header;
+        }
+        int result = send_request(fd, path, output_path, http_host);
         close(fd);
         if (result == 0) { freeaddrinfo(addresses); return 0; }
         final_rc = result;
@@ -422,6 +443,10 @@ static int probe(const interface_choice_t *choice, const char *host, uint16_t po
         result = probe_ipv6(choice, host, port, path, output_path, timeout_ms);
     }
     if (result == 0 || !auto_usb) return result;
+    if (choice->has_ipv4 && (!host || strcmp(host, "169.254.53.1") != 0)) {
+        int ncm_result = probe_ipv4(choice, "169.254.53.1", port, path, output_path, timeout_ms, true);
+        if (ncm_result == 0) return 0;
+    }
     int v6_result = probe_ipv6(choice, "cmu.local", port, path, output_path, timeout_ms);
     return v6_result;
 }

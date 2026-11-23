@@ -189,6 +189,13 @@ capture_ncm_state() {
     } > "$DAY_DIR/meta/network-en3.txt" 2>/dev/null || true
 }
 
+CURL_BIN=""
+if command -v curl >/dev/null 2>&1; then
+    CURL_BIN=$(command -v curl)
+elif [ -x /var/jb/usr/bin/curl ]; then
+    CURL_BIN=/var/jb/usr/bin/curl
+fi
+
 find_en3_ipv6_neighbors() {
     local_v6=$(ifconfig en3 2>/dev/null | awk '/inet6 fe80:/ { sub(/%.*/, "", $2); print $2 }')
     ndp -an 2>/dev/null | awk -v local_addrs="$local_v6" '
@@ -196,7 +203,10 @@ find_en3_ipv6_neighbors() {
         $1 ~ /^fe80:/ && ($0 ~ /%en3/ || $3 == "en3" || $4 == "en3") {
             addr = $1
             sub(/%.*/, "", addr)
-            if (!(addr in own)) print addr "%en3"
+            if (!(addr in own) && !(addr in seen)) {
+                seen[addr] = 1
+                print addr "%en3"
+            }
         }
     '
 }
@@ -204,15 +214,44 @@ find_en3_ipv6_neighbors() {
 http_get_body() {
     IP="$1"
     PATHNAME="$2"
-    [ -n "$NC_BIN" ] || return 1
-    NC_FLAGS="-w 4"
-    case "$IP" in
-        *:*) NC_FLAGS="-6 -w 4" ;;
-    esac
-    {
-        printf 'GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n' "$PATHNAME" "$IP"
-    } | "$NC_BIN" $NC_FLAGS "$IP" 8889 2>/dev/null |
-        awk 'BEGIN { body=0 } { sub(/\r$/, ""); if (body) print; else if ($0 == "") body=1 }'
+    if [ -n "$NC_BIN" ]; then
+        NC_FLAGS="-w 4"
+        HOST_HDR="$IP"
+        case "$IP" in
+            *:*) NC_FLAGS="-6 -w 4"; HOST_HDR="[${IP%%\%*}]" ;;
+        esac
+        BODY=$({
+            printf 'GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n' "$PATHNAME" "$HOST_HDR"
+        } | "$NC_BIN" $NC_FLAGS "$IP" 8889 2>/dev/null |
+            awk 'BEGIN { body=0 } { sub(/\r$/, ""); if (body) print; else if ($0 == "") body=1 }')
+        if printf '%s\n' "$BODY" | grep -q 'MAZDA CMU TELEMETRY LISTENER STATUS'; then
+            printf '%s\n' "$BODY"
+            return 0
+        fi
+    fi
+    if [ -n "$CURL_BIN" ]; then
+        case "$IP" in
+            *%*)
+                V6_ADDR="${IP%%\%*}"
+                V6_ZONE="${IP#*\%}"
+                URL="http://[${V6_ADDR}%25${V6_ZONE}]:8889${PATHNAME}"
+                BODY=$("$CURL_BIN" -6 -g -fsS --max-time 4 "$URL" 2>/dev/null || true)
+                ;;
+            *:*)
+                URL="http://[${IP}]:8889${PATHNAME}"
+                BODY=$("$CURL_BIN" -6 -g -fsS --max-time 4 "$URL" 2>/dev/null || true)
+                ;;
+            *)
+                URL="http://${IP}:8889${PATHNAME}"
+                BODY=$("$CURL_BIN" -fsS --max-time 4 "$URL" 2>/dev/null || true)
+                ;;
+        esac
+        if printf '%s\n' "$BODY" | grep -q 'MAZDA CMU TELEMETRY LISTENER STATUS'; then
+            printf '%s\n' "$BODY"
+            return 0
+        fi
+    fi
+    return 1
 }
 
 probe_with_helper() {
@@ -224,7 +263,11 @@ probe_with_helper() {
     if [ "$MODE" = "auto" ]; then
         "$PROBE_BIN" --auto-usb --port 8889 --path "$PATHNAME" --output "$OUT_FILE" --timeout-ms 2200 >/dev/null 2>&1
     else
-        "$PROBE_BIN" --interface en3 --host "$TARGET" --port 8889 --path "$PATHNAME" --output "$OUT_FILE" --timeout-ms 2200 >/dev/null 2>&1
+        IFACE="en3"
+        case "$TARGET" in
+            192.168.100.*) IFACE="en0" ;;
+        esac
+        "$PROBE_BIN" --interface "$IFACE" --host "$TARGET" --port 8889 --path "$PATHNAME" --output "$OUT_FILE" --timeout-ms 2200 >/dev/null 2>&1
     fi
 }
 
