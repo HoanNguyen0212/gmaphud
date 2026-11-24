@@ -309,7 +309,8 @@ static void send_udp_packet(int fd, const char *dst_ip, uint16_t port, const cha
     }
 }
 
-static void announce_once(const char *bind_ip, unsigned int ifindex, const char *session, const char *cmu_ips) {
+static void announce_once(const char *bind_ip, unsigned int ifindex, const char *session,
+                          const char *cmu_ips, int send_sync) {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) return;
     int one = 1;
@@ -332,22 +333,27 @@ static void announce_once(const char *bind_ip, unsigned int ifindex, const char 
         (void)bind(fd, (struct sockaddr *)&src, sizeof(src));
     }
 
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    long long epoch_ms = (long long)tv.tv_sec * 1000LL + (long long)(tv.tv_usec / 1000);
-
     char sess_msg[160];
-    char sync_msg[96];
     int slen = snprintf(sess_msg, sizeof(sess_msg), "SESSION_START %s\n", session);
-    int tlen = snprintf(sync_msg, sizeof(sync_msg), "SYNC %lld 0\n", epoch_ms);
-    if (slen <= 0 || tlen <= 0) { close(fd); return; }
+    if (slen <= 0) { close(fd); return; }
+
+    char sync_msg[96];
+    int tlen = 0;
+    if (send_sync) {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        long long epoch_ms = (long long)tv.tv_sec * 1000LL + (long long)(tv.tv_usec / 1000);
+        tlen = snprintf(sync_msg, sizeof(sync_msg), "SYNC %lld 0\n", epoch_ms);
+    }
 
     char ips_copy[512];
     snprintf(ips_copy, sizeof(ips_copy), "%s 169.254.255.255 192.168.53.255", cmu_ips);
     char *saveptr = NULL;
     for (char *tok = strtok_r(ips_copy, " \t\r\n", &saveptr); tok; tok = strtok_r(NULL, " \t\r\n", &saveptr)) {
         send_udp_packet(fd, tok, 8888, sess_msg, (size_t)slen);
-        send_udp_packet(fd, tok, 8888, sync_msg, (size_t)tlen);
+        if (send_sync && tlen > 0) {
+            send_udp_packet(fd, tok, 8888, sync_msg, (size_t)tlen);
+        }
     }
     close(fd);
 }
@@ -667,6 +673,7 @@ int main(void) {
     int port = env_int("GVM_CMU_PUSH_PORT", DEFAULT_PORT, 1, 65535);
     int retention_days = env_int("GVM_CMU_PUSH_RETENTION_DAYS", DEFAULT_RETENTION_DAYS, 0, 365);
     int announce_interval = env_int("GVM_CMU_PUSH_ANNOUNCE_INTERVAL", DEFAULT_ANNOUNCE_INTERVAL, 2, 300);
+    int send_sync = env_int("GVM_CMU_PUSH_SEND_SYNC", 0, 0, 1);
     int test_mode = env_int("GVM_CMU_PUSH_TEST_MODE", 0, 0, 1);
     const char *bind_override = getenv("GVM_CMU_PUSH_BIND");
     const char *cmu_ips = getenv("GVM_CMU_PUSH_CMU_IP");
@@ -760,7 +767,7 @@ int main(void) {
         }
 
         if (!test_mode && (last_announce == 0 || now - last_announce >= announce_interval)) {
-            announce_once(active_ip, active_ifindex, session, cmu_ips);
+            announce_once(active_ip, active_ifindex, session, cmu_ips, send_sync);
             last_announce = now;
         }
 

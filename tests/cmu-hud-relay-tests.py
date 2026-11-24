@@ -78,6 +78,15 @@ class CMUHudRelaySourceTests(unittest.TestCase):
         self.assertIn("SendTimeSync", self.impl)
         self.assertIn("sLastSyncSend", self.impl)
 
+    def test_phone_time_sync_is_opt_in_default_off(self):
+        # Sending SYNC causes CMU clock_settime(1970 -> current year), which stalls
+        # Mazda CarPlay iAP2 NMEA GPS until Lightning replug. Must default OFF.
+        self.assertIn("IsCMUTimeSyncEnabled", self.impl)
+        self.assertIn('CFSTR("cmuTimeSyncEnabled")', self.impl)
+        start = self.impl.index("static void SendTimeSync(void) {")
+        body = self.impl[start:start + 450]
+        self.assertIn("if (!IsCMUTimeSyncEnabled())", body)
+
     def test_relay_log_has_epoch_milliseconds(self):
         self.assertIn("epoch_ms=%lld", self.impl)
 

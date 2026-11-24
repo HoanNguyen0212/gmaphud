@@ -40,6 +40,40 @@ def test_source_contract() -> None:
     prerm = (PACKAGE / "DEBIAN/prerm").read_text()
     assert "bootstrap system" in postinst
     assert "bootout system" in prerm
+    assert "probe_is_usable" in logger
+    assert logger.index("gmaphud-cmu-usb-probe") < logger.index("gmaphud-cmu-http-probe")
+
+
+def test_probe_selection_skips_broken_python_wrapper() -> None:
+    logger = (PACKAGE / "layout/var/jb/usr/local/bin/gmaphud-auto-session-logger.sh").read_text()
+    start = logger.index("probe_is_usable() {")
+    end = logger.index("capture_ncm_state() {")
+    snippet = logger[start:end]
+    with tempfile.TemporaryDirectory(prefix="gmaphud-probe-sel-") as tmp:
+        bindir = Path(tmp) / "bin"
+        bindir.mkdir()
+        py_wrapper = bindir / "gmaphud-cmu-http-probe"
+        py_wrapper.write_text("#!/usr/bin/env python3\nprint('bad')\n")
+        py_wrapper.chmod(0o755)
+        native = bindir / "gmaphud-cmu-usb-probe"
+        native.write_bytes(b"\xcf\xfa\xed\xfe\x00\x00\x00\x00native-bin")
+        native.chmod(0o755)
+        script = f'PATH="{bindir}:/bin:/usr/bin"\n{snippet}\nprintf "%s" "$PROBE_BIN"\n'
+        res = subprocess.run(["/bin/sh", "-c", script], text=True, capture_output=True, check=False)
+        assert res.returncode == 0, res.stderr
+        assert res.stdout == str(native), f"expected {native}, got {res.stdout!r}"
+
+        # Even when native probe is absent, broken python wrapper must be rejected if python3 is missing.
+        native.unlink()
+        for tool in ("head", "tr", "sed"):
+            target = Path("/usr/bin") / tool
+            if not target.exists():
+                target = Path("/bin") / tool
+            (bindir / tool).symlink_to(target)
+        script_no_py = f'PATH="{bindir}"\n{snippet}\nprintf "%s" "$PROBE_BIN"\n'
+        res2 = subprocess.run(["/bin/sh", "-c", script_no_py], text=True, capture_output=True, check=False)
+        assert res2.returncode == 0, res2.stderr
+        assert res2.stdout == "", f"expected empty PROBE_BIN without python3, got {res2.stdout!r}"
 
 
 def test_package_build_contract() -> None:
@@ -62,7 +96,7 @@ def test_package_build_contract() -> None:
 
 
 def main() -> int:
-    tests = [test_source_contract, test_package_build_contract]
+    tests = [test_source_contract, test_probe_selection_skips_broken_python_wrapper, test_package_build_contract]
     for test in tests:
         test()
         print(f"{test.__name__}: PASS")

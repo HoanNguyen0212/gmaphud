@@ -135,6 +135,11 @@ class NativeCMULogReceiverTests(unittest.TestCase):
             if proc.stderr:
                 proc.stderr.close()
 
+    def test_sync_announcement_opt_in_default_off(self):
+        src = SRC.read_text()
+        self.assertIn('env_int("GVM_CMU_PUSH_SEND_SYNC", 0, 0, 1)', src)
+        self.assertIn("if (send_sync && tlen > 0)", src)
+
 
 if __name__ == "__main__":
     unittest.main()

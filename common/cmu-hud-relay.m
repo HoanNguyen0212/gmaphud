@@ -618,8 +618,35 @@ static void SendLimit(NSUInteger limitKmh) {
     }
 }
 
+// Opt-in preference: sending SYNC causes cmu_splim_listener to call
+// clock_settime(CLOCK_REALTIME) (1970 -> current year jump), which stalls
+// Mazda CMU's active iAP2 CarPlay NMEA GPS stream until cable replug.
+// Default NO unless explicitly enabled in com.chou.gmaphud.
+static BOOL IsCMUTimeSyncEnabled(void) __attribute__((unused));
+static BOOL IsCMUTimeSyncEnabled(void) {
+    CFStringRef domain = CFSTR("com.chou.gmaphud");
+    CFPreferencesAppSynchronize(domain);
+    CFPropertyListRef value = CFPreferencesCopyAppValue(CFSTR("cmuTimeSyncEnabled"), domain);
+    if (!value) return NO;
+    BOOL enabled = NO;
+    if (CFGetTypeID(value) == CFBooleanGetTypeID()) {
+        enabled = CFBooleanGetValue((CFBooleanRef)value);
+    } else if (CFGetTypeID(value) == CFNumberGetTypeID()) {
+        int n = 0;
+        if (CFNumberGetValue((CFNumberRef)value, kCFNumberIntType, &n)) {
+            enabled = (n != 0);
+        }
+    }
+    CFRelease(value);
+    return enabled;
+}
+
 static void SendTimeSync(void) {
     NSTimeInterval nowMono = MonotonicNow();
+    if (!IsCMUTimeSyncEnabled()) {
+        sLastSyncSend = nowMono;
+        return;
+    }
     long long epochMs = (long long)([NSDate date].timeIntervalSince1970 * 1000.0);
     unsigned long long monoMs = (unsigned long long)(nowMono * 1000.0);
     char buf[96];

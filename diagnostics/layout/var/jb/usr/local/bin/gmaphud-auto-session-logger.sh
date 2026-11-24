@@ -163,15 +163,27 @@ elif [ -x /var/jb/usr/bin/nc ]; then
     NC_BIN=/var/jb/usr/bin/nc
 fi
 
+probe_is_usable() {
+    CAND="$1"
+    [ -n "$CAND" ] && [ -x "$CAND" ] || return 1
+    FIRST_LINE=$(head -c 128 "$CAND" 2>/dev/null | tr '\0' ' ' | sed -n '1p')
+    case "$FIRST_LINE" in
+        '#!'*python*)
+            command -v python3 >/dev/null 2>&1 || return 1
+            ;;
+    esac
+    return 0
+}
+
 PROBE_BIN=""
 for cand in \
-    "$(command -v gmaphud-cmu-http-probe 2>/dev/null || true)" \
     "$(command -v gmaphud-cmu-usb-probe 2>/dev/null || true)" \
+    /var/jb/usr/local/bin/gmaphud-cmu-usb-probe \
+    "$(command -v gmaphud-cmu-http-probe 2>/dev/null || true)" \
     "$(command -v cmu-http-probe 2>/dev/null || true)" \
     /var/jb/usr/local/bin/gmaphud-cmu-http-probe \
-    /var/jb/usr/local/bin/gmaphud-cmu-usb-probe \
     /var/jb/usr/local/bin/cmu-http-probe; do
-    if [ -n "$cand" ] && [ -x "$cand" ]; then
+    if probe_is_usable "$cand"; then
         PROBE_BIN="$cand"
         break
     fi
@@ -303,17 +315,18 @@ poll_cmu() {
 
     FOUND=0
     if [ -n "$PROBE_BIN" ]; then
+        PROBE_NAME=$(basename "$PROBE_BIN")
         OUT="$DAY_DIR/cmu/diag-all-auto-usb-${CLOCK}.log"
         if probe_with_helper auto "" /diag/all "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
             mv -f "$OUT.tmp" "$OUT"
-            record_event "cmu_ip=auto-usb endpoint=diag/all file=$(basename "$OUT")"
+            record_event "cmu_ip=auto-usb endpoint=diag/all probe=$PROBE_NAME file=$(basename "$OUT")"
             record_cmu_snapshot "$OUT" auto-usb diag/all
             FOUND=1
         else
             rm -f "$OUT.tmp"
             if probe_with_helper auto "" /diag "$OUT.tmp" && [ -s "$OUT.tmp" ]; then
                 mv -f "$OUT.tmp" "$OUT"
-                record_event "cmu_ip=auto-usb endpoint=diag file=$(basename "$OUT")"
+                record_event "cmu_ip=auto-usb endpoint=diag probe=$PROBE_NAME file=$(basename "$OUT")"
                 record_cmu_snapshot "$OUT" auto-usb diag
                 FOUND=1
             else
